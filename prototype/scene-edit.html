@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>逐场打磨 · Lively Novel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="seal">活</span><div><h1>Lively Novel</h1><div class="zh">活字成剧</div></div></div>
+  <div class="spacer"></div>
+  <a class="btn ghost sm" href="preview.html">← 返回预览</a>
+  <div class="user-chip"><span class="av">林</span>xiaolin</div>
+</div>
+
+<div class="page" style="max-width:1400px">
+  <div class="flow reveal" style="margin-bottom:22px">
+    <a href="import.html">② 导入</a><span class="sep">→</span><a href="converting.html">③ 转换</a><span class="sep">→</span><a href="preview.html">④ 预览</a><span class="sep">→</span><a class="on">⑤ 打磨</a><span class="sep">→</span><a href="export.html">⑥ 导出</a>
+  </div>
+
+  <div class="eyebrow reveal">05 · 逐场打磨 · 编辑 YAML 结构</div>
+  <h1 class="h-title reveal d1" style="font-size:clamp(24px,3.4vw,34px)">S2 · 外景 — 天台 — 黄昏</h1>
+  <p class="lead reveal d2">打磨即编辑 YAML 结构化数据——改字段、换视觉化手法、或让 AI 重新生成本场。</p>
+
+  <div class="grid-2 mt-24" style="grid-template-columns:1fr 1fr">
+    <!-- 左：原文 + YAML 结构 -->
+    <div class="panel reveal d2">
+      <div class="panel-h"><span class="ix">SOURCE</span> 小说原文 · 本场 <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">第2章</span></div>
+      <div class="panel-b">
+        <p style="font-family:var(--serif);line-height:2;color:var(--ink-soft)">　　黄昏，城市在脚下铺开。她走到栏杆边，晚风掀动她的发。<span class="vo-mark" title="这句内心描写已被视觉化">她想，如果就这样跳下去，会不会比活着轻松。</span>可她又想起母亲电话里的唠叨，鼻子一酸，终究没有迈出那一步。</p>
+      </div>
+    </div>
+
+    <!-- 右：YAML 结构编辑 -->
+    <div class="panel reveal d3">
+      <div class="panel-h"><span class="ix">YAML</span> 本场结构 <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">可直接编辑</span></div>
+      <div class="panel-b" style="padding:0">
+        <pre class="yaml-preview" style="padding:12px;font-family:var(--mono);font-size:12px;line-height:1.5;background:var(--paper-2);max-height:280px;overflow:auto">
+sceneId: s2
+heading:
+  interior: false
+  location: 天台
+  timeOfDay: 黄昏
+actionLines:
+  - 城市在脚下铺开，晚风掀动林晚的发。
+  - 她走到栏杆边，指节因用力而泛白。
+dialogueBlocks:
+  - character: 林晚
+    parenthetical: (画外音)
+    line: 往下看一眼，就一眼……可那串电话还没挂断。
+visualizedInnerThoughts:
+  - original: 如果就这样跳下去，会不会比活着轻松
+    method: VO
+    result: 林晚 (画外音) 往下看一眼，就一眼……
+transitions:
+  - 切至：
+sourceChapter: 2
+sourceText: 黄昏，城市在脚下铺开...</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- 视觉化手法选择 -->
+  <div class="panel reveal d4 mt-16">
+    <div class="panel-h"><span class="ix">METHOD</span> 内心戏视觉化 · 手法切换</div>
+    <div class="panel-b">
+      <p class="hint" style="margin-bottom:12px">选中原文中的内心描写，选择视觉化手法，AI 将重新生成对应字段：</p>
+      <div class="row" style="gap:12px;flex-wrap:wrap;align-items:center">
+        <span class="muted" style="font-size:13px">原文：「如果就这样跳下去，会不会比活着轻松」</span>
+        <button class="btn sm primary">画外音 V.O.</button>
+        <button class="btn sm ghost">可见动作</button>
+        <button class="btn sm ghost">说出口</button>
+        <button class="btn sm ghost">镜头特写</button>
+        <button class="btn sm ghost">删除本场内心戏</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 风格重生成 -->
+  <div class="panel reveal d5 mt-16">
+    <div class="panel-h"><span class="ix">REGEN</span> AI 重新生成本场</div>
+    <div class="panel-b row" style="justify-content:space-between;flex-wrap:wrap;gap:14px">
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <span class="lbl" style="margin:0">风格提示</span>
+        <button class="btn sm ghost">更含蓄</button>
+        <button class="btn sm ghost">更戏剧化</button>
+        <button class="btn sm ghost">更冷峻</button>
+        <input class="input" placeholder="自定义风格…" style="width:160px">
+        <label class="row" style="gap:6px;font-size:13px;color:var(--ink-soft)"><input type="checkbox" checked> 携带全局上下文</label>
+      </div>
+      <div class="row" style="gap:10px">
+        <button class="btn">↻ 重新生成本场</button>
+        <button class="btn primary">保存本场修改 ✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 渲染预览 -->
+  <div class="panel reveal d6 mt-16">
+    <div class="panel-h"><span class="ix">PREVIEW</span> 渲染预览 <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">YAML → 可读视图</span></div>
+    <div class="panel-b" style="padding:0">
+      <div class="screenplay" style="padding:16px">
+        <div class="sp-scene">
+          <div class="sp-heading"><span class="no">S2</span> 外景 — 天台 — 黄昏</div>
+          <p class="sp-action">城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。</p>
+          <div class="sp-vo"><div class="sp-cue">林晚</div><div class="sp-paren">(画外音)</div><div class="sp-dialogue">往下看一眼，就一眼……可那串电话还没挂断。</div></div>
+          <p class="sp-trans">切至：</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="api-dock" id="dock">
+  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 打磨</span><span class="cnt">3</span></div>
+  <div class="api-list">
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/screenplay/{id}/scenes/{sceneId}</span><span class="when">进入页面：拉本场 YAML 结构</span></div>
+    <div class="api-item"><span class="m PUT">PUT</span><span class="path">/api/screenplay/{id}/scenes/{sceneId}</span><span class="when">「保存本场」→ 手动编辑的 YAML 结构落库</span></div>
+    <div class="api-item"><span class="m SSE">SSE</span><span class="path">POST …/scenes/{sceneId}/regenerate</span><span class="when">「重新生成」→ {style, globalContext, visualizedMethod}；SSE 推送新 YAML</span></div>
+  </div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>导入小说 · Lively Novel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="seal">活</span><div><h1>Lively Novel</h1><div class="zh">活字成剧</div></div></div>
+  <div class="spacer"></div>
+  <div class="quota-chip">今日额度 <b>168k / 200k</b> tokens</div>
+  <div class="user-chip"><span class="av">林</span>xiaolin</div>
+</div>
+
+<div class="page">
+  <div class="flow reveal" style="margin-bottom:26px">
+    <a class="on">② 导入</a><span class="sep">→</span><a href="converting.html">③ 转换</a><span class="sep">→</span><a href="preview.html">④ 预览</a><span class="sep">→</span><a href="scene-edit.html">⑤ 打磨</a><span class="sep">→</span><a href="export.html">⑥ 导出</a>
+  </div>
+
+  <div class="eyebrow reveal">02 · 导入</div>
+  <h1 class="h-title reveal d1" style="font-size:clamp(26px,4vw,40px)">把小说交给它</h1>
+
+  <div class="grid-2 mt-24" style="grid-template-columns:1.6fr 1fr">
+    <!-- 左：文本输入 -->
+    <div class="panel reveal d2">
+      <div class="panel-h"><span class="ix">TEXT</span> 小说正文 <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">需 ≥ 3 章 · ≤ 10 万字</span></div>
+      <div class="panel-b">
+        <label class="fld"><span class="lbl">作品标题</span><input class="input" value="她比烟花寂寞"></label>
+        <label class="fld" style="margin-bottom:8px"><span class="lbl">粘贴正文（自动识别章节）</span>
+          <textarea class="textarea manuscript" rows="11">第一章 出租屋的夜
+　　雨敲在铁皮屋檐上。林晚把简历又看了一遍，心里像压了块石头——她知道这次又没戏了……
+
+第二章 天台
+　　黄昏，城市在脚下铺开。她想，如果就这样跳下去，会不会比活着轻松。
+
+第三章 转机
+　　手机响了。是那家公司。"林晚小姐，恭喜你通过了。"</textarea>
+        </label>
+        <div class="row" style="justify-content:space-between">
+          <span class="hint">已识别 <b style="color:var(--seal)">3</b> 章 · 约 <b style="color:var(--seal)">1.2</b> 万字</span>
+          <button class="btn sm ghost">或 上传 .txt 文件</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：剧本类型 + 开始 -->
+    <div class="reveal d3">
+      <div class="panel">
+        <div class="panel-h"><span class="ix">TYPE</span> 剧本类型</div>
+        <div class="panel-b">
+          <div class="type-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="type-card on"><div class="t">动画剧本</div><div class="d">TV单集 ~20-24min</div><span class="badge">ANIME</span></div>
+            <div class="type-card"><div class="t">影视剧本</div><div class="d">长片 ~90-120min</div><span class="badge">FILM</span></div>
+            <div class="type-card"><div class="t">短剧剧本</div><div class="d">~2–5min/集</div><span class="badge">SHORT</span></div>
+            <div class="type-card soon"><div class="t">广播剧</div><div class="d">无画面 · 待开发</div><span class="badge">SOON</span></div>
+            <div class="type-card soon"><div class="t">话剧</div><div class="d">舞台 · 待开发</div><span class="badge">SOON</span></div>
+          </div>
+          <p class="hint mt-16">MVP 仅支持动画剧本；影视/短剧/广播剧/话剧后续开放。</p>
+        </div>
+      </div>
+      <a class="btn primary lg mt-16" href="converting.html" style="width:100%;justify-content:center">开始转换 <span class="ar">→</span></a>
+      <p class="hint mt-8" style="text-align:center">相同小说+类型若已转换过，将命中缓存秒开（不重复计费）</p>
+    </div>
+  </div>
+</div>
+
+<div class="api-dock" id="dock">
+  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 导入</span><span class="cnt">4</span></div>
+  <div class="api-list">
+    <div class="api-item"><span class="m POST">POST</span><span class="path">/api/novel/parse</span><span class="when">粘贴正文 → 解析章节、返回 novelId</span></div>
+    <div class="api-item"><span class="m POST">POST</span><span class="path">/api/novel/upload</span><span class="when">上传 .txt 文件（multipart ≤ 5MB）</span></div>
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/novel</span><span class="when">（可选）我的历史小说列表，便于复用</span></div>
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/auth/me</span><span class="when">顶栏每日配额显示</span></div>
+  </div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>

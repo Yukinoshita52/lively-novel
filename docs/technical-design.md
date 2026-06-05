@@ -1,8 +1,14 @@
 # Lively Novel — 技术方案文档
 
 > 日期：2026-06-05
-> 版本：v1.0
-> 依赖：需求分析文档 v1.0、产品设计文档 v1.0
+> 版本：v1.5
+> 依赖：需求分析文档 v1.0、产品设计文档 v1.0、YAML Schema 文档 v1.0
+>
+> **v1.1 变更**：① LLM 集成改用 Spring AI；② 引入 SQLite 持久化 + 内容哈希缓存；③ 增加完整登录认证（Spring Security + JWT）；④ 取消"无状态/不存储"设定。
+> **v1.2 变更**：LLM 框架改用 **Spring AI Alibaba**（构建于 Spring AI，中文文档更丰富）；DeepSeek 经 **OpenAI 兼容适配器**接入 **DeepSeek 官方 API**。
+> **v1.3 变更（§5 重审重写）**：① 全局分析改为**自适应 Map-Reduce**（短文单次／长文顺序滚动逐章 Map + Reduce，非并行以保跨章连贯）；② 修正中文 token 量级误算；③ 明确**场景切分**步骤补齐 A/B 缺环；④ prompt 改为"仅任务+规则"，Schema 交由 `.entity()` 注入；⑤ MVP **仅影视类**，广播剧/话剧规则列为扩展；⑥ 补人物名一致性、前场上下文、visualizedInnerThoughts 留痕语义。
+> **v1.4 变更（§6/7/8/9 复审）**：§6 补注册/登录滥用、并发任务、上传体积、提示注入、CORS、SQL 注入等风险；§7 标注初版、补 README/resources/common/dto/exception/test/data 等关键目录；§8 补 40401/42901/40303/50004 错误码；§9 补 WAL 开启、multipart 与 SSE 超时、全局预算、模型名核对提示。
+> **v1.5 变更（§4 重写）**：结合原型逐屏，为全部 16 个接口补全请求/响应详细设计；接口列表增加「原型来源」列；新增 §4.2 通用约定（鉴权/JSON 包装/SSE 约定）；注册改为返回 token 自动登录；响应字段与 `yaml-schema.md` 全面对齐（ANIME 默认、schemaVersion、visualizedInnerThoughts method 枚举）；补 ⑥⑨⑩⑪⑫⑬⑮⑯ 等此前缺失的接口示例。
 
 ---
 
@@ -18,17 +24,19 @@
 | 后端框架 | Spring Boot 3 (Java 17) | 比赛要求 Java 后端，Spring Boot 是最成熟的选择 |
 | 构建工具 | Maven | Java 生态主流，简单直接 |
 | 大模型 | DeepSeek-v4 (Pro/flash) | 用户指定，OpenAI 兼容接口 |
-| HTTP 客户端 | OkHttp / WebClient | 用于调用 DeepSeek API，支持流式响应 |
+| **LLM 集成** | **Spring AI Alibaba (ChatClient)** | 构建于 Spring AI，中文文档/示例更丰富；经 OpenAI 兼容适配器，base-url 指向 DeepSeek 官方 API |
+| **持久化** | **SQLite + Spring Data JPA** | 嵌入式、零外部依赖、克隆即可跑；驱动 `xerial sqlite-jdbc`，方言 Hibernate community `SQLiteDialect`，开启 WAL |
+| **认证** | **Spring Security + JWT + BCrypt** | 完整登录认证，无状态 token，对 SSE 友好 |
 | 前后端通信 | REST + SSE | 常规请求用 REST，流式生成用 SSE |
 
 ### 1.2 不引入的组件（72h 取舍）
 
 | 组件 | 不引入理由 |
 |---|---|
-| 数据库 | 无持久化需求，转换结果在内存/前端状态中维护 |
-| Redis | 无队列/缓存需求，单体足够 |
+| MySQL/外部数据库 | 嵌入式 SQLite 已满足；外部 DB 增加评委复现摩擦。JPA 写法保证未来可平滑迁移 MySQL |
+| Redis | 无分布式缓存/会话需求；JWT 无状态，缓存用 DB 内容哈希即可 |
 | 消息队列 | 用 SSE 流式响应替代异步队列，降低复杂度 |
-| Docker | 单机开发，暂不需要容器化 |
+| Docker | 单机开发，暂不需要容器化（可后续补） |
 
 ---
 
@@ -37,100 +45,121 @@
 ### 2.1 架构图
 
 ```
-┌─────────────────────────────────────────────────┐
-│                    前端 (React)                   │
-│                                                   │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐         │
-│  │ 导入页    │ │ 预览页    │ │ 编辑页    │         │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘         │
-│       │            │            │                 │
-│       └────────┬───┘────────────┘                 │
-│                │ REST / SSE                       │
-└────────────────┼──────────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────────┐
-│              后端 (Spring Boot)                   │
-│                                                   │
-│  ┌──────────────────────────────────────────┐   │
-│  │           Controller 层                    │   │
-│  │  NovelController  ScreenplayController    │   │
-│  └──────────────────┬───────────────────────┘   │
-│                     │                            │
-│  ┌──────────────────▼───────────────────────┐   │
-│  │           Service 层                      │   │
-│  │                                            │   │
-│  │  ┌─────────────┐  ┌──────────────────┐   │   │
-│  │  │ AnalysisSvc │  │ GenerationSvc    │   │   │
-│  │  │ (阶段A:分析) │  │ (阶段B:逐场生成) │   │   │
-│  │  └──────┬──────┘  └────────┬─────────┘   │   │
-│  │         │                  │              │   │
-│  │  ┌──────▼──────────────────▼─────────┐   │   │
-│  │  │         LlmClient                  │   │   │
-│  │  │  (DeepSeek API 调用, 流式响应)     │   │   │
-│  │  └────────────────────────────────────┘   │   │
-│  └──────────────────────────────────────────┘   │
-│                                                   │
-│  ┌──────────────────────────────────────────┐   │
-│  │           Model 层                        │   │
-│  │  Novel / Chapter / Screenplay / Scene     │   │
-│  │  Character / Dialogue / Action / ...      │   │
-│  └──────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                    前端 (React)                       │
+│                                                       │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐        │
+│  │ 登录/  │ │ 导入页 │ │ 预览页 │ │ 编辑页 │        │
+│  │ 注册页 │ │        │ │        │ │        │        │
+│  └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘        │
+│      │          │          │          │              │
+│      └─────┬────┴──────────┴──────────┘              │
+│            │ REST / SSE（请求头携带 JWT）             │
+└────────────┼──────────────────────────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────────────────────────┐
+│              后端 (Spring Boot)                       │
+│                                                       │
+│  ┌──────────────────────────────────────────────┐   │
+│  │   Security 层：JWT 过滤器 + BCrypt + 配额限流  │   │
+│  └────────────────────┬─────────────────────────┘   │
+│                       │（鉴权通过）                   │
+│  ┌────────────────────▼─────────────────────────┐   │
+│  │   Controller 层                                │   │
+│  │   Auth / Novel / Screenplay Controller        │   │
+│  └────────────────────┬─────────────────────────┘   │
+│                       │                              │
+│  ┌────────────────────▼─────────────────────────┐   │
+│  │   Service 层                                   │   │
+│  │   ┌───────────┐  ┌──────────────┐             │   │
+│  │   │ AnalysisSvc│  │ GenerationSvc│  阶段A/B   │   │
+│  │   └─────┬─────┘  └──────┬───────┘             │   │
+│  │         │               │                      │   │
+│  │   ┌─────▼───────────────▼──────┐  ┌─────────┐ │   │
+│  │   │  LlmClient (Spring AI)      │  │ CacheSvc│ │   │
+│  │   │  ChatClient → DeepSeek      │  │ 内容哈希│ │   │
+│  │   └─────────────────────────────┘  └────┬────┘ │   │
+│  └─────────────────────────────────────────┼──────┘   │
+│                       │                     │          │
+│  ┌────────────────────▼─────────────────────▼──────┐   │
+│  │   Repository 层 (Spring Data JPA)                │   │
+│  │   User / Novel / Screenplay Repository           │   │
+│  └────────────────────┬─────────────────────────────┘   │
+│                       ▼                                  │
+│              ┌──────────────────┐                       │
+│              │  SQLite (文件,WAL) │                      │
+│              └──────────────────┘                       │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 架构说明
 
 - **单体架构**：Spring Boot 单应用，前后端分离部署
-- **无状态**：不存储用户数据，每次转换独立运行
+- **有状态持久化**：用户、小说、剧本均存入 SQLite，重启不丢，支持"继续使用同一份剧本"
+- **鉴权**：所有业务接口经 JWT 过滤器鉴权；剧本归属到用户，仅本人可读写
+- **成本控制**：内容哈希缓存（同一份小说+类型不重复调 LLM）+ 每用户配额/限流
 - **流式响应**：转换过程通过 SSE 推送进度和中间结果
 
 ---
 
 ## 3. 核心数据模型
 
-### 3.1 领域模型
+### 3.1 持久化实体
 
 ```
-Novel (小说)
- ├── title: String
- ├── chapters: List<Chapter>
- │    ├── chapterIndex: int
- │    ├── title: String
- │    └── content: String
- └── metadata: NovelMetadata
-      ├── totalChapters: int
-      └── totalWordCount: int
+User (用户)
+ ├── id: Long (PK)
+ ├── username: String (唯一)
+ ├── passwordHash: String (BCrypt)
+ ├── dailyTokenQuota: int (每日配额)
+ ├── usedTokenToday: int (当日已用 token)
+ ├── quotaDate: LocalDate (配额计数所属日期；调用时若 != 今天则先清零 usedTokenToday)
+ └── createdAt: Instant
 
-Screenplay (剧本)
+Novel (小说)  ── 归属 userId
+ ├── id: String (UUID, PK)
+ ├── userId: Long (FK)
  ├── title: String
- ├── screenplayType: ScreenplayType (FILM|SHORT_DRAMA|RADIO|THEATER)
+ ├── contentHash: String (用于缓存命中)
+ ├── totalChapters: int
+ ├── totalWordCount: int
+ ├── rawContent: TEXT (原文)
+ └── createdAt: Instant
+
+Screenplay (剧本)  ── 归属 userId，关联 novelId
+ ├── id: String (UUID, PK)
+ ├── userId: Long (FK)
+ ├── novelId: String (FK)
+ ├── title: String
+ ├── screenplayType: ENUM (ANIME|FILM|SHORT_DRAMA|RADIO|THEATER)
+ ├── contentJson: TEXT  ← 完整剧本结构序列化为 JSON 存储（避免嵌套全 ORM 化）
+ ├── cacheKey: String (novelContentHash + type，缓存命中键；有意反范式，与 Novel.contentHash 冗余以换取直接索引命中)
+ └── updatedAt: Instant
+```
+
+### 3.2 剧本内容结构（存于 Screenplay.contentJson）
+
+```
+ScreenplayContent
+ ├── plotSummary: String          ← 阶段A全局分析的剧情概要，持久化以支持"逐场重生(globalContext)"无需重跑阶段A
  ├── characters: List<Character>
- │    ├── name: String
- │    ├── role: String (PROTAGONIST|SUPPORTING|MINOR)
- │    ├── description: String
- │    └── firstAppearance: String (章节.场景)
+ │    ├── name / role(PROTAGONIST|SUPPORTING|MINOR)
+ │    ├── description / firstAppearance
+ │    └── relationships: List<{target, relation}>
  ├── scenes: List<Scene>
  │    ├── sceneId: String
- │    ├── heading: SceneHeading
- │    │    ├── interior: boolean
- │    │    ├── location: String
- │    │    └── timeOfDay: String
+ │    ├── heading: {interior, location, timeOfDay}
  │    ├── actionLines: List<String>
- │    ├── dialogueBlocks: List<DialogueBlock>
- │    │    ├── character: String
- │    │    ├── parenthetical: String (可选)
- │    │    └── line: String
- │    ├── transitions: List<Transition>
+ │    ├── dialogueBlocks: List<{character, parenthetical?, line}>
+ │    ├── transitions: List<String>
+ │    ├── visualizedInnerThoughts: List<{original, method, result}>
  │    ├── sourceChapter: int
- │    └── sourceText: String (原文片段)
- └── storylines: List<Storyline>
-      ├── name: String
-      ├── type: String (MAIN|SUB)
-      └── events: List<String>
+ │    └── sourceText: String
+ └── storylines: List<{name, type(MAIN|SUB), events[]}>
 ```
 
-### 3.2 转换管线数据流
+### 3.3 转换管线数据流
 
 ```
 原始文本 (String)
@@ -138,14 +167,16 @@ Screenplay (剧本)
     ▼ [章节分割]
 List<Chapter>
     │
-    ▼ [全局分析 - 阶段A]
+    ▼ [计算 contentHash → 查缓存命中？]——命中──▶ 直接返回已存剧本（不调 LLM）
+    │ 未命中
+    ▼ [全局分析 - 阶段A，Spring AI .entity(AnalysisResult.class)]
 AnalysisResult { characters, scenes, storylines, plotSummary }
     │
-    ▼ [逐场生成 - 阶段B，逐场景调用 LLM]
+    ▼ [逐场生成 - 阶段B，逐场景 .entity(Scene.class)]
 List<Scene>  ← 每生成一个场景即通过 SSE 推送前端
     │
-    ▼ [组装]
-Screenplay
+    ▼ [组装 + 落库 SQLite]
+Screenplay (持久化)
     │
     ├──▶ YAML 导出
     └──▶ 可读文本导出
@@ -155,200 +186,715 @@ Screenplay
 
 ## 4. API 设计
 
-### 4.1 接口列表
+### 4.1 接口列表（含原型映射）
 
-| 方法 | 路径 | 说明 | 响应类型 |
-|---|---|---|---|
-| POST | `/api/novel/upload` | 上传 txt 文件 | JSON |
-| POST | `/api/novel/parse` | 粘贴文本并解析章节 | JSON |
-| GET | `/api/novel/{id}/chapters` | 获取章节列表 | JSON |
-| POST | `/api/screenplay/convert` | 提交转换任务 | SSE |
-| GET | `/api/screenplay/{id}` | 获取完整剧本 | JSON |
-| PUT | `/api/screenplay/{id}/scenes/{sceneId}` | 编辑单场 | JSON |
-| POST | `/api/screenplay/{id}/scenes/{sceneId}/regenerate` | 重新生成本场 | SSE |
-| GET | `/api/screenplay/{id}/export/yaml` | 导出 YAML | YAML |
-| GET | `/api/screenplay/{id}/export/text` | 导出可读文本 | Text |
-| GET | `/api/screenplay/{id}/characters` | 获取人物表 | JSON |
-| GET | `/api/screenplay/{id}/scenes` | 获取场景表 | JSON |
+> **原型映射列**指出该接口在 `prototype/` 哪一屏被调用（各页面左下角「场记板」亦有标注）。
 
-### 4.2 核心接口详细设计
+| # | 方法 | 路径 | 说明 | 鉴权 | 响应类型 | 原型来源 |
+|---|---|---|---|---|---|---|
+| 1 | POST | `/api/auth/register` | 注册并自动登录 | 否 | JSON | `login.html` |
+| 2 | POST | `/api/auth/login` | 登录，返回 JWT | 否 | JSON | `login.html` |
+| 3 | GET | `/api/auth/me` | 当前用户信息/配额 | 是 | JSON | 所有页顶栏配额条 |
+| 4 | POST | `/api/novel/parse` | 粘贴文本并解析章节 | 是 | JSON | `import.html` |
+| 5 | POST | `/api/novel/upload` | 上传 txt 文件并解析 | 是 | JSON | `import.html` |
+| 6 | GET | `/api/novel/{id}/chapters` | 获取章节列表 | 是(本人) | JSON | `import.html`（复用回显） |
+| 7 | GET | `/api/novel` | 我的小说列表（复用历史） | 是 | JSON | `import.html` |
+| 8 | POST | `/api/screenplay/convert` | 提交转换任务 | 是 | SSE | `converting.html` |
+| 9 | GET | `/api/screenplay` | 我的剧本列表 | 是 | JSON | `preview.html`（切换剧本） |
+| 10 | GET | `/api/screenplay/{id}` | 获取完整剧本 | 是(本人) | JSON | `preview.html` |
+| 11 | GET | `/api/screenplay/{id}/scenes` | 场景表/大纲（轻量投影） | 是(本人) | JSON | `preview.html` |
+| 12 | GET | `/api/screenplay/{id}/characters` | 获取人物表 | 是(本人) | JSON | `preview.html` |
+| 13 | PUT | `/api/screenplay/{id}/scenes/{sceneId}` | 手动编辑单场 | 是(本人) | JSON | `scene-edit.html` |
+| 14 | POST | `/api/screenplay/{id}/scenes/{sceneId}/regenerate` | AI 重生单场 | 是(本人) | SSE | `scene-edit.html` |
+| 15 | GET | `/api/screenplay/{id}/export/yaml` | 导出 YAML（核心交付） | 是(本人) | YAML 文件 | `export.html` |
+| 16 | GET | `/api/screenplay/{id}/export/text` | 导出可读剧本 | 是(本人) | Text 文件 | `export.html` |
 
-#### POST `/api/novel/parse` — 粘贴文本解析
+---
+
+### 4.2 通用约定
+
+#### 4.2.1 鉴权
+
+除 `register`/`login` 外，所有接口须在请求头携带 `Authorization: Bearer <JWT>`。带 `(本人)` 的接口在鉴权之外，还校验**资源归属**（`资源.userId == 当前用户`），不符返回 `40301`。
+
+#### 4.2.2 JSON 响应包装
+
+所有 **JSON** 接口统一用 `{code, data, message}` 包装（见 §8.1）。下文各接口的"响应"仅展开 `data` 内字段，外层包装省略；成功 `code=0`。失败响应形如 `{ "code": 40003, "data": null, "message": "章节数不足..." }`。
+
+#### 4.2.3 SSE 约定
+
+- 流式接口（`convert`、`regenerate`）以 `Content-Type: text/event-stream` 返回，**不走** `{code,data,message}` 包装；每条消息形如 `event: <名> \n data: <JSON>`。
+- `data` 内是**裸 JSON 对象**（非包装体），字段直接对应。
+- **前置校验**（配额/章节/并发等）在建立 SSE 流**之前**完成；若不通过，直接返回普通 JSON 错误体（HTTP 4xx + `{code,...}`），不进入事件流。
+- 流中途出错以 `event: error` 推送 `{code, message}` 后关闭。
+
+---
+
+### 4.3 认证接口
+
+#### ① POST `/api/auth/register` — 注册并自动登录
+
+> 原型：`login.html` 注册表单「注册并登录」按钮——故注册成功**直接返回 token**，前端免二次登录。
+
+**请求：**
+```json
+{ "username": "xiaolin", "password": "Passw0rd!" }
+```
+
+**响应 `data`：**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1Ni
+...",
+  "expiresIn": 86400,
+  "user": { "userId": 1, "username": "xiaolin", "dailyTokenQuota": 200000 }
+}
+```
+
+**可能错误码：** `40001`（参数为空）、`40004`（用户名已存在）、`40005`（密码强度不足）、`42901`（注册 IP 限流）。
+
+#### ② POST `/api/auth/login` — 登录
+
+> 原型：`login.html` 登录表单。
+
+**请求：**
+```json
+{ "username": "xiaolin", "password": "Passw0rd!" }
+```
+
+**响应 `data`：**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1Ni
+...",
+  "expiresIn": 86400,
+  "user": { "userId": 1, "username": "xiaolin", "dailyTokenQuota": 200000 }
+}
+```
+
+**可能错误码：** `40001`、`40103`（用户名或密码错误）、`42901`（登录失败限流/退避）。
+
+#### ③ GET `/api/auth/me` — 当前用户与配额
+
+> 原型：所有页顶栏 `今日额度 168k / 200k tokens` + 用户头像。`remainingToken` 供配额条显示。
+
+**请求：** 无 body。
+
+**响应 `data`：**
+```json
+{
+  "userId": 1,
+  "username": "xiaolin",
+  "dailyTokenQuota": 200000,
+  "usedTokenToday": 32000,
+  "remainingToken": 168000,
+  "quotaDate": "2026-06-05"
+}
+```
+
+**可能错误码：** `40101`（未登录）、`40102`（token 失效）。
+
+---
+
+### 4.4 小说接口
+
+#### ④ POST `/api/novel/parse` — 粘贴文本解析
+
+> 原型：`import.html` 左侧粘贴正文，触发"自动识别章节"——返回 `已识别 3 章 · 约 1.2 万字`。
 
 **请求：**
 ```json
 {
-  "text": "第一章 风起...\n第二章 云涌...\n第三章 ...",
-  "title": "我的小说"
+  "title": "她比烟花寂寞",
+  "text": "第一章 出租屋的夜\n...\n第二章 天台\n...\n第三章 转机\n..."
 }
 ```
 
-**响应：**
+**响应 `data`：**
 ```json
 {
-  "novelId": "uuid-xxx",
-  "title": "我的小说",
+  "novelId": "nv-7f3a",
+  "title": "她比烟花寂寞",
+  "contentHash": "sha256:9c1e...",
   "totalChapters": 3,
-  "totalWordCount": 15000,
+  "totalWordCount": 12000,
   "chapters": [
-    { "chapterIndex": 1, "title": "风起", "wordCount": 5000 },
-    { "chapterIndex": 2, "title": "云涌", "wordCount": 5200 },
-    { "chapterIndex": 3, "title": "...", "wordCount": 4800 }
+    { "chapterIndex": 1, "title": "出租屋的夜", "wordCount": 4200 },
+    { "chapterIndex": 2, "title": "天台",       "wordCount": 3800 },
+    { "chapterIndex": 3, "title": "转机",       "wordCount": 4000 }
   ]
 }
 ```
 
-#### POST `/api/screenplay/convert` — 提交转换（SSE 流式）
+**说明：** `contentHash` 用于后续转换缓存命中（§5.5）；章节标题/字数由后端确定性切分得出（§5.2 步骤①）。
+
+**可能错误码：** `40001`（文本为空）、`40002`（超 10 万字）、`40003`（不足 3 章）。
+
+#### ⑤ POST `/api/novel/upload` — 上传 .txt 解析
+
+> 原型：`import.html`「或 上传 .txt 文件」。与 ④ 等价，仅入参形式不同。
+
+**请求：** `multipart/form-data`
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `file` | file(.txt) | 是 | UTF-8 文本，≤ 5MB（§6 multipart 上限） |
+| `title` | text | 否 | 缺省时取文件名（去扩展名） |
+
+**响应 `data`：** 同 ④（`novelId / title / contentHash / totalChapters / totalWordCount / chapters[]`）。
+
+**可能错误码：** `40001`（空文件/非文本）、`40002`（超 10 万字或超 5MB）、`40003`（不足 3 章）。
+
+#### ⑥ GET `/api/novel/{id}/chapters` — 获取章节列表
+
+> 原型：`import.html` 复用历史小说时回显章节；亦供转换前确认。
+
+**请求：** 路径参数 `id`。
+
+**响应 `data`：**
+```json
+{
+  "novelId": "nv-7f3a",
+  "title": "她比烟花寂寞",
+  "totalChapters": 3,
+  "totalWordCount": 12000,
+  "chapters": [
+    { "chapterIndex": 1, "title": "出租屋的夜", "wordCount": 4200, "preview": "雨敲在铁皮屋檐上。林晚把简历又看了一遍……" },
+    { "chapterIndex": 2, "title": "天台",       "wordCount": 3800, "preview": "黄昏，城市在脚下铺开……" },
+    { "chapterIndex": 3, "title": "转机",       "wordCount": 4000, "preview": "手机响了。是那家公司……" }
+  ]
+}
+```
+
+**可能错误码：** `40401`（小说不存在）、`40301`（非本人）。
+
+#### ⑦ GET `/api/novel` — 我的小说列表
+
+> 原型：`import.html` 复用历史小说，避免重复粘贴。
+
+**请求：** 可选 query `?page=1&size=20`。
+
+**响应 `data`：**
+```json
+{
+  "novels": [
+    { "novelId": "nv-7f3a", "title": "她比烟花寂寞", "totalChapters": 3, "totalWordCount": 12000, "createdAt": "2026-06-05T09:12:00Z" }
+  ],
+  "total": 1
+}
+```
+
+---
+
+### 4.5 剧本转换与读取接口
+
+#### ⑧ POST `/api/screenplay/convert` — 提交转换（SSE 流式）
+
+> 原型：`import.html`「开始转换」跳转 `converting.html`，左侧两阶段进度条 + 右侧实时事件流。
 
 **请求：**
 ```json
 {
-  "novelId": "uuid-xxx",
-  "screenplayType": "SHORT_DRAMA"
+  "novelId": "nv-7f3a",
+  "screenplayType": "ANIME"
 }
 ```
 
-**SSE 事件流：**
+**前置校验（未过则不建流，返回 JSON 错误）：** `40003`（不足 3 章）、`40302`（超每日配额）、`40303`（全局预算用尽）、`42901`（已有进行中任务，超并发上限 §6）。
+
+**SSE 事件流（`data` 为裸 JSON）：**
 ```
+# 命中缓存：直接给结果，跳过 LLM（§5.5）
+event: cache_hit
+data: {"hit": true, "screenplayId": "sp-2b9c"}
+
+# 阶段 A：全局分析
 event: analysis_start
-data: {"phase": "ANALYSIS", "message": "正在全局分析..."}
+data: {"phase": "ANALYSIS", "message": "通读全文，抽取人物/场景/线索…"}
 
 event: analysis_progress
-data: {"phase": "ANALYSIS", "progress": 0.5, "message": "提取人物关系..."}
+data: {"phase": "ANALYSIS", "progress": 0.5, "message": "提取人物关系…"}
 
 event: analysis_complete
-data: {"phase": "ANALYSIS", "characters": [...], "scenes": [...], "storylines": [...]}
+data: {
+  "phase": "ANALYSIS",
+  "plotSummary": "求职屡败的林晚在天台徘徊，终被一通录用电话挽回。",
+  "characters": [
+    {"name":"林晚","role":"PROTAGONIST","description":"27岁求职设计师","firstAppearance":"第1章",
+     "relationships":[{"target":"母亲","relation":"母女"}]}
+  ],
+  "scenes": [
+    {"sceneId":"s1","sourceChapter":1,"heading":{"interior":true,"location":"出租屋","timeOfDay":"夜"}}
+  ],
+  "storylines": [
+    {"name":"求职挣扎","type":"MAIN","events":[{"scene":"s1","event":"独自审视简历"}]}
+  ]
+}
 
+# 阶段 B：逐场生成，每完成一场推送一次（含完整 Scene，字段同 yaml-schema.md §5.3）
 event: generation_start
-data: {"phase": "GENERATION", "message": "开始逐场生成..."}
+data: {"phase": "GENERATION", "totalScenes": 8, "message": "开始逐场生成…"}
 
 event: scene_generated
-data: {"phase": "GENERATION", "sceneIndex": 1, "scene": {"sceneId": "s1", "heading": {...}, ...}}
+data: {
+  "phase": "GENERATION",
+  "sceneIndex": 1,
+  "scene": {
+    "sceneId": "s1",
+    "heading": {"interior": true, "location": "出租屋", "timeOfDay": "夜"},
+    "actionLines": ["雨敲打着铁皮屋檐。林晚盘腿坐在地板上，膝头摊着简历。"],
+    "dialogueBlocks": [{"character":"林晚","parenthetical":"(画外音)","line":"又一次……我都习惯了。"}],
+    "visualizedInnerThoughts": [{"original":"心里像压了块石头","method":"CLOSE_UP","result":"指尖把纸角捻出褶皱"}],
+    "transitions": ["切至："],
+    "sourceChapter": 1,
+    "sourceText": "雨敲在铁皮屋檐上。林晚把简历又看了一遍……"
+  }
+}
 
-event: scene_generated
-data: {"phase": "GENERATION", "sceneIndex": 2, "scene": {...}}
-
+# 全部完成：剧本已落库，返回 screenplayId（前端跳预览）
 event: complete
-data: {"phase": "COMPLETE", "screenplayId": "uuid-yyy"}
+data: {"phase": "COMPLETE", "screenplayId": "sp-2b9c", "sceneCount": 8}
+
+# 任意阶段出错
+event: error
+data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 ```
 
-#### POST `/api/screenplay/{id}/scenes/{sceneId}/regenerate` — 重新生成单场（SSE）
+**流中错误码：** `50001`（LLM 调用失败）、`50002`（输出格式异常）、`50004`（LLM 超时）。
+
+#### ⑨ GET `/api/screenplay` — 我的剧本列表
+
+> 原型：`preview.html` 顶部"切换我的其它剧本"。
+
+**响应 `data`：**
+```json
+{
+  "screenplays": [
+    { "screenplayId": "sp-2b9c", "novelId": "nv-7f3a", "title": "她比烟花寂寞",
+      "screenplayType": "ANIME", "sceneCount": 8, "updatedAt": "2026-06-05T09:20:00Z" }
+  ],
+  "total": 1
+}
+```
+
+#### ⑩ GET `/api/screenplay/{id}` — 获取完整剧本
+
+> 原型：`preview.html` 进入页面拉取完整剧本（剧本渲染 + 大纲 + 人物/场景表均源于此）。返回体即 **YAML Schema 的 JSON 形态**（字段一一对应 `yaml-schema.md`）。
+
+**响应 `data`：**
+```json
+{
+  "screenplayId": "sp-2b9c",
+  "novelId": "nv-7f3a",
+  "schemaVersion": "1.0",
+  "title": "她比烟花寂寞",
+  "screenplayType": "ANIME",
+  "plotSummary": "求职屡败的林晚在天台徘徊，终被一通录用电话挽回。",
+  "characters": [
+    { "name": "林晚", "role": "PROTAGONIST", "description": "27岁，求职屡屡碰壁的设计师",
+      "firstAppearance": "第1章", "relationships": [ { "target": "母亲", "relation": "母女" } ] }
+  ],
+  "scenes": [
+    { "sceneId": "s1",
+      "heading": { "interior": true, "location": "出租屋", "timeOfDay": "夜" },
+      "actionLines": [ "雨敲打着铁皮屋檐。林晚盘腿坐在地板上。" ],
+      "dialogueBlocks": [ { "character": "林晚", "parenthetical": "(画外音)", "line": "又一次……我都习惯了。" } ],
+      "visualizedInnerThoughts": [ { "original": "心里像压了块石头", "method": "CLOSE_UP", "result": "指尖把纸角捻出褶皱" } ],
+      "transitions": [ "切至：" ],
+      "sourceChapter": 1,
+      "sourceText": "雨敲在铁皮屋檐上。林晚把简历又看了一遍……" }
+  ],
+  "storylines": [
+    { "name": "求职挣扎", "type": "MAIN", "events": [ { "scene": "s1", "event": "独自审视简历" } ] }
+  ],
+  "updatedAt": "2026-06-05T09:20:00Z"
+}
+```
+
+**可能错误码：** `40401`（剧本不存在）、`40301`（非本人）。
+
+#### ⑪ GET `/api/screenplay/{id}/scenes` — 场景表 / 大纲（轻量投影）
+
+> 原型：`preview.html` 左侧大纲 + 「场景表」Tab（列：#、内/外、地点、时间、出场、源章）。为减负返回投影，不含完整动作/对白；详情走 ⑩。
+
+**响应 `data`：**
+```json
+{
+  "scenes": [
+    { "sceneId": "s1", "heading": {"interior": true,  "location": "出租屋", "timeOfDay": "夜"},
+      "charactersInScene": ["林晚"], "sourceChapter": 1 },
+    { "sceneId": "s2", "heading": {"interior": false, "location": "天台",   "timeOfDay": "黄昏"},
+      "charactersInScene": ["林晚"], "sourceChapter": 2 },
+    { "sceneId": "s3", "heading": {"interior": true,  "location": "公司",   "timeOfDay": "日"},
+      "charactersInScene": ["林晚", "陈经理"], "sourceChapter": 3 }
+  ]
+}
+```
+
+**可能错误码：** `40401`、`40301`。
+
+#### ⑫ GET `/api/screenplay/{id}/characters` — 人物表
+
+> 原型：`preview.html`「人物表」Tab（角色/重要度/身份描述/首次出场）+「关系图谱」加分项数据源。
+
+**响应 `data`：**
+```json
+{
+  "characters": [
+    { "name": "林晚", "role": "PROTAGONIST", "description": "27岁，求职屡屡碰壁的设计师，敏感坚韧",
+      "firstAppearance": "第1章",
+      "relationships": [ { "target": "母亲", "relation": "母女" }, { "target": "陈经理", "relation": "录用关系" } ] },
+    { "name": "陈经理", "role": "SUPPORTING", "description": "录用林晚的公司主管", "firstAppearance": "第3章",
+      "relationships": [] }
+  ]
+}
+```
+
+**可能错误码：** `40401`、`40301`。
+
+---
+
+### 4.6 剧本打磨接口
+
+> 原型：`scene-edit.html`。打磨即编辑 YAML 结构——两条路径：**手动编辑（⑬ PUT）**与 **AI 重生（⑭ SSE）**。
+
+#### ⑬ PUT `/api/screenplay/{id}/scenes/{sceneId}` — 手动编辑单场
+
+> 原型：`scene-edit.html`「保存本场修改 ✓」。提交编辑后的整场 YAML 结构落库。
+
+**请求**（可编辑字段；`sourceChapter`/`sourceText` 为溯源字段，不可改，后端忽略传入值）：
+```json
+{
+  "heading": { "interior": false, "location": "天台", "timeOfDay": "黄昏" },
+  "actionLines": [ "城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。" ],
+  "dialogueBlocks": [ { "character": "林晚", "parenthetical": "(画外音)", "line": "往下看一眼，就一眼……可那串电话还没挂断。" } ],
+  "visualizedInnerThoughts": [ { "original": "如果就这样跳下去，会不会比活着轻松", "method": "VO", "result": "往下看一眼，就一眼……" } ],
+  "transitions": [ "切至：" ]
+}
+```
+
+**响应 `data`：** 落库后的完整场景 + 更新时间。
+```json
+{
+  "scene": {
+    "sceneId": "s2",
+    "heading": { "interior": false, "location": "天台", "timeOfDay": "黄昏" },
+    "actionLines": [ "城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。" ],
+    "dialogueBlocks": [ { "character": "林晚", "parenthetical": "(画外音)", "line": "往下看一眼，就一眼……可那串电话还没挂断。" } ],
+    "visualizedInnerThoughts": [ { "original": "如果就这样跳下去，会不会比活着轻松", "method": "VO", "result": "往下看一眼，就一眼……" } ],
+    "transitions": [ "切至：" ],
+    "sourceChapter": 2,
+    "sourceText": "黄昏，城市在脚下铺开……"
+  },
+  "updatedAt": "2026-06-05T10:02:00Z"
+}
+```
+
+**校验：** `dialogueBlocks[].character` 必须存在于人物表（引用完整性，见 `yaml-schema.md` §8.3）；`method` 须 ∈ 枚举。
+**可能错误码：** `40001`（字段非法/人物引用悬空）、`40401`（剧本或场景不存在）、`40301`（非本人）。
+
+#### ⑭ POST `/api/screenplay/{id}/scenes/{sceneId}/regenerate` — AI 重生单场（SSE）
+
+> 原型：`scene-edit.html`「↻ 重新生成本场」+ 风格提示 + 视觉化手法切换 + 「携带全局上下文」勾选。
 
 **请求：**
 ```json
 {
   "style": "更含蓄",
-  "globalContext": true
+  "globalContext": true,
+  "visualizedMethod": "VO"
 }
 ```
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `style` | string | 否 | 风格提示（更含蓄/更戏剧化/更冷峻/自定义）；空则保持原风格 |
+| `globalContext` | bool | 否 | 是否携带 plotSummary + 人物表 + 前场摘要重生（默认 true）。复用已存 `plotSummary`，**无需重跑阶段 A**（§3.2） |
+| `visualizedMethod` | enum | 否 | 强制本场内心戏改用某手法（`VO/ACTION/DIALOGUE/CLOSE_UP`）；空则由模型自选 |
+
+**前置校验：** `40302`（配额）、`40303`（全局预算）、`40401`（剧本/场景不存在）、`42901`（并发）。
 
 **SSE 事件流：**
 ```
 event: regeneration_start
-data: {"sceneId": "s7", "message": "正在重新生成..."}
+data: {"sceneId": "s2", "message": "正在重新生成本场…"}
 
 event: scene_generated
-data: {"sceneId": "s7", "scene": {...}}
+data: {"sceneId": "s2", "scene": { /* 完整 Scene，字段同 ⑬ 响应 */ }}
 
 event: complete
-data: {"sceneId": "s7"}
+data: {"sceneId": "s2", "updatedAt": "2026-06-05T10:05:00Z"}
+
+event: error
+data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 ```
+
+> 重生结果**自动落库**（覆盖该场）；前端右侧「渲染预览」即时刷新。
+
+---
+
+### 4.7 剧本导出接口
+
+> 原型：`export.html`。YAML 为**核心交付**，可读文本为衍生渲染。两者均为文件下载（非 JSON 包装）。
+
+#### ⑮ GET `/api/screenplay/{id}/export/yaml` — 导出 YAML（核心交付）
+
+> 原型：`export.html`「↧ 下载 screenplay.yaml」。
+
+**请求：** 路径参数 `id`。（预留 query `?download=true` 控制是否带 `attachment` 头。）
+
+**响应头：**
+```
+Content-Type: application/x-yaml; charset=utf-8
+Content-Disposition: attachment; filename="她比烟花寂寞.yaml"
+```
+**响应体：** 符合 `yaml-schema.md` 的完整 YAML 文本（即 `export.html` 左侧展示的内容，顶层含 `schemaVersion/title/screenplayType/plotSummary/characters/scenes/storylines`）。
+
+**可能错误码（以 JSON 包装返回，因无文件可下）：** `40401`、`40301`、`40101`。
+
+#### ⑯ GET `/api/screenplay/{id}/export/text` — 导出可读剧本
+
+> 原型：`export.html`「↧ 下载 screenplay.txt」。后端将 YAML 渲染为标准剧本排版文本（场景标题、动作行、角色名、对白、转场）。
+
+**请求：** 路径参数 `id`。（预留 query `?format=txt|md|fountain`，默认 `txt`；`md`/`fountain` 可保留排版，见 `yaml-schema.md` §10/§11。）
+
+**响应头：**
+```
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: attachment; filename="她比烟花寂寞.txt"
+```
+**响应体（示例）：**
+```
+S1  内景 — 出租屋 — 夜
+
+雨敲打着铁皮屋檐。林晚盘腿坐在地板上，膝头摊着一份被反复折叠的简历。
+
+                林晚
+              （画外音）
+        又一次……我都习惯了。习惯，是最体面的认输。
+
+                                              切至：
+```
+
+**可能错误码：** `40401`、`40301`、`40101`。
 
 ---
 
 ## 5. LLM 调用策略
 
-### 5.1 Prompt 设计
+> **MVP 范围**：仅实现**画面类剧本**（动画 / 短剧，共用影视格式：内景/外景、V.O.、镜头特写）。`screenplayType` 枚举保留 RADIO/THEATER，但**广播剧/话剧的生成规则列为扩展 TODO**——因其无画面/无镜头，内心戏需转旁白/音效/形体，规则与影视不同，留待后续分化。
 
-#### 阶段 A：全局分析 Prompt
+### 5.1 Spring AI Alibaba 集成方式
 
-```
-你是一位资深编剧和剧本分析专家。请分析以下小说文本，提取结构化信息。
+- 框架用 **Spring AI Alibaba**（构建于 Spring AI，API 兼容 `ChatClient`，中文文档/示例更丰富）
+- DeepSeek 经 **OpenAI 兼容适配器**接入：配置 `base-url` 指向 DeepSeek 官方 API（计费走 DeepSeek 官方）
+- 用 `ChatClient` 统一调用；**结构化输出**用 `.entity(Class)`：由 Spring AI 的转换器自动向 prompt 注入目标 JSON Schema 并把响应反序列化为 Java 对象。
+- **因此 prompt 只写"任务 + 规则"，不手写输出 JSON**（避免与转换器注入的 Schema 打架导致脏输出）；下文 prompt 仅列任务与规则，结构由 `.entity()` 负责。
 
-## 小说文本
-{chapters_text}
-
-## 请输出以下 JSON 格式
-{
-  "plotSummary": "剧情概要（200字内）",
-  "characters": [
-    {
-      "name": "角色名",
-      "role": "PROTAGONIST|SUPPORTING|MINOR",
-      "description": "角色描述",
-      "relationships": [{"target": "另一角色", "relation": "关系描述"}],
-      "firstAppearance": "第X章"
-    }
-  ],
-  "scenes": [
-    {
-      "location": "地点",
-      "interior": true/false,
-      "timeOfDay": "时间",
-      "sourceChapter": 1,
-      "keyEvents": ["关键事件"]
-    }
-  ],
-  "storylines": [
-    {
-      "name": "线索名",
-      "type": "MAIN|SUB",
-      "events": ["事件1", "事件2"]
-    }
-  ]
-}
-```
-
-#### 阶段 B：逐场生成 Prompt
+### 5.2 转换管线总览
 
 ```
-你是一位资深编剧。请根据以下信息，将小说片段转换为标准剧本格式。
+① 章节分割（纯代码，确定性）  rawContent → List<Chapter>
+        │
+        ▼
+② 全局分析（LLM，自适应长度）
+   ├─ 短小说（< 阈值，约 8k tokens）：全文一次分析 → AnalysisResult
+   └─ 长小说（超阈值）：顺序滚动 Map + Reduce（见 5.3）
+        · 按章【顺序】处理（不并行——前章影响后章理解）
+        · 每章带"前文累积状态摘要(running digest)"做分析，产出该章局部结果并更新 digest
+        · Reduce：合并去重人物、整合关系与线索、生成 plotSummary
+   产出：AnalysisResult{ plotSummary, characters[], storylines[], scenes[] }
+        其中 scenes[] 即【场景切分】结果，每个场景单元含
+        { sceneId, sourceChapter, sourceText(原文片段), keyEvents }
+        │
+        ▼
+③ 逐场生成（LLM，逐场）
+   对每个场景单元【顺序】生成（以便把"前一场摘要"作为上下文）
+   输入：plotSummary + 规范人物表 + 前一场摘要 + 本场 sourceText
+   每生成完一场 → SSE 推送 scene_generated
+   产出：List<Scene>
+        │
+        ▼
+④ 组装 + 落库（Screenplay.contentJson）
+```
+
+> **场景切分归属②**：场景边界在全局分析阶段确定（长小说在每章 Map 时切分，Reduce 时顺序拼接并赋全局 `sceneId`）。这样③逐场生成只需消费已切好的 `sourceText` 单元，补齐了原 A/B 之间"文本如何变成场景"的缺环。
+
+### 5.3 Prompt 模板设计（动态选择架构）
+
+> **设计原则**：Prompt 模板按 `screenplayType` 动态选择，后端通过 `PromptTemplateRegistry` 管理。MVP 仅实现 `ANIME` 模板，其他类型预留接口便于扩展。
+
+#### 5.3.1 模板选择逻辑
+
+```
+GenerationService.generateScene(screenplayType, context):
+    template = PromptTemplateRegistry.get(screenplayType)  // 按 type 取模板
+    return llmClient.entity(template.render(context), Scene.class)
+
+PromptTemplateRegistry:
+    ANIME   → AnimePromptTemplate      // MVP 实现
+    FILM    → FilmPromptTemplate       // TODO
+    SHORT   → ShortDramaPromptTemplate // TODO
+    RADIO   → RadioPromptTemplate      // TODO
+    THEATER → TheaterPromptTemplate    // TODO
+```
+
+#### 5.3.2 阶段 A Prompt（所有类型共用）
+
+**A-1：分析 Prompt（短小说全文 / 长小说逐章 Map 共用）**
+
+```
+你是一位资深编剧与剧本分析专家。请分析下面的小说文本，提取：
+剧情概要、人物（含身份、重要度、相互关系、首次出场章节）、
+故事线索（主线/支线及其事件）、以及按"地点或时间变化"切分出的场景列表
+（每个场景标注所属章节、原文片段、关键事件）。
+
+要求：
+- 人物名一律使用原文中的【规范写法】，同一人物不要出现多种称呼混用。
+- 场景切分以"地点变化或时间跳跃"为界，宁可细分，便于后续逐场改编。
+
+【仅长小说逐章 Map 时附带】
+## 前文累积状态（用于保持跨章连贯，请在其基础上更新，勿丢失已知人物/线索）
+{running_digest}
+
+## 待分析文本（本章）
+{chapter_text}
+```
+
+**A-2：Reduce 合并 Prompt（仅长小说）**
+
+```
+你是一位资深编剧。下面是同一部小说【逐章分析】得到的多份局部结果。
+请合并为一份全局一致的分析：
+- 跨章去重并统一人物（合并同一人物的不同称呼与信息）；
+- 整合人物关系与故事线索，消解前后矛盾；
+- 生成全书 plotSummary（200 字内）；
+- 保持场景列表的【章节顺序】，赋予连续的全局场景序号。
+
+## 各章局部结果
+{partial_results}
+```
+
+#### 5.3.3 阶段 B Prompt（按类型分模板）
+
+---
+
+**【ANIME】动画剧本模板**（MVP 实现）
+
+> 适用：TV动画单集（20-24min）、OVA、剧场版片段
+> 特点：强调画面感、镜头语言、内心戏转 V.O. 或特写
+
+```
+你是一位资深动画编剧，正在把小说改编为【动画剧本】。请将"本场原文"转换为一个标准动画场景。
 
 ## 全局上下文
-- 剧本类型：{screenplayType}
 - 剧情概要：{plotSummary}
-- 出场人物：{characters_summary}
+- 规范人物表（对白人物名必须严格沿用此处写法）：{characters_summary}
+- 前一场摘要（用于承接，不要重复其内容）：{prev_scene_summary}
 
-## 当前场景的小说原文
+## 本场原文
 {source_text}
 
 ## 转换规则
-1. 场景标题格式：内景/外景 - 地点 - 时间
-2. 动作行描述可见的动作和视觉细节
-3. 对白格式：角色名（括号提示可选）→ 台词
-4. **内心戏必须视觉化**：将心理描写转为以下形式之一：
-   - 画外音 (V.O.)
-   - 可见动作（如：她攥紧了拳头）
-   - 对白（将内心想法说出）
-   - 细节特写（如：镜头推近她泛红的眼眶）
-5. "讲述"变"呈现"：将"她很绝望"转为可拍摄的动作
+1. 场景标题：内景/外景 - 地点 - 时间（如：内景 - 教室 - 黄昏）
+2. 动作行：描述【可见】的动作与视觉细节，适合动画表现。
+3. 对白：角色名（可选括号情绪/动作提示）+ 台词；角色名严格沿用规范人物表。
+4. **内心戏视觉化**（动画改编核心）：把心理描写/独白转为以下之一——
+   - 画外音(V.O.)：适合深沉独白、回忆
+   - 可见动作：用表情/肢体表现情绪
+   - 镜头特写：聚焦眼神、手部等细节
+   - 说出口的对白：把"心里想"转成小声嘀咕
+5. "讲述"变"呈现"：如"她很绝望"→ 转为垂下眼帘、紧握双拳等可画面表现的动作。
+6. 转场：在场景末尾标注切至/淡出等。
 
-## 输出格式（JSON）
-{
-  "heading": {"interior": true, "location": "地点", "timeOfDay": "时间"},
-  "actionLines": ["动作行1", "动作行2"],
-  "dialogueBlocks": [
-    {"character": "角色", "parenthetical": "提示", "line": "台词"}
-  ],
-  "transitions": ["CUT TO:"],
-  "visualizedInnerThoughts": [
-    {"original": "原文内心描写", "method": "VO|ACTION|DIALOGUE|CLOSE_UP", "result": "转换结果"}
-  ]
-}
+## 关于 visualizedInnerThoughts 字段
+它是**转换留痕**：记录"哪句内心描写、用了什么手法、转成了什么"。
+其转换结果**应当已经体现在本场的动作行/对白/画外音里**，不要另起炉灶重复叙述。
 ```
 
-### 5.2 调用策略
+---
 
-| 场景 | 模型 | 策略 |
+**【FILM】影视剧本模板**（TODO 扩展）
+
+> 适用：电影长片（90-120min）
+> 特点：叙事宏大、镜头语言丰富、节奏舒缓
+
+```
+// TODO: 待实现
+核心差异点（预研）：
+- 场景标题：内景/外景 - 地点 - 时间（与动画类似）
+- 内心戏处理：V.O. / 意象化镜头 / 氛围渲染
+- 节奏控制：允许长镜头、留白、情绪铺垫
+- 与动画差异：更写实、少夸张表情、更多意象化隐喻镜头
+```
+
+---
+
+**【SHORT_DRAMA】短剧剧本模板**（TODO 扩展）
+
+> 适用：竖屏短剧（2-5min/集）
+> 特点：节奏快、冲突强、反转多、对白直白
+
+```
+// TODO: 待实现
+核心差异点（预研）：
+- 场景标题简化：场景号 - 地点
+- 内心戏处理：直接转成对白或旁白，不玩镜头语言
+- 节奏要求：每场必须有冲突/悬念/反转
+- 时长控制：单场对白控制在 30s 内可演完
+```
+
+---
+
+**【RADIO】广播剧剧本模板**（TODO 扩展）
+
+> 适用：音频广播剧
+> 特点：无画面、全靠声音、大量音效标注
+
+```
+// TODO: 待实现
+核心差异点（预研）：
+- 无场景标题，改用【音效转场】
+- 内心戏处理：全转旁白/独白
+- 动作行：改为【音效描述】（脚步声、开门声等）
+- 强调：语气、停顿、背景音、BGM 切换
+```
+
+---
+
+**【THEATER】话剧剧本模板**（TODO 扩展）
+
+> 适用：舞台剧
+> 特点：舞台指示、无镜头、形体动作
+
+```
+// TODO: 待实现
+核心差异点（预研）：
+- 场景标题：幕 - 场
+- 内心戏处理：转对白/旁白/形体动作
+- 动作行：改为【舞台指示】（走到台前、灯光聚焦等）
+- 无镜头语言，强调舞台空间调度
+```
+
+### 5.4 模型选择与上下文策略
+
+| 步骤 | 模型 | 说明 |
 |---|---|---|
-| 全局分析 | DeepSeek-v4 Pro | 全文一次性传入，JSON 输出 |
-| 逐场生成 | DeepSeek-v4 flash | 按场景分段调用，流式返回，更经济 |
-| 单场重生 | DeepSeek-v4 flash | 带全局上下文 + 风格提示，流式返回 |
+| 短小说全文分析 | DeepSeek-v4 Pro | 一次调用，求准 |
+| 长小说逐章 Map | DeepSeek-v4 flash | 调用次数多，求省；输入=本章+running digest（有界） |
+| 长小说 Reduce 合并 | DeepSeek-v4 Pro | 一次调用，输入是压缩摘要，求准 |
+| 逐场生成 / 单场重生 | DeepSeek-v4 flash | 逐场顺序，带全局+前场上下文 + 风格提示 |
 
-### 5.3 上下文窗口管理
+**上下文与 token 量级（修正此前错误估算）：**
+- 中文约 **1 字 ≈ 0.6–1 token**。1 万字 ≈ 6k–10k tokens；10 万字（输入上限）≈ 60k–100k+ tokens。
+- 故**全文单次分析不可作为长小说默认路径**：可能超限、且贵、且超长上下文易"中段遗漏"。改用 5.2 的自适应 Map-Reduce。
+- **顺序、非并行**：Map 逐章串行，靠 running digest 携带前章信息；逐场生成串行，携带前一场摘要——以此保证跨章/跨场连贯。
+- 每次 LLM 调用输入恒为"有界片段 + 压缩摘要"，与小说总长解耦，**支持任意长度小说**。
 
-- DeepSeek-v4 支持长上下文（128K tokens），3-5 章小说（1-3 万字 ≈ 2-4K tokens 中文）不会超限
-- 阶段 B 每次调用传入：全局分析摘要 + 当前场景原文 + 前后场景摘要（保持连贯）
+### 5.5 成本控制
+
+- **缓存**：转换前按 `novelContentHash + screenplayType` 查 DB，命中则直接返回已存剧本，不调 LLM
+- **配额**：每用户每日 token 上限（`User.dailyTokenQuota` + `quotaDate` 按天重置），超限拒绝
+- **输入上限**：单次最大 10 万字
+- **分块即省**：Map-Reduce 让每次调用只吃片段，避免长小说反复整本入参的浪费
 
 ---
 
@@ -356,45 +902,92 @@ data: {"sceneId": "s7"}
 
 | 风险 | 措施 |
 |---|---|
-| API Key 泄露 | Key 存于后端环境变量，前端不可见；不提交到代码仓库 |
+| 未授权调用 / API 被乱刷 | **JWT 登录认证**：除注册/登录外所有接口需有效 token；每用户配额 + 限流 |
+| 越权访问他人资源 | 资源归属校验：**novel 与 screenplay** 操作前均比对 `userId == 当前用户` |
+| **批量注册绕过配额** | 注册按 IP 限流 + **全局每日 token 预算上限**（所有用户合计）兜底，防止"多开账号刷免费额度"烧光成本 |
+| **登录暴力破解** | 登录失败按 IP/用户名限流 + 退避；连续失败临时锁定 |
+| **并发任务耗尽资源** | 每用户同时仅允许 1 个进行中的转换任务；SSE 连接数与时长受限 |
+| **超大文件上传** | 限制 multipart 体积（如 5MB）+ 解析后仍受 10 万字上限约束 |
+| **提示注入（小说正文夹带指令）** | 小说文本仅作**数据**；依赖结构化输出约束 + 输出校验；LLM 结果不驱动任何特权操作 |
+| 密码泄露 | BCrypt 加盐哈希存储，不存明文；注册校验最小密码强度 |
+| API Key 泄露 | DeepSeek Key 存后端环境变量，前端不可见，不入库不入仓 |
+| JWT 伪造/泄露 | 服务端密钥签名校验；设置合理过期时间；密钥经环境变量注入 |
 | XSS | 前端渲染用户文本时转义 HTML；React 默认转义 |
-| 输入过大 | 后端限制单次输入最大 10 万字；超限返回错误提示 |
-| LLM 输出不可控 | 后端校验 JSON 结构；字段缺失时降级处理而非崩溃 |
+| SQL 注入 | 统一用 Spring Data JPA 参数化查询，不手拼 SQL |
+| 跨域 | 生产环境显式配置 CORS 白名单；开发环境用 Vite 代理 |
+| 输入过大 | 后端限制单次输入最大 10 万字；超限返回错误 |
+| LLM 输出不可控 | Spring AI Alibaba 结构化输出 + 后端校验；字段缺失降级处理而非崩溃 |
 
 ---
 
 ## 7. 目录结构
 
+> **初版设计，仅作骨架参考**。随后续迭代必然调整（包与文件会增删），最终以实际代码为准。
+
 ```
 lively-novel/
+├── README.md                      # 交付物：项目说明、依赖列表、运行方式、demo 视频链接
 ├── docs/                          # 文档
 │   ├── requirements-analysis.md   # 需求分析文档
 │   ├── product-design.md          # 产品设计文档
 │   ├── technical-design.md        # 技术方案文档（本文件）
-│   └── yaml-schema.md             # YAML Schema 设计文档（待创建）
+│   └── yaml-schema.md             # YAML Schema 设计文档（题目要求交付物）
 │
 ├── backend/                       # 后端 (Spring Boot)
 │   ├── pom.xml
-│   └── src/main/java/com/livelynovel/
-│       ├── LivelyNovelApplication.java
-│       ├── controller/
-│       │   ├── NovelController.java
-│       │   └── ScreenplayController.java
-│       ├── service/
-│       │   ├── NovelService.java
-│       │   ├── AnalysisService.java
-│       │   ├── GenerationService.java
-│       │   └── LlmClient.java
-│       ├── model/
-│       │   ├── Novel.java
-│       │   ├── Chapter.java
-│       │   ├── Screenplay.java
-│       │   ├── Scene.java
-│       │   ├── Character.java
-│       │   ├── DialogueBlock.java
-│       │   └── AnalysisResult.java
-│       └── config/
-│           └── AppConfig.java
+│   ├── src/main/java/com/livelynovel/
+│   │   ├── LivelyNovelApplication.java
+│   │   ├── controller/
+│   │   │   ├── AuthController.java
+│   │   │   ├── NovelController.java
+│   │   │   └── ScreenplayController.java
+│   │   ├── service/
+│   │   │   ├── NovelService.java
+│   │   │   ├── AnalysisService.java        # 全局分析（自适应 Map-Reduce）
+│   │   │   ├── GenerationService.java      # 逐场生成（按 type 选择模板）
+│   │   │   ├── CacheService.java
+│   │   │   ├── LlmClient.java              # 封装 Spring AI Alibaba ChatClient
+│   │   │   └── prompt/                     # Prompt 模板（动态选择）
+│   │   │       ├── PromptTemplateRegistry.java    # 模板注册表
+│   │   │       ├── PromptTemplate.java            # 模板接口
+│   │   │       ├── AnimePromptTemplate.java       # 动画模板（MVP）
+│   │   │       ├── FilmPromptTemplate.java        # 影视模板（TODO）
+│   │   │       ├── ShortDramaPromptTemplate.java  # 短剧模板（TODO）
+│   │   │       ├── RadioPromptTemplate.java       # 广播剧模板（TODO）
+│   │   │       └── TheaterPromptTemplate.java     # 话剧模板（TODO）
+│   │   ├── security/
+│   │   │   ├── SecurityConfig.java
+│   │   │   ├── JwtAuthFilter.java
+│   │   │   ├── JwtUtil.java
+│   │   │   └── RateLimitInterceptor.java   # 配额 + 注册/登录限流
+│   │   ├── repository/
+│   │   │   ├── UserRepository.java
+│   │   │   ├── NovelRepository.java
+│   │   │   └── ScreenplayRepository.java
+│   │   ├── entity/                         # JPA 实体（落表）
+│   │   │   ├── User.java
+│   │   │   ├── Novel.java
+│   │   │   └── Screenplay.java
+│   │   ├── model/                          # 剧本内容结构（存于 contentJson，非表）
+│   │   │   ├── Chapter.java
+│   │   │   ├── ScreenplayContent.java
+│   │   │   ├── Scene.java
+│   │   │   ├── Character.java
+│   │   │   ├── DialogueBlock.java
+│   │   │   ├── Storyline.java
+│   │   │   └── AnalysisResult.java
+│   │   ├── dto/                            # 请求/响应体
+│   │   ├── common/
+│   │   │   └── ApiResponse.java            # 统一响应包装（§8.1）
+│   │   ├── exception/
+│   │   │   ├── BizException.java
+│   │   │   └── GlobalExceptionHandler.java # 统一错误码映射（§8.2）
+│   │   └── config/
+│   │       └── AppConfig.java
+│   ├── src/main/resources/
+│   │   ├── application.yml
+│   │   └── prompts/                        # Spring AI prompt 模板（§5.3）
+│   └── src/test/java/com/livelynovel/      # 单元/集成测试
 │
 ├── frontend/                      # 前端 (React + Vite)
 │   ├── package.json
@@ -403,7 +996,10 @@ lively-novel/
 │   └── src/
 │       ├── App.tsx
 │       ├── main.tsx
+│       ├── router/                # 路由配置
 │       ├── pages/
+│       │   ├── LoginPage.tsx
+│       │   ├── RegisterPage.tsx
 │       │   ├── ImportPage.tsx
 │       │   ├── ConvertingPage.tsx
 │       │   ├── PreviewPage.tsx
@@ -415,10 +1011,12 @@ lively-novel/
 │       │   ├── SceneEditor.tsx
 │       │   └── CharacterTable.tsx
 │       ├── services/
-│       │   └── api.ts
+│       │   ├── api.ts
+│       │   └── auth.ts            # token 存储 + 请求拦截器
 │       └── types/
 │           └── index.ts
 │
+├── data/                          # SQLite 数据文件（.gitignore 忽略）
 └── .gitignore
 ```
 
@@ -454,9 +1052,20 @@ lively-novel/
 | 40001 | 请求参数错误 |
 | 40002 | 文本过长（超过 10 万字） |
 | 40003 | 章节数不足（需 3 章以上） |
+| 40004 | 用户名已存在 |
+| 40005 | 密码不符合强度要求 |
+| 40101 | 未登录 / 缺少 token |
+| 40102 | token 无效或已过期 |
+| 40103 | 用户名或密码错误 |
+| 40301 | 无权访问该资源（越权） |
+| 40302 | 超出每日配额 |
+| 40303 | 系统全局额度已用尽（请稍后再试） |
+| 40401 | 资源不存在（小说/剧本/场景） |
+| 42901 | 请求过于频繁（限流） |
 | 50001 | LLM 调用失败 |
 | 50002 | LLM 输出格式异常 |
 | 50003 | 内部服务错误 |
+| 50004 | LLM 响应超时 |
 
 ---
 
@@ -464,14 +1073,51 @@ lively-novel/
 
 ### 9.1 后端
 
+> 依赖：`spring-ai-alibaba-starter`（框架）+ OpenAI 兼容模型适配器；`base-url` 指向 DeepSeek 官方。
+
+> ⚠️ 模型名 `deepseek-v4-*` 按需求方命名占位；**部署时以 DeepSeek 官方实际模型 id 为准**（核对后回填）。
+
 ```yaml
 # application.yml
-llm:
-  base-url: https://api.deepseek.com    # 可替换为七牛云 AI 网关
-  api-key: ${DEEPSEEK_API_KEY}           # 环境变量读取
-  model-pro: deepseek-v4-pro
-  model-flash: deepseek-v4-flash
-  max-input-chars: 100000
+spring:
+  datasource:
+    url: jdbc:sqlite:./data/livelynovel.db    # 文件模式，重启不丢
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1                     # SQLite 单写者，连接池设小避免写锁竞争
+      connection-init-sql: "PRAGMA journal_mode=WAL;"   # 开启 WAL，提升读写并发
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update                         # demo 期用 update；后续可换 Flyway 管理迁移
+  servlet:
+    multipart:
+      max-file-size: 5MB                       # 上传体积上限（§6）
+      max-request-size: 5MB
+  mvc:
+    async:
+      request-timeout: 600000                  # SSE 长任务超时（10min），或在 SseEmitter 单独设
+  ai:
+    openai:
+      base-url: https://api.deepseek.com        # DeepSeek 官方 API（OpenAI 兼容）
+      api-key: ${DEEPSEEK_API_KEY}              # 环境变量读取
+      chat:
+        options:
+          model: deepseek-v4-flash               # 默认模型，Pro 在代码中按需指定
+
+app:
+  llm:
+    model-pro: deepseek-v4-pro
+    model-flash: deepseek-v4-flash
+    max-input-chars: 100000
+    analysis-single-pass-threshold-tokens: 8000  # 低于此走全文单次，否则 Map-Reduce（§5.2）
+  security:
+    jwt-secret: ${JWT_SECRET}                    # 环境变量注入；务必使用足够长的随机密钥
+    jwt-expire-seconds: 86400
+  quota:
+    daily-token-quota: 200000                    # 每用户每日 token 上限
+    global-daily-token-budget: 5000000           # 全局每日预算上限，防批量注册刷额度（§6）
+    max-concurrent-jobs-per-user: 1              # 每用户同时进行中的转换任务数
 
 server:
   port: 8080

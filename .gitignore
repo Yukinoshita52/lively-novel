@@ -48,6 +48,15 @@ pnpm-debug.log*
 lerna-debug.log*
 .pnpm-store/
 
+# ===== SQLite / 数据 =====
+data/*
+!data/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
 # ===== Environment / secrets =====
 .env
 .env.*
