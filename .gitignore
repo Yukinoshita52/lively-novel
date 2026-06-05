@@ -88,3 +88,6 @@ data/*
 ehthumbs.db
 Thumbs.db
 desktop.ini
+
+# ===== Project temp =====
+temp/

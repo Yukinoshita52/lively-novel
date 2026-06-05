@@ -4,6 +4,14 @@ server:
 spring:
   application:
     name: lively-novel-backend
+  ai:
+    openai:
+      # DeepSeek OpenAI 兼容 API
+      base-url: https://api.deepseek.com
+      api-key: ${DEEPSEEK_API_KEY}
+      chat:
+        options:
+          model: deepseek-chat
 
 # Knife4j API 文档配置
 springdoc:
