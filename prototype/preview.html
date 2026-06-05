@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剧本预览 · Lively Novel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="seal">活</span><div><h1>Lively Novel</h1><div class="zh">活字成剧</div></div></div>
+  <div class="spacer"></div>
+  <a class="btn ghost sm" href="export.html">导出 ↧</a>
+  <div class="user-chip"><span class="av">林</span>xiaolin</div>
+</div>
+
+<div class="page" style="max-width:1280px">
+  <div class="flow reveal" style="margin-bottom:22px">
+    <a href="import.html">② 导入</a><span class="sep">→</span><a href="converting.html">③ 转换</a><span class="sep">→</span><a class="on">④ 预览</a><span class="sep">→</span><a href="scene-edit.html">⑤ 打磨</a><span class="sep">→</span><a href="export.html">⑥ 导出</a>
+  </div>
+
+  <div class="row reveal" style="justify-content:space-between;align-items:flex-end">
+    <div>
+      <div class="eyebrow">04 · 预览与全局信息</div>
+      <h1 class="h-title" style="font-size:clamp(24px,3.4vw,34px)">《她比烟花寂寞》<span class="muted" style="font-size:14px;font-family:var(--mono)">· 动画剧本 · 8 场</span></h1>
+    </div>
+    <a class="btn primary" href="export.html">导出 YAML <span class="ar">↧</span></a>
+  </div>
+
+  <div class="grid-2 mt-24" style="grid-template-columns:300px 1fr">
+    <!-- 左：大纲 -->
+    <div class="panel reveal d2" style="align-self:start;position:sticky;top:90px">
+      <div class="panel-h"><span class="ix">OUTLINE</span> 场景大纲</div>
+      <div class="panel-b" style="padding:8px">
+        <ul class="outline">
+          <li class="on"><span class="no">S1</span><span class="loc">内景·出租屋·夜</span><span class="ch">CH1</span></li>
+          <li><span class="no">S2</span><span class="loc">外景·天台·黄昏</span><span class="ch">CH2</span></li>
+          <li><span class="no">S3</span><span class="loc">内景·公司·日</span><span class="ch">CH3</span></li>
+          <li><span class="no">S4</span><span class="loc">内景·公司茶水间·日</span><span class="ch">CH3</span></li>
+          <li><span class="no">S5</span><span class="loc">外景·街道·夜</span><span class="ch">CH3</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 右：标签内容 -->
+    <div class="panel reveal d3" data-tabs>
+      <div class="panel-h" style="padding:0 12px">
+        <div class="tabs" style="border:none">
+          <button class="tab on" data-tab="script">剧本</button>
+          <button class="tab" data-tab="chars">人物表</button>
+          <button class="tab" data-tab="scenes">场景表</button>
+          <button class="tab" data-tab="viz">关系图谱 ✦</button>
+        </div>
+      </div>
+
+      <!-- 剧本渲染 -->
+      <div class="panel-b" data-pane="script">
+        <div class="row" style="justify-content:space-between;margin-bottom:14px">
+          <span class="muted" style="font-family:var(--mono);font-size:12px">YAML → 渲染视图 · 标准剧本排版</span>
+          <a class="btn sm" href="scene-edit.html">打磨本场 ✎</a>
+        </div>
+        <div class="screenplay">
+          <div class="sp-scene">
+            <div class="sp-heading"><span class="no">S1</span> 内景 — 出租屋 — 夜</div>
+            <p class="sp-action">雨敲打着铁皮屋檐。狭小的房间里，<b>林晚</b>盘腿坐在地板上，膝头摊着一份被反复折叠的简历。台灯昏黄。</p>
+            <p class="sp-action">她把简历又看了一遍，<span class="vo-mark" title="内心戏视觉化：原文「心里像压了块石头」→ 手法 ACTION/CLOSE_UP">指尖无意识地把纸角捻出深深的褶皱</span>。</p>
+            <div class="sp-vo">
+              <div class="sp-cue">林晚</div>
+              <div class="sp-paren">(画外音)</div>
+              <div class="sp-dialogue">又一次……我都习惯了。习惯，是最体面的认输。</div>
+            </div>
+            <p class="sp-trans">切至：</p>
+          </div>
+          <div class="sp-scene" style="opacity:.55">
+            <div class="sp-heading"><span class="no">S2</span> 外景 — 天台 — 黄昏</div>
+            <p class="sp-action">城市在脚下铺开，晚风掀动她的发。林晚走到栏杆边，低头望向楼下川流的车灯……</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 人物表 -->
+      <div class="panel-b" data-pane="chars" style="display:none">
+        <table class="tbl">
+          <thead><tr><th>角色</th><th>重要度</th><th>身份/描述</th><th>首次出场</th></tr></thead>
+          <tbody>
+            <tr><td><b>林晚</b></td><td><span class="role-tag role-PROTAGONIST">PROTAGONIST</span></td><td>27 岁，求职屡屡碰壁的设计师，敏感坚韧。</td><td>第1章</td></tr>
+            <tr><td>陈经理</td><td><span class="role-tag role-SUPPORTING">SUPPORTING</span></td><td>录用林晚的公司主管，欣赏她的作品。</td><td>第3章</td></tr>
+            <tr><td>母亲</td><td><span class="role-tag role-SUPPORTING">SUPPORTING</span></td><td>电话里关心又施压的存在。</td><td>第1章</td></tr>
+            <tr><td>前台小妹</td><td><span class="role-tag role-MINOR">MINOR</span></td><td>茶水间偶遇，带来转折信息。</td><td>第3章</td></tr>
+          </tbody>
+        </table>
+        <p class="hint mt-16">人物名为全局规范写法，逐场对白严格沿用，保证 3+ 章一致。</p>
+      </div>
+
+      <!-- 场景表 -->
+      <div class="panel-b" data-pane="scenes" style="display:none">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>内/外</th><th>地点</th><th>时间</th><th>出场</th><th>源章</th></tr></thead>
+          <tbody>
+            <tr><td>S1</td><td>内景</td><td>出租屋</td><td>夜</td><td>林晚</td><td>CH1</td></tr>
+            <tr><td>S2</td><td>外景</td><td>天台</td><td>黄昏</td><td>林晚</td><td>CH2</td></tr>
+            <tr><td>S3</td><td>内景</td><td>公司</td><td>日</td><td>林晚 · 陈经理</td><td>CH3</td></tr>
+            <tr><td>S4</td><td>内景</td><td>公司茶水间</td><td>日</td><td>林晚 · 前台小妹</td><td>CH3</td></tr>
+            <tr><td>S5</td><td>外景</td><td>街道</td><td>夜</td><td>林晚</td><td>CH3</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 可视化（加分） -->
+      <div class="panel-b" data-pane="viz" style="display:none">
+        <p class="muted" style="font-family:var(--mono);font-size:12px;margin-bottom:14px">加分亮点 · 人物关系图谱（示意）</p>
+        <svg viewBox="0 0 460 260" style="width:100%;height:auto;background:var(--paper-2);border-radius:4px">
+          <line x1="230" y1="130" x2="110" y2="70" stroke="#8C2820" stroke-width="1.5"/>
+          <line x1="230" y1="130" x2="360" y2="80" stroke="#B0863A" stroke-width="1.5"/>
+          <line x1="230" y1="130" x2="120" y2="200" stroke="#B0863A" stroke-width="1.5"/>
+          <line x1="230" y1="130" x2="350" y2="200" stroke="#8A7E6A" stroke-width="1" stroke-dasharray="4"/>
+          <text x="155" y="96" font-family="monospace" font-size="10" fill="#51483B">母女</text>
+          <text x="290" y="100" font-family="monospace" font-size="10" fill="#51483B">录用</text>
+          <text x="150" y="178" font-family="monospace" font-size="10" fill="#51483B">告知转机</text>
+          <circle cx="230" cy="130" r="30" fill="#BE3A2E"/><text x="230" y="135" text-anchor="middle" fill="#F1EADB" font-family="'Noto Serif SC'" font-weight="700" font-size="14">林晚</text>
+          <circle cx="110" cy="70" r="22" fill="#1C1813"/><text x="110" y="74" text-anchor="middle" fill="#F1EADB" font-size="11">母亲</text>
+          <circle cx="360" cy="80" r="22" fill="#B0863A"/><text x="360" y="84" text-anchor="middle" fill="#F1EADB" font-size="11">陈经理</text>
+          <circle cx="120" cy="200" r="18" fill="#DCD0B6"/><text x="120" y="204" text-anchor="middle" fill="#1C1813" font-size="10">前台</text>
+          <circle cx="350" cy="200" r="16" fill="#DCD0B6"/><text x="350" y="204" text-anchor="middle" fill="#1C1813" font-size="9">同事</text>
+        </svg>
+        <p class="hint mt-16">规划中：剧情主线/支线时间线 · 人物互动随时间 · 世界地图演进。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="api-dock" id="dock">
+  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 预览</span><span class="cnt">4</span></div>
+  <div class="api-list">
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/screenplay/{id}</span><span class="when">进入页面：拉完整剧本（含 scenes / characters / storylines）</span></div>
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/screenplay/{id}/characters</span><span class="when">人物表 Tab（亦可由完整剧本中取）</span></div>
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/screenplay/{id}/scenes</span><span class="when">场景表 Tab / 左侧大纲</span></div>
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/screenplay</span><span class="when">（顶部可选）切换我的其它剧本</span></div>
+  </div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>

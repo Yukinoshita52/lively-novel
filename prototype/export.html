@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>导出 · Lively Novel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="seal">活</span><div><h1>Lively Novel</h1><div class="zh">活字成剧</div></div></div>
+  <div class="spacer"></div>
+  <a class="btn ghost sm" href="preview.html">← 返回预览</a>
+  <div class="user-chip"><span class="av">林</span>xiaolin</div>
+</div>
+
+<div class="page">
+  <div class="flow reveal" style="margin-bottom:22px">
+    <a href="import.html">② 导入</a><span class="sep">→</span><a href="converting.html">③ 转换</a><span class="sep">→</span><a href="preview.html">④ 预览</a><span class="sep">→</span><a href="scene-edit.html">⑤ 打磨</a><span class="sep">→</span><a class="on">⑥ 导出</a>
+  </div>
+
+  <div class="eyebrow reveal">06 · 导出</div>
+  <h1 class="h-title reveal d1" style="font-size:clamp(26px,4vw,40px)">带走你的剧本初稿</h1>
+
+  <!-- YAML 核心 -->
+  <div class="panel reveal d2 mt-24">
+    <div class="panel-h">
+      <span class="ix">YAML</span> 结构化剧本 <span class="badge" style="background:var(--seal);color:var(--paper)">核心交付</span>
+      <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">符合 Schema · 可继续打磨</span>
+    </div>
+    <div class="panel-b" style="padding:0">
+      <pre class="yaml-preview" style="max-height:380px;overflow:auto;padding:16px;font-family:var(--mono);font-size:13px;line-height:1.6;background:var(--paper-2)">
+title: 她比烟花寂寞
+screenplayType: ANIME
+plotSummary: 求职屡败的林晚在天台徘徊，最终被一通录用电话挽回。
+characters:
+  - name: 林晚
+    role: PROTAGONIST
+    description: 27岁，求职屡屡碰壁的设计师，敏感坚韧
+    firstAppearance: 第1章
+    relationships:
+      - target: 母亲
+        relation: 母女
+  - name: 陈经理
+    role: SUPPORTING
+    description: 录用林晚的公司主管，欣赏她的作品
+    firstAppearance: 第3章
+scenes:
+  - sceneId: s1
+    heading:
+      interior: true
+      location: 出租屋
+      timeOfDay: 夜
+    actionLines:
+      - 雨敲打着铁皮屋檐。狭小的房间里，林晚盘腿坐在地板上。
+      - 台灯昏黄，膝头摊着一份被反复折叠的简历。
+    dialogueBlocks:
+      - character: 林晚
+        parenthetical: (画外音)
+        line: 又一次……我都习惯了。习惯，是最体面的认输。
+    visualizedInnerThoughts:
+      - original: 心里像压了块石头
+        method: CLOSE_UP
+        result: 指尖无意识地把纸角捻出深深的褶皱
+    transitions:
+      - 切至：
+    sourceChapter: 1
+    sourceText: 雨敲在铁皮屋檐上。林晚把简历又看了一遍...
+storylines:
+  - name: 求职挣扎
+    type: MAIN
+    events:
+      - {scene: s1, event: 独自审视简历}
+      - {scene: s2, event: 天台徘徊}
+      - {scene: s3, event: 收到录用电话}
+      </pre>
+    </div>
+    <div class="panel-b row" style="gap:10px">
+      <button class="btn primary lg" style="flex:1">↧ 下载 screenplay.yaml</button>
+      <button class="btn ghost">复制 YAML</button>
+      <button class="btn ghost">查看 Schema 文档</button>
+    </div>
+    <p class="hint" style="margin-top:8px">YAML 是剧本的<b>结构化表达</b>——可在任意编辑器中继续打磨，或导入其他工具做二次加工。</p>
+  </div>
+
+  <!-- 可读剧本（衍生） -->
+  <div class="panel reveal d3 mt-16">
+    <div class="panel-h">
+      <span class="ix">TEXT</span> 可读剧本
+      <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">YAML 渲染视图 · 便于人眼阅读</span>
+    </div>
+    <div class="panel-b" style="padding:0">
+      <div class="screenplay" style="padding:18px 20px;max-height:200px;overflow:auto">
+        <div class="sp-scene">
+          <div class="sp-heading"><span class="no">S1</span> 内景 — 出租屋 — 夜</div>
+          <p class="sp-action">雨敲打着铁皮屋檐。狭小的房间里，<b>林晚</b>盘腿坐在地板上，膝头摊着一份被反复折叠的简历。台灯昏黄。</p>
+          <p class="sp-action">她把简历又看了一遍，<span class="vo-mark" title="内心戏视觉化：CLOSE_UP">指尖无意识地把纸角捻出深深的褶皱</span>。</p>
+          <div class="sp-vo"><div class="sp-cue">林晚</div><div class="sp-paren">(画外音)</div><div class="sp-dialogue">又一次……我都习惯了。习惯，是最体面的认输。</div></div>
+          <p class="sp-trans">切至：</p>
+        </div>
+      </div>
+    </div>
+    <div class="panel-b row" style="gap:10px">
+      <button class="btn" style="flex:1">↧ 下载 screenplay.txt</button>
+      <button class="btn ghost sm">复制文本</button>
+    </div>
+    <p class="hint" style="margin-top:8px">可读剧本是 YAML 的<b>人类友好渲染</b>——用于阅读、分享、打印。格式依赖 Markdown/Fountain 等标记，导出 .md 或 .fountain 可保留格式。</p>
+  </div>
+
+  <p class="hint mt-24" style="text-align:center">题目要求：「转换为结构化剧本（YAML 格式）……可编辑、可进一步打磨」——YAML 即是交付核心。</p>
+</div>
+
+<div class="api-dock" id="dock">
+  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 导出</span><span class="cnt">2</span></div>
+  <div class="api-list">
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/screenplay/{id}/export/yaml</span><span class="when">下载 YAML（核心交付）</span></div>
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/screenplay/{id}/export/text</span><span class="when">下载可读剧本（衍生）</span></div>
+  </div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>

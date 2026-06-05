@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 / 注册 · Lively Novel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="seal">活</span><div><h1>Lively Novel</h1><div class="zh">活字成剧</div></div></div>
+  <div class="spacer"></div>
+  <a class="btn ghost sm" href="index.html">← 原型导航</a>
+</div>
+
+<div class="page" style="max-width:520px">
+  <div class="eyebrow reveal">01 · 登录</div>
+  <h1 class="h-title reveal d1" style="font-size:clamp(26px,4vw,38px)">开始你的改编</h1>
+  <p class="lead reveal d2">登录后即可导入小说、转换剧本，并保存你的作品。</p>
+
+  <!-- 登录表单 -->
+  <div class="panel mt-24 reveal d3" data-auth-form="login">
+    <div class="panel-h"><span class="ix">LOGIN</span> 登录</div>
+    <div class="panel-b">
+      <label class="fld"><span class="lbl">用户名</span><input class="input" placeholder="xiaolin"></label>
+      <label class="fld"><span class="lbl">密码</span><input class="input" type="password" placeholder="••••••••"></label>
+      <button class="btn primary lg" style="width:100%">登录 <span class="ar">→</span></button>
+      <p class="hint mt-16">还没有账号？ <a href="#" data-auth-switch="register" style="color:var(--seal)">注册一个</a></p>
+    </div>
+  </div>
+
+  <!-- 注册表单 -->
+  <div class="panel mt-24 reveal d3" data-auth-form="register" style="display:none">
+    <div class="panel-h"><span class="ix">REGISTER</span> 注册</div>
+    <div class="panel-b">
+      <label class="fld"><span class="lbl">用户名</span><input class="input" placeholder="3–20 位"></label>
+      <label class="fld"><span class="lbl">密码</span><input class="input" type="password" placeholder="至少 8 位"><p class="hint">为防滥用，注册受 IP 限流保护</p></label>
+      <button class="btn primary lg" style="width:100%">注册并登录 <span class="ar">→</span></button>
+      <p class="hint mt-16">已有账号？ <a href="#" data-auth-switch="login" style="color:var(--seal)">去登录</a></p>
+    </div>
+  </div>
+</div>
+
+<div class="api-dock" id="dock">
+  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 登录注册</span><span class="cnt">2</span></div>
+  <div class="api-list">
+    <div class="api-item"><span class="m POST">POST</span><span class="path">/api/auth/login</span><span class="when">点击「登录」→ 返回 JWT，存入前端</span></div>
+    <div class="api-item"><span class="m POST">POST</span><span class="path">/api/auth/register</span><span class="when">点击「注册并登录」→ 创建账号（IP 限流）</span></div>
+  </div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>

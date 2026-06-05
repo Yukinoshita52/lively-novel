@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lively Novel · 产品原型</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">
+    <span class="seal">活</span>
+    <div>
+      <h1>Lively Novel</h1>
+      <div class="zh">活字成剧</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="quota-chip">原型 · PROTOTYPE</div>
+</div>
+
+<div class="page">
+  <div class="eyebrow reveal">题目三 · AI 小说转剧本工具</div>
+  <h1 class="h-title reveal d1">让<span style="color:var(--seal)">静态的小说</span><br>在纸上<span class="zh" style="font-family:var(--display);font-style:italic">动</span>起来。</h1>
+  <p class="lead reveal d2">把几章小说，一键变成格式正确、拆好场、对白清晰、<b>内心戏已视觉化</b>、人物与场景全局一致的剧本初稿——再逐场打磨、导出 YAML。</p>
+
+  <div class="row mt-32 reveal d3" style="gap:18px;flex-wrap:wrap">
+    <a class="btn primary lg" href="login.html">进入产品 <span class="ar">→</span></a>
+    <span class="muted" style="font-family:var(--mono);font-size:12.5px">概念：稿纸 × 胶片 · Manuscript × Cinema</span>
+  </div>
+
+  <!-- 流程 -->
+  <div class="panel mt-32 reveal d3" style="margin-top:48px">
+    <div class="panel-h"><span class="ix">FLOW</span> 用户旅程 · 六幕</div>
+    <div class="panel-b">
+      <div class="flow" style="font-size:13px">
+        <a href="login.html">① 登录/注册</a><span class="sep">→</span>
+        <a href="import.html">② 导入小说</a><span class="sep">→</span>
+        <a href="converting.html">③ 转换中(SSE)</a><span class="sep">→</span>
+        <a href="preview.html">④ 预览/全局信息</a><span class="sep">→</span>
+        <a href="scene-edit.html">⑤ 逐场打磨</a><span class="sep">→</span>
+        <a href="export.html">⑥ 导出</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 屏幕卡片 -->
+  <div class="grid-2 mt-24 reveal d4" style="grid-template-columns:repeat(3,1fr)">
+    <a class="panel" href="login.html" style="text-decoration:none;color:inherit">
+      <div class="panel-b"><div class="eyebrow" style="margin:0 0 8px">01 · AUTH</div><div style="font-weight:700;font-size:18px">登录 / 注册</div><p class="muted" style="font-size:13px;margin-top:6px">JWT 登录，展示每日配额</p></div>
+    </a>
+    <a class="panel" href="import.html" style="text-decoration:none;color:inherit">
+      <div class="panel-b"><div class="eyebrow" style="margin:0 0 8px">02 · IMPORT</div><div style="font-weight:700;font-size:18px">导入小说</div><p class="muted" style="font-size:13px;margin-top:6px">粘贴/上传 txt，选剧本类型</p></div>
+    </a>
+    <a class="panel" href="converting.html" style="text-decoration:none;color:inherit">
+      <div class="panel-b"><div class="eyebrow" style="margin:0 0 8px">03 · CONVERT</div><div style="font-weight:700;font-size:18px">转换中</div><p class="muted" style="font-size:13px;margin-top:6px">SSE 流式：全局分析 + 逐场生成</p></div>
+    </a>
+    <a class="panel" href="preview.html" style="text-decoration:none;color:inherit">
+      <div class="panel-b"><div class="eyebrow" style="margin:0 0 8px">04 · PREVIEW</div><div style="font-weight:700;font-size:18px">剧本预览</div><p class="muted" style="font-size:13px;margin-top:6px">剧本渲染 + 大纲 + 人物/场景表</p></div>
+    </a>
+    <a class="panel" href="scene-edit.html" style="text-decoration:none;color:inherit">
+      <div class="panel-b"><div class="eyebrow" style="margin:0 0 8px">05 · POLISH</div><div style="font-weight:700;font-size:18px">逐场打磨</div><p class="muted" style="font-size:13px;margin-top:6px">编辑 / 重生 / 风格调整</p></div>
+    </a>
+    <a class="panel" href="export.html" style="text-decoration:none;color:inherit">
+      <div class="panel-b"><div class="eyebrow" style="margin:0 0 8px">06 · EXPORT</div><div style="font-weight:700;font-size:18px">导出</div><p class="muted" style="font-size:13px;margin-top:6px">YAML / 可读剧本</p></div>
+    </a>
+  </div>
+
+  <p class="muted mt-32" style="font-family:var(--mono);font-size:12px">每屏左下角「场记板」标注了该屏调用的 API 接口 ↙</p>
+</div>
+
+<!-- 接口场记板 -->
+<div class="api-dock" id="dock">
+  <div class="slate" onclick="toggleDock(this)">
+    <span class="clap">🎬</span><span class="ttl">接口标注 · API</span><span class="cnt">导览</span>
+  </div>
+  <div class="api-list">
+    <div class="api-item"><span class="m GET">GET</span><span class="path">/api/auth/me</span><span class="when">顶栏加载用户与每日配额</span></div>
+    <div class="api-item muted" style="color:#9b8f78">各屏接口见对应页面左下角场记板</div>
+  </div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>

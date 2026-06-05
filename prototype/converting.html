@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>转换中 · Lively Novel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="seal">活</span><div><h1>Lively Novel</h1><div class="zh">活字成剧</div></div></div>
+  <div class="spacer"></div>
+  <div class="quota-chip">今日额度 <b>168k / 200k</b> tokens</div>
+  <div class="user-chip"><span class="av">林</span>xiaolin</div>
+</div>
+
+<div class="page">
+  <div class="flow reveal" style="margin-bottom:26px">
+    <a href="import.html">② 导入</a><span class="sep">→</span><a class="on">③ 转换</a><span class="sep">→</span><a href="preview.html">④ 预览</a><span class="sep">→</span><a href="scene-edit.html">⑤ 打磨</a><span class="sep">→</span><a href="export.html">⑥ 导出</a>
+  </div>
+
+  <div class="eyebrow reveal">03 · 转换中 · SSE</div>
+  <h1 class="h-title reveal d1" style="font-size:clamp(26px,4vw,40px)">《她比烟花寂寞》<span class="muted" style="font-size:16px;font-family:var(--mono)">→ 影视剧本</span></h1>
+
+  <div class="grid-2 mt-24" style="grid-template-columns:1fr 1.4fr">
+    <!-- 两阶段进度 -->
+    <div class="panel reveal d2">
+      <div class="panel-h"><span class="ix">PIPE</span> 两阶段转换</div>
+      <div class="panel-b">
+        <div class="phase-row" >
+          <div class="phase-dot">A</div>
+          <div><div class="p-name">全局分析</div><div class="p-msg">通读全文 · 抽人物/场景/线索</div></div>
+        </div>
+        <div class="bar" style="margin:2px 0 6px 44px"><i style="width:100%"></i></div>
+        <div class="phase-row">
+          <div class="phase-dot">B</div>
+          <div><div class="p-name">逐场生成</div><div class="p-msg">带全局+前场上下文 · 逐场流式</div></div>
+        </div>
+        <div class="bar" style="margin:2px 0 6px 44px"><i style="width:45%"></i></div>
+        <div class="phase-row">
+          <div class="phase-dot">✓</div>
+          <div><div class="p-name">组装落库</div><div class="p-msg">生成剧本 · 持久化</div></div>
+        </div>
+        <p class="hint mt-16">本篇 3 章（短）走「全文单次分析」；长篇会自动切到顺序 Map-Reduce。</p>
+      </div>
+    </div>
+
+    <!-- 事件流 -->
+    <div class="panel reveal d3">
+      <div class="panel-h"><span class="ix">SSE</span> 实时事件流 <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--gold)">● LIVE</span></div>
+      <div class="panel-b" style="padding:14px">
+        <div class="stream" id="stream"><span class="caret"></span></div>
+        <p class="hint mt-16" style="text-align:center"><a href="preview.html" style="color:var(--seal)">演示：转换完成，进入预览 →</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="api-dock" id="dock">
+  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 转换</span><span class="cnt">1</span></div>
+  <div class="api-list">
+    <div class="api-item"><span class="m SSE">SSE</span><span class="path">POST /api/screenplay/convert</span><span class="when">提交 {novelId, screenplayType}；SSE 推送：cache_hit / analysis_* / scene_generated / complete</span></div>
+  </div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>
