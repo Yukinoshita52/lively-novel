@@ -1,6 +1,8 @@
 package com.livelynovel.controller;
 
 import com.livelynovel.controller.ScreenplayController;
+import com.livelynovel.common.Result;
+import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.dto.ScreenplayConvertRequestDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 import com.livelynovel.service.LlmService;
@@ -43,5 +45,28 @@ class ScreenplayControllerTest {
         Object response = controller.convert(request);
 
         assertThat(response).isInstanceOf(SseEmitter.class);
+    }
+
+    @Test
+    void returnsPersistedConversionDetail() {
+        ScreenplayConversionDetailDTO detail = new ScreenplayConversionDetailDTO();
+        detail.setConversionId("cv-1234abcd");
+        detail.setStatus("COMPLETED");
+        when(screenplayService.getConversionDetail("cv-1234abcd")).thenReturn(detail);
+
+        Result<ScreenplayConversionDetailDTO> response = controller.getConversionDetail("cv-1234abcd");
+
+        assertThat(response.getCode()).isEqualTo(0);
+        assertThat(response.getData().getConversionId()).isEqualTo("cv-1234abcd");
+    }
+
+    @Test
+    void returnsNotFoundWhenConversionMissing() {
+        when(screenplayService.getConversionDetail("cv-missing")).thenReturn(null);
+
+        Result<ScreenplayConversionDetailDTO> response = controller.getConversionDetail("cv-missing");
+
+        assertThat(response.getCode()).isEqualTo(40401);
+        assertThat(response.getData()).isNull();
     }
 }
