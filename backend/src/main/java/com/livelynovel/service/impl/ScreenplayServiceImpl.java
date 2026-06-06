@@ -11,6 +11,7 @@ import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
+import com.livelynovel.model.dto.ScriptBlockDTO;
 import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.dto.ScreenplayPersistedSceneDTO;
 import com.livelynovel.model.entity.ScreenplayConversionEntity;
@@ -447,35 +448,30 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         return exportScene;
     }
 
-    private List<Map<String, Object>> toScriptBlocks(SceneDTO scene) {
-        List<Map<String, Object>> blocks = new java.util.ArrayList<>();
+    private List<ScriptBlockDTO> toScriptBlocks(SceneDTO scene) {
+        if (scene.getScriptBlocks() != null && !scene.getScriptBlocks().isEmpty()) {
+            return scene.getScriptBlocks();
+        }
+
+        List<ScriptBlockDTO> blocks = new java.util.ArrayList<>();
         for (String actionLine : nullToEmpty(scene.getActionLines())) {
             if (actionLine != null && !actionLine.isBlank()) {
-                Map<String, Object> block = new LinkedHashMap<>();
-                block.put("type", "ACTION");
-                block.put("text", actionLine);
-                blocks.add(block);
+                blocks.add(ScriptBlockDTO.action(actionLine));
             }
         }
         for (DialogueBlockDTO dialogueBlock : nullToEmpty(scene.getDialogueBlocks())) {
             if (dialogueBlock == null) {
                 continue;
             }
-            Map<String, Object> block = new LinkedHashMap<>();
-            block.put("type", "DIALOGUE");
-            block.put("character", dialogueBlock.getCharacter());
-            if (dialogueBlock.getParenthetical() != null && !dialogueBlock.getParenthetical().isBlank()) {
-                block.put("parenthetical", dialogueBlock.getParenthetical());
-            }
-            block.put("line", dialogueBlock.getLine());
-            blocks.add(block);
+            blocks.add(ScriptBlockDTO.dialogue(
+                    dialogueBlock.getCharacter(),
+                    dialogueBlock.getParenthetical(),
+                    dialogueBlock.getLine()
+            ));
         }
         for (String transition : nullToEmpty(scene.getTransitions())) {
             if (transition != null && !transition.isBlank()) {
-                Map<String, Object> block = new LinkedHashMap<>();
-                block.put("type", "TRANSITION");
-                block.put("text", transition);
-                blocks.add(block);
+                blocks.add(ScriptBlockDTO.transition(transition));
             }
         }
         return blocks;
