@@ -70,6 +70,8 @@
 2. 如有需要的 message 正文
 3. `git add` 的具体文件
 
+多个 commit 必须串行执行，不要并行提交 commit，避免 `.git/index.lock` 冲突和提交边界混乱。
+
 ### 5.2 写法要求
 
 - 使用语义化前缀：`feat:` `fix:` `docs:` `chore:` `refactor:` `test:`
