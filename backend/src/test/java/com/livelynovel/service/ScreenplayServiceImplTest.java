@@ -208,6 +208,84 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
+    void replaysCompletedConversionThroughSseWithoutCallingLlm() throws Exception {
+        String novelId = "nv-1234abcd";
+        ScreenplayConversionEntity conversion = conversion("cv-completed", novelId, "COMPLETED");
+        ScreenplaySceneUnitEntity sceneUnit = sceneUnitEntity("cv-completed", 1, 1, "第一场", "第一段原文。");
+        ScreenplaySceneEntity sceneEntity = sceneEntity("cv-completed", 1, 1, "scene-1");
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
+                novelId,
+                ScreenplayTypeEnum.ANIME,
+                List.of("RUNNING", "FAILED", "COMPLETED")
+        )).thenReturn(Optional.of(conversion));
+        when(novelService.getChapters(novelId)).thenReturn(chaptersResult(novelId));
+        when(sceneUnitRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-completed"))
+                .thenReturn(List.of(sceneUnit));
+        when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-completed"))
+                .thenReturn(List.of(sceneEntity));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, new AtomicReference<>());
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        verify(conversionRepository, never()).save(org.mockito.ArgumentMatchers.any(ScreenplayConversionEntity.class));
+        verify(llmService, never()).splitChapterIntoScenes(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        );
+        verify(llmService, never()).convertSingleScene(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        );
+        assertThat(containsReplayedEvent(sentPayloads, "chapter_split")).isTrue();
+        assertThat(containsReplayedEvent(sentPayloads, "scene_completed")).isTrue();
+        assertThat(containsEvent(sentPayloads, "completed")).isTrue();
+    }
+
+    @Test
+    void resumesFromPersistedSceneUnitsAndConvertsOnlyMissingScenes() throws Exception {
+        String novelId = "nv-1234abcd";
+        ScreenplayConversionEntity conversion = conversion("cv-partial", novelId, "FAILED");
+        ScreenplaySceneUnitEntity firstUnit = sceneUnitEntity("cv-partial", 1, 1, "第一场", "第一段原文。");
+        ScreenplaySceneUnitEntity secondUnit = sceneUnitEntity("cv-partial", 1, 2, "第二场", "第二段原文。");
+        ScreenplaySceneEntity firstScene = sceneEntity("cv-partial", 1, 1, "scene-1");
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
+                novelId,
+                ScreenplayTypeEnum.ANIME,
+                List.of("RUNNING", "FAILED", "COMPLETED")
+        )).thenReturn(Optional.of(conversion));
+        when(novelService.getChapters(novelId)).thenReturn(chaptersResult(novelId));
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, "第一段原文。\n第二段原文。"));
+        when(sceneUnitRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-partial"))
+                .thenReturn(List.of(firstUnit, secondUnit));
+        when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-partial"))
+                .thenReturn(List.of(firstScene));
+        when(llmService.convertSingleScene("第二段原文。", ScreenplayTypeEnum.ANIME)).thenReturn(scene("scene-2"));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, new AtomicReference<>());
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        verify(llmService, never()).splitChapterIntoScenes(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        );
+        verify(llmService, times(1)).convertSingleScene("第二段原文。", ScreenplayTypeEnum.ANIME);
+        verify(sceneRepository, times(1)).save(org.mockito.ArgumentMatchers.any(ScreenplaySceneEntity.class));
+        assertThat(containsReplayedEvent(sentPayloads, "chapter_split")).isTrue();
+        assertThat(containsReplayedEvent(sentPayloads, "scene_completed")).isTrue();
+        assertThat(containsFreshScene(sentPayloads, 2)).isTrue();
+    }
+
+    @Test
     void returnsPersistedConversionDetailWithGeneratedScenes() {
         ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
         conversion.setId("cv-1234abcd");
@@ -244,6 +322,48 @@ class ScreenplayServiceImplTest {
         assertThat(detail.getStatus()).isEqualTo("COMPLETED");
         assertThat(detail.getScenes()).hasSize(1);
         assertThat(detail.getScenes().get(0).getScene().getSceneId()).isEqualTo("s1");
+    }
+
+    @Test
+    void returnsLatestCompletedConversionByNovelAndType() {
+        ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
+        conversion.setId("cv-completed");
+        conversion.setNovelId("nv-1234abcd");
+        conversion.setScreenplayType(ScreenplayTypeEnum.ANIME);
+        conversion.setStatus("COMPLETED");
+
+        ScreenplaySceneEntity sceneEntity = new ScreenplaySceneEntity();
+        sceneEntity.setConversionId("cv-completed");
+        sceneEntity.setChapterIndex(1);
+        sceneEntity.setSceneIndexInChapter(1);
+        sceneEntity.setSceneJson("""
+                {
+                  "sceneId": "s1",
+                  "heading": {"interior": true, "location": "教室", "timeOfDay": "午后"},
+                  "actionLines": ["林秋把书包放在桌上。"],
+                  "dialogueBlocks": [],
+                  "visualizedInnerThoughts": [],
+                  "transitions": [],
+                  "sourceChapter": 1,
+                  "sourceText": "第一段原文。"
+                }
+                """);
+
+        when(conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusOrderByUpdatedAtDesc(
+                "nv-1234abcd",
+                ScreenplayTypeEnum.ANIME,
+                "COMPLETED"
+        )).thenReturn(Optional.of(conversion));
+        when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-completed"))
+                .thenReturn(List.of(sceneEntity));
+
+        ScreenplayConversionDetailDTO detail =
+                screenplayService.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME);
+
+        assertThat(detail).isNotNull();
+        assertThat(detail.getConversionId()).isEqualTo("cv-completed");
+        assertThat(detail.getStatus()).isEqualTo("COMPLETED");
+        assertThat(detail.getScenes()).hasSize(1);
     }
 
     @Test
@@ -458,6 +578,24 @@ class ScreenplayServiceImplTest {
             .anyMatch(data -> data.contains("event:" + eventName));
     }
 
+    private boolean containsReplayedEvent(List<Object> sentPayloads, String eventName) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .anyMatch(data -> eventName.equals(data.get("eventName"))
+                && Boolean.TRUE.equals(data.get("replayed")));
+    }
+
+    private boolean containsFreshScene(List<Object> sentPayloads, int sceneIndexInChapter) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .anyMatch(data -> "scene_completed".equals(data.get("eventName"))
+                && !Boolean.TRUE.equals(data.get("replayed"))
+                && data.get("sceneIndexInChapter") instanceof Integer index
+                && index == sceneIndexInChapter);
+    }
+
     private boolean containsMessage(List<Object> sentPayloads, String expectedMessage) {
         return flattenPayloadData(sentPayloads).stream()
             .filter(Map.class::isInstance)
@@ -545,5 +683,54 @@ class ScreenplayServiceImplTest {
         scene.setSourceText("测试场景原文");
         scene.setSourceChapter(1);
         return scene;
+    }
+
+    private ScreenplayConversionEntity conversion(String conversionId, String novelId, String status) {
+        ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
+        conversion.setId(conversionId);
+        conversion.setNovelId(novelId);
+        conversion.setScreenplayType(ScreenplayTypeEnum.ANIME);
+        conversion.setStatus(status);
+        return conversion;
+    }
+
+    private ScreenplaySceneUnitEntity sceneUnitEntity(
+        String conversionId,
+        int chapterIndex,
+        int sceneIndexInChapter,
+        String title,
+        String sourceText
+    ) {
+        ScreenplaySceneUnitEntity entity = new ScreenplaySceneUnitEntity();
+        entity.setConversionId(conversionId);
+        entity.setChapterIndex(chapterIndex);
+        entity.setSceneIndexInChapter(sceneIndexInChapter);
+        entity.setTitle(title);
+        entity.setSummary("历史切场摘要");
+        entity.setStartSegmentIndex(sceneIndexInChapter);
+        entity.setEndSegmentIndex(sceneIndexInChapter);
+        entity.setSourceText(sourceText);
+        entity.setStatus("SPLIT");
+        return entity;
+    }
+
+    private ScreenplaySceneEntity sceneEntity(String conversionId, int chapterIndex, int sceneIndexInChapter, String sceneId) {
+        ScreenplaySceneEntity entity = new ScreenplaySceneEntity();
+        entity.setConversionId(conversionId);
+        entity.setChapterIndex(chapterIndex);
+        entity.setSceneIndexInChapter(sceneIndexInChapter);
+        entity.setSceneJson("""
+                {
+                  "sceneId": "%s",
+                  "heading": {"interior": true, "location": "教室", "timeOfDay": "午后"},
+                  "actionLines": ["林秋把书包放在桌上。"],
+                  "dialogueBlocks": [],
+                  "visualizedInnerThoughts": [],
+                  "transitions": [],
+                  "sourceChapter": %d,
+                  "sourceText": "第一段原文。"
+                }
+                """.formatted(sceneId, chapterIndex));
+        return entity;
     }
 }
