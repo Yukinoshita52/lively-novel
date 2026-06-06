@@ -95,3 +95,41 @@ export function updateTransitionsText(draft: PolishDraft, transitionsText: strin
     },
   }
 }
+
+function toYamlLines(value: unknown, indent = 0): string[] {
+  const prefix = ' '.repeat(indent)
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (typeof item === 'object' && item !== null) {
+        return [`${prefix}-`, ...toYamlLines(item, indent + 2)]
+      }
+
+      return [`${prefix}- ${String(item)}`]
+    })
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => {
+      if (Array.isArray(item) || (typeof item === 'object' && item !== null)) {
+        return [`${prefix}${key}:`, ...toYamlLines(item, indent + 2)]
+      }
+
+      return [`${prefix}${key}: ${String(item)}`]
+    })
+  }
+
+  return [`${prefix}${String(value)}`]
+}
+
+export function buildPolishSceneYaml(scene: SceneResult) {
+  const editableScene = {
+    sceneId: scene.sceneId,
+    heading: scene.heading,
+    actionLines: scene.actionLines,
+    dialogueBlocks: scene.dialogueBlocks,
+    transitions: scene.transitions,
+    sourceChapter: scene.sourceChapter,
+  }
+
+  return toYamlLines(editableScene).join('\n')
+}

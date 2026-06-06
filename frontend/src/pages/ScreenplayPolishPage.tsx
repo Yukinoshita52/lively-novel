@@ -8,11 +8,11 @@ import {
   buildSceneHeadingText,
   buildSceneOutlineItems,
   getSceneKey,
-  getSourcePreview,
   resolveAdjacentSceneKeys,
   resolveSelectedScene,
 } from './screenplayPreview'
 import {
+  buildPolishSceneYaml,
   createPolishDraft,
   resetPolishDraft,
   updateActionLinesText,
@@ -32,31 +32,6 @@ type ScreenplayPolishPageProps = {
   onSelectScene: (sceneKey: string) => void
   onBackToPreview: () => void
   onExport: () => void
-}
-
-function toYamlLines(value: unknown, indent = 0): string[] {
-  const prefix = ' '.repeat(indent)
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => {
-      if (typeof item === 'object' && item !== null) {
-        return [`${prefix}-`, ...toYamlLines(item, indent + 2)]
-      }
-
-      return [`${prefix}- ${String(item)}`]
-    })
-  }
-
-  if (typeof value === 'object' && value !== null) {
-    return Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => {
-      if (Array.isArray(item) || (typeof item === 'object' && item !== null)) {
-        return [`${prefix}${key}:`, ...toYamlLines(item, indent + 2)]
-      }
-
-      return [`${prefix}${key}: ${String(item)}`]
-    })
-  }
-
-  return [`${prefix}${String(value)}`]
 }
 
 function ScreenplayPolishPage({
@@ -84,7 +59,7 @@ function ScreenplayPolishPage({
     return draftsBySceneKey[scene.key] ?? createPolishDraft(scene.scene)
   }, [draftsBySceneKey, scene])
   const draftScene = draft?.scene
-  const sceneYaml = useMemo(() => (draftScene ? toYamlLines(draftScene).join('\n') : ''), [draftScene])
+  const sceneYaml = useMemo(() => (draftScene ? buildPolishSceneYaml(draftScene) : ''), [draftScene])
   const adjacentSceneKeys = useMemo(
     () => resolveAdjacentSceneKeys(session.generatedScenes, scene?.key),
     [scene?.key, session.generatedScenes],
@@ -220,16 +195,6 @@ function ScreenplayPolishPage({
                 ))}
               </div>
             ) : null}
-          </Card>
-
-          <Card
-            className="prototype-panel"
-            title={<PrototypePanelTitle code="SOURCE" title="小说原文 · 本场" meta={`CH${scene.chapterIndex}`} />}
-            bordered={false}
-          >
-            <div className="source-preview-text">
-              {getSourcePreview(scene.scene.sourceText || '', true)}
-            </div>
           </Card>
 
           <Card
