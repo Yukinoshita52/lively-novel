@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Button, Card, Input, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined, DownOutlined, ExportOutlined, LeftOutlined, RightOutlined, UpOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Input, message as antdMessage, Tag, Typography } from 'antd'
+import { ArrowLeftOutlined, DownOutlined, ExportOutlined, LeftOutlined, RightOutlined, SaveOutlined, StopOutlined, UpOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from './conversionSession'
+import { updateScreenplayScene } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
 import {
   buildSceneHeadingText,
@@ -13,6 +14,7 @@ import {
 } from './screenplayPreview'
 import {
   createPolishDraft,
+  resetPolishDraft,
   updateActionLinesText,
   updateDialogueText,
   updateTransitionsText,
@@ -25,6 +27,8 @@ const { TextArea } = Input
 type ScreenplayPolishPageProps = {
   session: ConversionSessionState
   selectedSceneKey?: string
+  draftsBySceneKey: Record<string, PolishDraft>
+  onUpdateDraft: (sceneKey: string, draft: PolishDraft) => void
   onSelectScene: (sceneKey: string) => void
   onBackToPreview: () => void
   onExport: () => void
@@ -58,12 +62,15 @@ function toYamlLines(value: unknown, indent = 0): string[] {
 function ScreenplayPolishPage({
   session,
   selectedSceneKey,
+  draftsBySceneKey,
+  onUpdateDraft,
   onSelectScene,
   onBackToPreview,
   onExport,
 }: ScreenplayPolishPageProps) {
   const [scenePickerExpanded, setScenePickerExpanded] = useState(false)
-  const [draftsBySceneKey, setDraftsBySceneKey] = useState<Record<string, PolishDraft>>({})
+  const [savingScene, setSavingScene] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const scene = useMemo(
     () => resolveSelectedScene(session.generatedScenes, selectedSceneKey),
     [selectedSceneKey, session.generatedScenes],
@@ -88,10 +95,45 @@ function ScreenplayPolishPage({
       return
     }
 
-    setDraftsBySceneKey((current) => ({
-      ...current,
-      [scene.key]: nextDraft,
-    }))
+    onUpdateDraft(scene.key, nextDraft)
+  }
+
+  async function handleSaveDraft() {
+    if (!scene || !draftScene || !session.conversionId || !scene.sceneIndexInChapter) {
+      return
+    }
+
+    setSavingScene(true)
+    setSaveError(null)
+
+    try {
+      const savedScene = await updateScreenplayScene(
+        session.conversionId,
+        scene.chapterIndex,
+        scene.sceneIndexInChapter,
+        draftScene,
+      )
+      onUpdateDraft(scene.key, createPolishDraft(savedScene))
+      antdMessage.open({
+        key: 'polish-save-success',
+        type: 'success',
+        content: '保存成功',
+        duration: 1.8,
+      })
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '保存本场失败')
+    } finally {
+      setSavingScene(false)
+    }
+  }
+
+  function handleCancelDraft() {
+    if (!scene || !draft) {
+      return
+    }
+
+    onUpdateDraft(scene.key, resetPolishDraft(draft))
+    setSaveError(null)
   }
 
   return (
@@ -195,6 +237,9 @@ function ScreenplayPolishPage({
             title={<PrototypePanelTitle code="EDIT" title="本地打磨草稿" meta="即时预览" />}
             bordered={false}
           >
+            {saveError ? (
+              <Alert className="feedback-block" message="保存失败" description={saveError} type="error" showIcon />
+            ) : null}
             <div className="polish-editor">
               <label>
                 <Text className="thought-label">动作行</Text>
@@ -221,6 +266,20 @@ function ScreenplayPolishPage({
                   onChange={(event) => updateDraft(updateTransitionsText(draft, event.target.value))}
                 />
               </label>
+            </div>
+            <div className="prototype-export-row">
+              <Button icon={<StopOutlined />} onClick={handleCancelDraft}>
+                取消
+              </Button>
+              <Button
+                disabled={!session.conversionId || !scene.sceneIndexInChapter}
+                icon={<SaveOutlined />}
+                loading={savingScene}
+                onClick={handleSaveDraft}
+                type="primary"
+              >
+                保存
+              </Button>
             </div>
           </Card>
 

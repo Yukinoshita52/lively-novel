@@ -14,7 +14,7 @@ type ScreenplayExportPageProps = {
 }
 
 function ScreenplayExportPage({ session, onBackToPolish }: ScreenplayExportPageProps) {
-  const [yamlText, setYamlText] = useState('')
+  const [persistedYamlText, setPersistedYamlText] = useState('')
   const [exportError, setExportError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -29,7 +29,7 @@ function ScreenplayExportPage({ session, onBackToPolish }: ScreenplayExportPageP
       .then((blob) => blob.text())
       .then((text) => {
         if (active) {
-          setYamlText(text)
+          setPersistedYamlText(text)
         }
       })
       .catch((error: unknown) => {
@@ -42,6 +42,7 @@ function ScreenplayExportPage({ session, onBackToPolish }: ScreenplayExportPageP
       active = false
     }
   }, [session.completed, session.conversionId])
+  const yamlText = persistedYamlText
   const loadingYaml = Boolean(session.completed && session.conversionId && !yamlText && !exportError)
 
   function handleDownloadYaml() {
@@ -99,7 +100,6 @@ function ScreenplayExportPage({ session, onBackToPolish }: ScreenplayExportPageP
         {exportError ? (
           <Alert className="feedback-block" message="导出失败" description={exportError} type="error" showIcon />
         ) : null}
-
         <pre className="yaml-preview export-yaml">
           {loadingYaml ? '正在读取 YAML...' : yamlText || '暂无可导出的 YAML。'}
         </pre>
