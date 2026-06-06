@@ -408,6 +408,48 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
+    void updatesPersistedSceneAndExportUsesUpdatedSceneJson() {
+        ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
+        conversion.setId("cv-1234abcd");
+        conversion.setNovelId("nv-1234abcd");
+        conversion.setScreenplayType(ScreenplayTypeEnum.ANIME);
+        conversion.setStatus("COMPLETED");
+
+        ScreenplaySceneEntity sceneEntity = new ScreenplaySceneEntity();
+        sceneEntity.setConversionId("cv-1234abcd");
+        sceneEntity.setChapterIndex(1);
+        sceneEntity.setSceneIndexInChapter(1);
+        sceneEntity.setSceneJson("""
+                {
+                  "sceneId": "s1",
+                  "heading": {"interior": true, "location": "教室", "timeOfDay": "午后"},
+                  "actionLines": ["林秋把书包放在桌上。"],
+                  "dialogueBlocks": [],
+                  "visualizedInnerThoughts": [],
+                  "transitions": [],
+                  "sourceChapter": 1,
+                  "sourceText": "第一段原文。"
+                }
+                """);
+        SceneDTO updatedScene = scene("s1");
+        updatedScene.setActionLines(List.of("她抬头看向窗外。"));
+
+        when(sceneRepository.findByConversionIdAndChapterIndexAndSceneIndexInChapter("cv-1234abcd", 1, 1))
+                .thenReturn(Optional.of(sceneEntity));
+        when(sceneRepository.save(sceneEntity)).thenReturn(sceneEntity);
+        when(conversionRepository.findById("cv-1234abcd")).thenReturn(Optional.of(conversion));
+        when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-1234abcd"))
+                .thenReturn(List.of(sceneEntity));
+
+        SceneDTO savedScene = screenplayService.updatePersistedScene("cv-1234abcd", 1, 1, updatedScene);
+        String yaml = screenplayService.exportConversionYaml("cv-1234abcd");
+
+        assertThat(savedScene.getActionLines()).containsExactly("她抬头看向窗外。");
+        assertThat(sceneEntity.getSceneJson()).contains("她抬头看向窗外。");
+        assertThat(yaml).contains("她抬头看向窗外。");
+    }
+
+    @Test
     void retriesWhenLongChapterFallsBackToSingleWholeChapterScene() throws Exception {
         String novelId = "nv-1234abcd";
         String chapterContent = "第一段。\n第二段。\n第三段。\n第四段。\n第五段。\n第六段。";
