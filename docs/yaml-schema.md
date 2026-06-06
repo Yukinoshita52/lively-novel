@@ -60,11 +60,13 @@
 ```yaml
 scenes:                    # 场景列表（有序）
   - sceneId: s1            # 一个场景
-    actionLines:           # 动作行列表（有序）
-      - 雨敲打着铁皮屋檐。
-      - 林晚盘腿坐在地板上。
-    dialogueBlocks:        # 对白块列表（有序）
-      - character: 林晚
+    scriptBlocks:          # 剧本正文块列表（有序）
+      - type: ACTION
+        text: 雨敲打着铁皮屋檐。
+      - type: ACTION
+        text: 林晚盘腿坐在地板上。
+      - type: DIALOGUE
+        character: 林晚
         line: 又一次……
 ```
 
@@ -78,21 +80,21 @@ scenes:                    # 场景列表（有序）
 
 ### 原则一：语义单元独立成字段（结构化优先）
 
-剧本的每个**专业要素**——场景标题（heading）、动作行（action）、角色提示（cue）、括号提示（parenthetical）、对白（dialogue）、转场（transition）——都拆成独立字段，**绝不合并为一段自由文本**。
+剧本的每个**专业要素**——场景标题（heading）、动作行（action）、角色提示（cue）、括号提示（parenthetical）、对白（dialogue）、转场（transition）——都拆成独立字段，放入有序的 `scriptBlocks`，**绝不合并为一段自由文本**。
 
 > **为什么**：对应用户痛点 #1「格式是黑箱」。小说作者不懂这些要素如何排版。把它们结构化后，**排版逻辑交给渲染器，作者只需关心内容**。同时结构化是题目"可编辑"的前提——只有字段独立，才能"只改这一句对白"而不破坏其余部分。
 
-### 原则二：内心戏视觉化必须"留痕"（可解释、可审计）
+### 原则二：内心戏必须视觉化进剧本正文
 
-把心理描写/独白转成动作、对白、画外音的过程，是本项目最核心的 AI 价值，也是改编最难、最容易出错的一步。Schema 用一个专门字段 `visualizedInnerThoughts` **完整记录每一次转译**：原文是哪句、用了什么手法、转成了什么。
+把心理描写/独白转成动作、对白、画外音的过程，是本项目最核心的 AI 价值，也是改编最难、最容易出错的一步。导出的 YAML 不单独暴露审计字段，而是要求转换结果直接落入 `scriptBlocks`：内心活动要么成为可见动作，要么成为对白/画外音，要么成为转场前后的画面节奏。
 
-> **为什么**：对应用户痛点 #3「内心戏无处安放」——这是改编的灵魂。留痕带来三重价值：① **可信**——作者能看到 AI"为什么这么改"，而非黑箱；② **可打磨**——作者对某次转译不满意时，能精准定位并要求换一种手法重生（见打磨流程）；③ **可展示**——demo 中这是最能体现"AI 真的在做改编而非排版"的证据。
+> **为什么**：最终交付物是剧本，不是 AI 改编日志。作者和评委最需要看到的是"内心戏已经被改成可演、可读的剧本内容"。审计与重生所需的中间信息可以留在后端内部，但不进入导出的剧本 YAML。
 
-### 原则三：全程可溯源（每个场景都能追回原文）
+### 原则三：剧本交付与内部溯源分离
 
-每个场景都带 `sourceChapter`（来自第几章）和 `sourceText`（对应的原文片段）。
+导出的剧本 YAML 只保留对剧本阅读和结构定位有价值的 `sourceChapter`，不输出内部生成与重生使用的 `sourceText` 原文片段。
 
-> **为什么**：① 支撑"逐场打磨"——重新生成某场时，AI 需要知道它对应的原文是什么（见技术方案 §5.2 阶段 B 的输入）；② 支撑人工校对——作者可对照原文检查转译是否忠实；③ 支撑"重生不串味"——溯源让单场重生成为有界操作，无需重跑全局分析。
+> **为什么**：最终交付物是"剧本的 YAML"，不是"小说原文与剧本的混合包"。`sourceText` 对生成、打磨、重生有价值，应保存在后端内部持久化数据中；但它不属于剧本正文，导出后会稀释剧本感，也会把版权原文混入交付文件。`sourceChapter` 足以支撑场景来源定位，同时保持 YAML 聚焦剧本本身。
 
 ### 原则四：跨章一致性靠全局表保证
 
@@ -108,7 +110,7 @@ scenes:                    # 场景列表（有序）
 
 ### 原则六：渐进可扩展，但 MVP 不超载
 
-用枚举（`screenplayType`、`role`、视觉化 `method`、`storyline.type`）为未来扩展预留位置，但**当前只填必要字段**，可选字段明确标注。Schema 既能表达 MVP，又不会因为"为未来留余地"而变得臃肿。
+用枚举（`screenplayType`、`role`、`scriptBlocks.type`、`storyline.type`）为未来扩展预留位置，但**当前只填必要字段**，可选字段明确标注。Schema 既能表达 MVP，又不会因为"为未来留余地"而变得臃肿。
 
 > **为什么**：72h 比赛，必须克制。但剧本类型（动画/影视/短剧…）、视觉化手法等显然会增长，用枚举而非硬编码，能让扩展只是"加一个枚举值"，而非"改结构"。
 
@@ -163,20 +165,14 @@ screenplay
 │       │   ├── interior: bool               # true=内景, false=外景
 │       │   ├── location: string             # 地点
 │       │   └── timeOfDay: string            # 时间，如 "夜"/"黄昏"
-│       ├── actionLines: list<string>        # 动作/画面描述行（有序）
-│       ├── dialogueBlocks: list             # 对白块（有序）
+│       ├── scriptBlocks: list               # 剧本正文块（有序）
 │       │   └── (item)
-│       │       ├── character: string        # 说话人（必须是 characters 中的规范名）
-│       │       ├── parenthetical: string?   # 可选，括号提示，如 "(画外音)"/"(冷笑)"
-│       │       └── line: string             # 台词
-│       ├── visualizedInnerThoughts: list    # 内心戏视觉化留痕（本项目核心）
-│       │   └── (item)
-│       │       ├── original: string         # 原文中的心理描写句
-│       │       ├── method: enum             # VO|ACTION|DIALOGUE|CLOSE_UP
-│       │       └── result: string           # 转换后的呈现（已体现在上面的动作/对白中）
-│       ├── transitions: list<string>        # 转场，如 "切至："/"淡出"
-│       ├── sourceChapter: int               # 溯源：来自第几章
-│       └── sourceText: string               # 溯源：对应的原文片段
+│       │       ├── type: enum               # ACTION|DIALOGUE|TRANSITION
+│       │       ├── text: string?            # 动作/转场正文
+│       │       ├── character: string?       # 对白说话人
+│       │       ├── parenthetical: string?   # 可选，括号提示
+│       │       └── line: string?            # 台词正文
+│       └── sourceChapter: int               # 来源章节：来自第几章
 │
 └── storylines: list                         # 故事线索
     └── (item)
@@ -227,7 +223,7 @@ screenplay
 
 | 字段 | 必填 | 类型 | 说明与设计原因 |
 |---|---|---|---|
-| `name` | 必填 | string | **人物的规范名，全剧唯一，充当人物的主键**。所有 `dialogueBlocks.character` 与 `relationships.target` 都引用它。这是跨章一致性的技术锚点——AI 在全局分析阶段统一称呼后写入这里，逐场生成时严格沿用。 |
+| `name` | 必填 | string | **人物的规范名，全剧唯一，充当人物的主键**。所有 `scriptBlocks[].character` 与 `relationships.target` 都引用它。这是跨章一致性的技术锚点——AI 在全局分析阶段统一称呼后写入这里，逐场生成时严格沿用。 |
 | `role` | 必填 | enum | `PROTAGONIST/SUPPORTING/MINOR`（见 §6.2）。**设计原因**：重要度是渲染（主角加粗）、可视化（关系图谱节点大小）、以及作者快速理解人物层级的依据。用三档枚举而非数字权重，是因为"主角/配角/龙套"是创作者熟悉的离散概念，过细的量化反而无意义。 |
 | `description` | 必填 | string | 身份/性格简述。**设计原因**：给作者和后续 AI 调用提供人物的"人设上下文"，逐场生成时作为 prompt 的一部分，保证人物言行一致。 |
 | `firstAppearance` | 必填 | string | 首次出场章节，如 `"第1章"`。**设计原因**：帮助作者定位人物引入点；也是可视化"人物随时间登场"的数据基础。用字符串而非整数，是为了兼容"序章""番外"等非数字章节名。 |
@@ -254,7 +250,7 @@ characters:
 
 #### 为什么 scenes 是"列表"而不是"字典"？
 
-剧本的**场景顺序即叙事顺序**，不可乱序。YAML 列表保序，字典不保证。同理，场景内的 `actionLines` 和 `dialogueBlocks` 也都是列表——一句对白在一个动作之前还是之后，决定了演出的节奏。**保序是这里所有"列表"选型的根本原因。**
+剧本的**场景顺序即叙事顺序**，不可乱序。YAML 列表保序，字典不保证。同理，场景内的 `scriptBlocks` 也是列表——一句对白在一个动作之前还是之后，决定了演出的节奏。**保序是这里所有"列表"选型的根本原因。**
 
 #### 5.3.1 `sceneId` — **必填**，string
 
@@ -276,74 +272,38 @@ heading:
   - ③ **渲染灵活**——内/外景用 `interior` 布尔值表达，渲染时可按不同剧本类型/语言习惯（中文"内景"、英文"INT."）自由拼装，而不被存储格式锁死。
 - `interior` 用布尔而非字符串枚举，是因为内/外景本质是二元的（标准格式里偶有 INT./EXT. 混合场，可在未来扩展为枚举，当前 MVP 二元足够）。
 
-#### 5.3.3 `actionLines` — **必填**，list\<string\>：动作/画面行
-
-- 约束：每个元素是一行动作描述；列表保序；可为空列表（极少数纯对白场）。
-- **设计原因**：动作行描述**可见**的动作与视觉细节，是"讲述变呈现"（痛点 #5）的落点。拆成**多行列表**而非一大段，是为了：① 渲染时每行独立成段，符合剧本排版习惯；② 作者可增删某一行动作而不动其余；③ 与对白块在时间上交错（先动作、再对白、再动作）时，顺序清晰。
-
-#### 5.3.4 `dialogueBlocks` — **必填**，list：对白块
+#### 5.3.3 `scriptBlocks` — **必填**，list：剧本正文块
 
 ```yaml
-dialogueBlocks:
-  - character: 林晚
+scriptBlocks:
+  - type: ACTION
+    text: 雨敲打着铁皮屋檐。
+  - type: DIALOGUE
+    character: 林晚
     parenthetical: (画外音)
     line: 又一次……我都习惯了。
+  - type: TRANSITION
+    text: 切至：
 ```
 
-> 对应 **痛点 #2「对白埋在散文里」**。这是把"谁、带着什么情绪、说了什么"干净抽出来的结果。
+> 对应 **痛点 #2「对白埋在散文里」** 和 **痛点 #5「叙述没有画面感」**。这是把动作、对白、转场放回剧本阅读顺序中的结果。
 
 | 子字段 | 必填 | 类型 | 说明与设计原因 |
 |---|---|---|---|
-| `character` | 必填 | string | 说话人，**必须是 `characters` 表中的规范名**（引用完整性，见 §8 校验规则）。这是跨章人物一致性在对白层面的落实。 |
-| `parenthetical` | *可选* | string | 括号提示，如 `(画外音)`、`(冷笑)`、`(压低声音)`。**设计原因**：标准剧本中括号提示用于标注说话时的情绪/方式/旁白属性。设为**可选**，因为大多数台词无需提示，强制填写会产生噪音。**画外音(V.O.) 正是通过这里标注**，使其与普通对白区分——这让"内心戏转画外音"的结果有了结构化落点。 |
-| `line` | 必填 | string | 台词正文。 |
+| `type` | 必填 | enum | `ACTION/DIALOGUE/TRANSITION`。用于标明这一块如何渲染，而不是把整场拆成三组互不相干的数据。 |
+| `text` | 条件必填 | string | `ACTION` 与 `TRANSITION` 使用。动作描述可见画面，转场描述镜头/场景切换。 |
+| `character` | 条件必填 | string | `DIALOGUE` 使用。说话人应来自 `characters` 表中的规范名（引用完整性，见 §8 校验规则）。 |
+| `parenthetical` | *可选* | string | `DIALOGUE` 使用。括号提示，如 `(画外音)`、`(冷笑)`、`(压低声音)`。 |
+| `line` | 条件必填 | string | `DIALOGUE` 使用。台词正文。 |
 
-- **为什么对白是"块"（block）而非"字符串"**：一个对白块捆绑了"说话人 + 提示 + 台词"三位一体，这是剧本对白的最小完整语义单元。拆开存会丢失"这句提示属于这句台词"的绑定关系。
+- **为什么不用 `actionLines` / `dialogueBlocks` / `transitions` 三组并列字段作为导出正文**：剧本不是素材分类表，而是按阅读和演出顺序推进的文本。`scriptBlocks` 既保留了动作、对白、转场的结构化类型，又把它们放在同一个有序列表里，更接近真实剧本。
+- **为什么对白仍是对象块而非 `"林晚：又一次……"` 字符串**：一个对白块捆绑了"说话人 + 提示 + 台词"三位一体，这是剧本对白的最小完整语义单元。拆开存会丢失"这句提示属于这句台词"的绑定关系。
 
-#### 5.3.5 `visualizedInnerThoughts` — *可选*，list：内心戏视觉化留痕 ★
+#### 5.3.4 `sourceChapter` — **必填**，int：来源章节
 
-> **这是整份 Schema 的灵魂字段，对应原则二与痛点 #3。** 单独花篇幅说明。
-
-```yaml
-visualizedInnerThoughts:
-  - original: 心里像压了块石头        # 原文的心理描写
-    method: CLOSE_UP                  # 采用的视觉化手法
-    result: 指尖无意识地把纸角捻出深深的褶皱   # 转换后的呈现
-```
-
-| 子字段 | 必填 | 类型 | 说明 |
-|---|---|---|---|
-| `original` | 必填 | string | 原文中**被转译的那句心理描写/独白**。 |
-| `method` | 必填 | enum | 采用的视觉化手法：`VO/ACTION/DIALOGUE/CLOSE_UP`（见 §6.3）。 |
-| `result` | 必填 | string | 转换后的呈现内容。 |
-
-**这个字段的特殊语义——它是"审计留痕"，不是"内容本身"：**
-
-`result` 描述的转换结果，**应当已经体现在本场的 `actionLines` / `dialogueBlocks` 里了**。`visualizedInnerThoughts` 不是另起炉灶的第三份内容，而是**记录"这处呈现是从哪句内心戏、用什么手法转来的"的对照表**。
-
-举例：原文"她心里像压了块石头"，AI 选择 `CLOSE_UP` 手法，于是在 `actionLines` 里写下"指尖无意识地把纸角捻出深深的褶皱"。同时在 `visualizedInnerThoughts` 里留一条记录，三者对照。
-
-**为什么要这样设计（这是本 Schema 最值得说明的设计原因）：**
-
-1. **可解释性**——作者/评委能清楚看到 AI"把哪句想法、用什么手法、变成了什么画面"，证明这是真正的**改编**而非机械排版。这是项目最核心的 AI 价值证据。
-2. **可打磨闭环**——作者若不满意某次转译（"这里用画外音更好"），系统能凭这条记录精准定位原文 `original`，调用重生接口换一种 `method` 重新生成。**没有这份留痕，"换一种手法重生"就无从下手。**
-3. **可统计/可视化**——能回答"全剧用了多少次画外音""哪些章心理描写最密集"，为打磨与展示提供数据。
-
-设为**可选**（list 可为空）：并非每场都有内心戏，无心理描写的场景此字段为空列表。
-
-#### 5.3.6 `transitions` — *可选*，list\<string\>：转场
-
-- 示例：`切至：`、`淡出`、`闪回`。
-- **设计原因**：转场是剧本的标准要素（对齐原则五），标注镜头/场景如何切换。用列表是因为一个场景末尾偶有多个转场提示。可选——很多场景无需显式转场。
-
-#### 5.3.7 溯源字段：`sourceChapter` + `sourceText`
-
-> 对应 **原则三（可溯源）**。
-
-| 字段 | 必填 | 类型 | 说明与设计原因 |
-|---|---|---|---|
-| `sourceChapter` | 必填 | int | 本场来自原著第几章。**设计原因**：① 场景表/大纲展示"源章"列，帮作者对照；② 可视化"剧情随章节推进"的数据；③ 校验场景顺序与章节顺序是否一致。 |
-| `sourceText` | 必填 | string | 本场对应的**原文片段**。**设计原因（关键）**：这是**逐场打磨与单场重生的输入**。重新生成某场时，AI 需要原文才能重新转译（见技术方案 §5.2 阶段 B）。保留它，使单场重生成为**无需重跑全局分析的有界操作**——这是"可进一步打磨"在数据层面的支撑。也便于人工核对转译是否忠实于原文。 |
+- 本场来自原著第几章。
+- **设计原因**：① 场景表/大纲展示"源章"列，帮作者对照；② 可视化"剧情随章节推进"的数据；③ 校验场景顺序与章节顺序是否一致。
+- 注意：后端内部仍可保存 `sourceText` 作为单场重生与人工校对的输入，但它不属于最终导出的剧本 YAML。
 
 ---
 
@@ -397,18 +357,7 @@ storylines:
 
 > **设计原因**：三档离散分级贴合创作者认知；驱动渲染强调与图谱节点权重。
 
-### 6.3 `visualizedInnerThoughts.method` — 内心戏视觉化手法 ★
-
-| 值 | 含义 | 适用场景 |
-|---|---|---|
-| `VO` | 画外音（Voice Over） | 深沉独白、回忆、第一人称心声；在对白块以 `parenthetical: (画外音)` 落地 |
-| `ACTION` | 转为可见动作 | 用肢体/表情演出情绪，落在 `actionLines` |
-| `DIALOGUE` | 转为说出口的对白 | 把"心里想"改为小声嘀咕/对他人说，落在 `dialogueBlocks` |
-| `CLOSE_UP` | 镜头特写 | 聚焦眼神/手部等细节传递内心，落在 `actionLines` |
-
-> **设计原因**：这四种是把"想法"变"可呈现"的主要手法（痛点 #3 的解法集合）。枚举化的价值在于：**打磨时作者可在四种手法间切换并要求 AI 重生**——`method` 是那个可切换的"旋钮"。未来扩展（如 `MONTAGE` 蒙太奇、`SYMBOL` 意象）只需加枚举值。
-
-### 6.4 `storyline.type` — 线索类型
+### 6.3 `storyline.type` — 线索类型
 
 | 值 | 含义 |
 |---|---|
@@ -452,63 +401,53 @@ scenes:
       interior: true
       location: 出租屋
       timeOfDay: 夜
-    actionLines:
-      - 雨敲打着铁皮屋檐。狭小的房间里，林晚盘腿坐在地板上，膝头摊着一份被反复折叠的简历。
-      - 台灯昏黄。她把简历又看了一遍，指尖无意识地把纸角捻出深深的褶皱。
-    dialogueBlocks:
-      - character: 林晚
+    scriptBlocks:
+      - type: ACTION
+        text: 雨敲打着铁皮屋檐。狭小的房间里，林晚盘腿坐在地板上，膝头摊着一份被反复折叠的简历。
+      - type: ACTION
+        text: 台灯昏黄。她把简历又看了一遍，指尖无意识地把纸角捻出深深的褶皱。
+      - type: DIALOGUE
+        character: 林晚
         parenthetical: (画外音)
         line: 又一次……我都习惯了。习惯，是最体面的认输。
-    visualizedInnerThoughts:
-      - original: 心里像压了块石头
-        method: CLOSE_UP
-        result: 指尖无意识地把纸角捻出深深的褶皱
-      - original: 她知道这次又没戏了
-        method: VO
-        result: 又一次……我都习惯了。习惯，是最体面的认输。
-    transitions:
-      - 切至：
+      - type: TRANSITION
+        text: 切至：
     sourceChapter: 1
-    sourceText: 雨敲在铁皮屋檐上。林晚把简历又看了一遍，心里像压了块石头——她知道这次又没戏了。
 
   - sceneId: s2
     heading:
       interior: false
       location: 天台
       timeOfDay: 黄昏
-    actionLines:
-      - 城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。
-    dialogueBlocks:
-      - character: 林晚
+    scriptBlocks:
+      - type: ACTION
+        text: 城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。
+      - type: DIALOGUE
+        character: 林晚
         parenthetical: (画外音)
         line: 往下看一眼，就一眼……可那串电话还没挂断。
-    visualizedInnerThoughts:
-      - original: 她想，如果就这样跳下去，会不会比活着轻松
-        method: VO
-        result: 往下看一眼，就一眼……可那串电话还没挂断。
-    transitions:
-      - 切至：
+      - type: TRANSITION
+        text: 切至：
     sourceChapter: 2
-    sourceText: 黄昏，城市在脚下铺开。她想，如果就这样跳下去，会不会比活着轻松。
 
   - sceneId: s3
     heading:
       interior: true
       location: 公司
       timeOfDay: 日
-    actionLines:
-      - 手机骤然震动。林晚怔住，缓缓接起。
-    dialogueBlocks:
-      - character: 陈经理
+    scriptBlocks:
+      - type: ACTION
+        text: 手机骤然震动。林晚怔住，缓缓接起。
+      - type: DIALOGUE
+        character: 陈经理
         line: 林晚小姐，恭喜你通过了。
-      - character: 林晚
+      - type: DIALOGUE
+        character: 林晚
         parenthetical: (声音发颤)
         line: ……真的吗？谢谢，谢谢您。
-    visualizedInnerThoughts: []
-    transitions:
-      - 淡出
+      - type: TRANSITION
+        text: 淡出
     sourceChapter: 3
-    sourceText: 手机响了。是那家公司。"林晚小姐，恭喜你通过了。"
 
 storylines:
   - name: 求职挣扎
@@ -537,11 +476,12 @@ storylines:
 
 - 顶层 `schemaVersion`、`title`、`screenplayType`、`scenes` 必须存在。
 - `scenes` 至少含 1 个场景；空剧本非法。
+- 每个场景的 `scriptBlocks` 必须存在；每个正文块的 `type` 必须存在。
 - 各字段类型符合 §5 定义（如 `heading.interior` 必须是布尔）。
 
 ### 8.2 枚举合法性
 
-- `screenplayType` ∈ §6.1；`role` ∈ §6.2；`method` ∈ §6.3；`storyline.type` ∈ §6.4。
+- `screenplayType` ∈ §6.1；`role` ∈ §6.2；`scriptBlocks[].type` ∈ `ACTION/DIALOGUE/TRANSITION`；`storyline.type` ∈ §6.3。
 - 不在枚举内的值 → 校验失败（或降级为默认值并告警，见技术方案"字段缺失降级处理"）。
 
 ### 8.3 引用完整性（关键）
@@ -550,7 +490,7 @@ storylines:
 
 | 引用 | 规则 |
 |---|---|
-| `dialogueBlocks[].character` | 必须存在于 `characters[].name` 中（对白说话人必须是已登记人物）。 |
+| `scriptBlocks[type=DIALOGUE].character` | 必须存在于 `characters[].name` 中（对白说话人必须是已登记人物）。 |
 | `relationships[].target` | 必须存在于 `characters[].name` 中（关系对端必须是已登记人物）。 |
 | `storylines[].events[].scene` | 必须存在于某个 `scenes[].sceneId`（事件必须挂在真实场景上）。 |
 
@@ -564,7 +504,7 @@ storylines:
 ### 8.5 一致性（软校验，告警而非拒绝）
 
 - `sourceChapter` 宜随 `scenes` 顺序单调不减（场景顺序通常与章节顺序一致）；逆序时告警，因为可能是闪回（合法）或切分错误（需复查）。
-- `visualizedInnerThoughts[].result` 所述内容宜能在本场 `actionLines`/`dialogueBlocks` 中找到对应（留痕与正文一致）；不一致时告警。
+- `scriptBlocks` 宜至少包含一个 `ACTION` 或 `DIALOGUE` 块；只有转场的场景通常意味着生成质量不足。
 
 ---
 
@@ -577,10 +517,10 @@ storylines:
 - **被否决方案**：`heading: "内景 - 出租屋 - 夜"`。
 - **否决原因**：字符串需要二次解析才能编辑/查询，且不同语言/类型的标题格式不同，会把渲染格式硬编进数据。拆成 `{interior, location, timeOfDay}` 后，数据只存语义，格式交给渲染层（见 §5.3.2）。
 
-### 9.2 为什么 visualizedInnerThoughts 是独立留痕，而不是直接把转换结果写进正文就算了？
+### 9.2 为什么不把内部改编日志放进导出 YAML？
 
-- **被否决方案**：只在 `actionLines` 写转换后的画面，不记录它从哪句内心戏来。
-- **否决原因**：那样会丢失"改编决策"，导致两件事做不到——① 作者无法理解 AI 为何这么改（黑箱）；② "换一种手法重生"失去定位锚点。**留痕是项目差异化（可解释 + 可打磨）的数据基础**，多存这一份对照表是值得的（见 §5.3.5）。
+- **被否决方案**：在导出的场景中加入原文片段、改编日志等内部字段。
+- **否决原因**：最终 YAML 要像一份剧本，而不是一份 AI 调试报告。内心戏改编的结果必须体现在 `scriptBlocks` 的动作、对白或画外音中；内部日志可以用于服务端重生和调试，但不应污染交付物。
 
 ### 9.3 为什么人物全局抽取，而不是就近写在场景里？
 
@@ -594,7 +534,7 @@ storylines:
 
 ### 9.5 为什么 MVP 不引入更细的镜头/分镜字段（如 shotType、cameraAngle）？
 
-- **否决原因**：72h 内必须克制（原则六）。分镜是更专业的下游环节，MVP 聚焦"小说→剧本初稿"。Schema 已通过 `method: CLOSE_UP` 等表达了基本镜头意图，更细的分镜留待 §10 扩展。过早引入会让 AI 输出负担与校验复杂度陡增，且非作者核心痛点。
+- **否决原因**：72h 内必须克制（原则六）。分镜是更专业的下游环节，MVP 聚焦"小说→剧本初稿"。Schema 已通过 `scriptBlocks` 表达动作、对白与转场，更细的镜头信息留待 §10 扩展。过早引入会让 AI 输出负担与校验复杂度陡增，且非作者核心痛点。
 
 ### 9.6 为什么对白用 block 对象，而不是 `"林晚：又一次……"` 字符串？
 
@@ -609,7 +549,7 @@ Schema 在不破坏现有结构的前提下，预留了以下扩展路径：
 | 扩展方向 | 扩展方式 | 是否破坏兼容 |
 |---|---|---|
 | 新剧本类型（短剧/广播剧/话剧） | `screenplayType` 加枚举值 + 新增渲染/生成模板 | 否 |
-| 新视觉化手法（蒙太奇/意象） | `method` 加枚举值 | 否 |
+| 新正文块类型（蒙太奇/音效/字幕） | `scriptBlocks.type` 加枚举值 | 否 |
 | 分镜细化（镜头类型、运镜） | `scenes[]` 下新增可选 `shots[]` 字段 | 否（可选字段） |
 | 多语言剧本 | 顶层加可选 `language`；渲染层按语言拼装 heading | 否 |
 | 配乐/音效（广播剧需要） | `scenes[]` 下新增可选 `sound[]` | 否 |
@@ -649,19 +589,15 @@ Schema 在不破坏现有结构的前提下，预留了以下扩展路径：
 | `scenes[].heading.interior` | bool | ✅ | 内/外景 |
 | `scenes[].heading.location` | string | ✅ | 地点 |
 | `scenes[].heading.timeOfDay` | string | ✅ | 时间 |
-| `scenes[].actionLines[]` | string | ✅ | 动作/画面行 |
-| `scenes[].dialogueBlocks[].character` | string | ✅ | 说话人（引用人物名） |
-| `scenes[].dialogueBlocks[].parenthetical` | string | ⬜ | 括号提示 |
-| `scenes[].dialogueBlocks[].line` | string | ✅ | 台词 |
-| `scenes[].visualizedInnerThoughts[].original` | string | ✅* | 原文心理描写 |
-| `scenes[].visualizedInnerThoughts[].method` | enum | ✅* | 视觉化手法 |
-| `scenes[].visualizedInnerThoughts[].result` | string | ✅* | 转换结果 |
-| `scenes[].transitions[]` | string | ⬜ | 转场 |
-| `scenes[].sourceChapter` | int | ✅ | 溯源：源章节 |
-| `scenes[].sourceText` | string | ✅ | 溯源：原文片段 |
+| `scenes[].scriptBlocks[].type` | enum | ✅ | 正文块类型：`ACTION/DIALOGUE/TRANSITION` |
+| `scenes[].scriptBlocks[].text` | string | 条件必填 | 动作或转场正文 |
+| `scenes[].scriptBlocks[].character` | string | 条件必填 | 对白说话人（引用人物名） |
+| `scenes[].scriptBlocks[].parenthetical` | string | ⬜ | 括号提示 |
+| `scenes[].scriptBlocks[].line` | string | 条件必填 | 台词 |
+| `scenes[].sourceChapter` | int | ✅ | 来源章节 |
 | `storylines[].name` | string | ✅ | 线索名 |
 | `storylines[].type` | enum | ✅ | 主线/支线 |
 | `storylines[].events[].scene` | string | ✅ | 关联场景 id |
 | `storylines[].events[].event` | string | ✅ | 事件描述 |
 
-> ✅ 必填；⬜ 可选；✅* 该子对象存在时必填（但其父列表 `visualizedInnerThoughts` 整体可选/可空）。
+> ✅ 必填；⬜ 可选；条件必填表示仅在对应 `scriptBlocks.type` 下必填。
