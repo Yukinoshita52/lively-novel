@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Card, Tag, Typography } from 'antd'
+import { Button, Card, Input, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined, DownOutlined, ExportOutlined, LeftOutlined, RightOutlined, UpOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from './conversionSession'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
@@ -11,8 +11,16 @@ import {
   resolveAdjacentSceneKeys,
   resolveSelectedScene,
 } from './screenplayPreview'
+import {
+  createPolishDraft,
+  updateActionLinesText,
+  updateDialogueText,
+  updateTransitionsText,
+  type PolishDraft,
+} from './screenplayPolish'
 
 const { Text, Title } = Typography
+const { TextArea } = Input
 
 type ScreenplayPolishPageProps = {
   session: ConversionSessionState
@@ -55,16 +63,36 @@ function ScreenplayPolishPage({
   onExport,
 }: ScreenplayPolishPageProps) {
   const [scenePickerExpanded, setScenePickerExpanded] = useState(false)
+  const [draftsBySceneKey, setDraftsBySceneKey] = useState<Record<string, PolishDraft>>({})
   const scene = useMemo(
     () => resolveSelectedScene(session.generatedScenes, selectedSceneKey),
     [selectedSceneKey, session.generatedScenes],
   )
   const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(session.generatedScenes), [session.generatedScenes])
-  const sceneYaml = useMemo(() => (scene ? toYamlLines(scene.scene).join('\n') : ''), [scene])
+  const draft = useMemo(() => {
+    if (!scene) {
+      return undefined
+    }
+
+    return draftsBySceneKey[scene.key] ?? createPolishDraft(scene.scene)
+  }, [draftsBySceneKey, scene])
+  const draftScene = draft?.scene
+  const sceneYaml = useMemo(() => (draftScene ? toYamlLines(draftScene).join('\n') : ''), [draftScene])
   const adjacentSceneKeys = useMemo(
     () => resolveAdjacentSceneKeys(session.generatedScenes, scene?.key),
     [scene?.key, session.generatedScenes],
   )
+
+  function updateDraft(nextDraft: PolishDraft) {
+    if (!scene) {
+      return
+    }
+
+    setDraftsBySceneKey((current) => ({
+      ...current,
+      [scene.key]: nextDraft,
+    }))
+  }
 
   return (
     <PrototypeFrame currentStep="polish" maxWidth={1280}>
@@ -85,7 +113,7 @@ function ScreenplayPolishPage({
             <Text>请先从预览页选择一个场景。</Text>
           </div>
         </Card>
-      ) : (
+      ) : draft && draftScene ? (
         <main className="polish-grid">
           <Card
             className="prototype-panel polish-scene-picker"
@@ -164,7 +192,41 @@ function ScreenplayPolishPage({
 
           <Card
             className="prototype-panel"
-            title={<PrototypePanelTitle code="YAML" title="本场结构" meta="可检查字段" />}
+            title={<PrototypePanelTitle code="EDIT" title="本地打磨草稿" meta="即时预览" />}
+            bordered={false}
+          >
+            <div className="polish-editor">
+              <label>
+                <Text className="thought-label">动作行</Text>
+                <TextArea
+                  autoSize={{ minRows: 4, maxRows: 8 }}
+                  value={draft.actionLinesText}
+                  onChange={(event) => updateDraft(updateActionLinesText(draft, event.target.value))}
+                />
+              </label>
+              <label>
+                <Text className="thought-label">对白块</Text>
+                <Text className="polish-editor-hint">每行格式：角色|括号提示|台词</Text>
+                <TextArea
+                  autoSize={{ minRows: 4, maxRows: 8 }}
+                  value={draft.dialogueText}
+                  onChange={(event) => updateDraft(updateDialogueText(draft, event.target.value))}
+                />
+              </label>
+              <label>
+                <Text className="thought-label">转场</Text>
+                <TextArea
+                  autoSize={{ minRows: 2, maxRows: 5 }}
+                  value={draft.transitionsText}
+                  onChange={(event) => updateDraft(updateTransitionsText(draft, event.target.value))}
+                />
+              </label>
+            </div>
+          </Card>
+
+          <Card
+            className="prototype-panel"
+            title={<PrototypePanelTitle code="YAML" title="本场结构" meta="本地草稿" />}
             bordered={false}
           >
             <pre className="yaml-preview polish-yaml">{sceneYaml}</pre>
@@ -186,16 +248,16 @@ function ScreenplayPolishPage({
               <div className="screenplay-paper">
                 <div className="sp-scene-heading">
                   <span>{scene.sceneNumber}</span>
-                  {buildSceneHeadingText(scene.scene.heading)}
+                  {buildSceneHeadingText(draftScene.heading)}
                 </div>
 
-                {scene.scene.actionLines.map((line, index) => (
+                {draftScene.actionLines.map((line, index) => (
                   <p className="sp-action-line" key={`${getSceneKey(scene)}-action-${index}`}>
                     {line}
                   </p>
                 ))}
 
-                {scene.scene.dialogueBlocks.map((dialogue, index) => (
+                {draftScene.dialogueBlocks.map((dialogue, index) => (
                   <div className="sp-dialogue-block" key={`${getSceneKey(scene)}-dialogue-${index}`}>
                     <div className="sp-character">{dialogue.character}</div>
                     {dialogue.parenthetical ? <div className="sp-parenthetical">{dialogue.parenthetical}</div> : null}
@@ -203,7 +265,7 @@ function ScreenplayPolishPage({
                   </div>
                 ))}
 
-                {scene.scene.transitions.map((transition, index) => (
+                {draftScene.transitions.map((transition, index) => (
                   <p className="sp-transition" key={`${getSceneKey(scene)}-transition-${index}`}>
                     {transition}
                   </p>
@@ -221,7 +283,7 @@ function ScreenplayPolishPage({
             </div>
           </Card>
         </main>
-      )}
+      ) : null}
     </PrototypeFrame>
   )
 }
