@@ -5,9 +5,14 @@ import type {
   ConvertEventItem,
   GeneratedSceneSummary,
   SceneResult,
-  SceneHeading,
   ScreenplayConvertContext,
 } from '../types/novel'
+import {
+  buildSceneOutlineItems,
+  getSceneKey,
+  getSourcePreview,
+  resolveSelectedScene,
+} from './screenplayPreview'
 
 const { Text, Title } = Typography
 
@@ -17,15 +22,6 @@ type ScreenplayConvertPageProps = {
 }
 
 type SsePayload = Record<string, unknown>
-
-function buildHeadingText(heading?: SceneHeading) {
-  if (!heading) {
-    return '场景信息待生成'
-  }
-
-  const prefix = heading.interior ? '内景' : '外景'
-  return `${prefix} - ${heading.location || '未知地点'} - ${heading.timeOfDay || '未知时间'}`
-}
 
 function toJsonPayload(raw: string): SsePayload {
   try {
@@ -72,6 +68,8 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
   const [events, setEvents] = useState<ConvertEventItem[]>([])
   const [generatedScenes, setGeneratedScenes] = useState<GeneratedSceneSummary[]>([])
   const [chapterSceneCounts, setChapterSceneCounts] = useState<Record<number, number>>({})
+  const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
+  const [sourceExpanded, setSourceExpanded] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [convertError, setConvertError] = useState<string | null>(null)
 
@@ -230,6 +228,11 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
   }, [context.novelId, context.screenplayType, context.totalChapters])
 
   const finishedSceneCount = generatedScenes.length
+  const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(generatedScenes), [generatedScenes])
+  const selectedScene = useMemo(
+    () => resolveSelectedScene(generatedScenes, selectedSceneKey),
+    [generatedScenes, selectedSceneKey],
+  )
   const totalSceneCount = useMemo(
     () => Object.values(chapterSceneCounts).reduce((sum, count) => sum + count, 0),
     [chapterSceneCounts],
@@ -259,7 +262,6 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
               <Text className="panel-kicker">PROGRESS</Text>
               <Title level={3}>转换进度</Title>
             </div>
-            <Tag bordered={false}>{context.screenplayType}</Tag>
           </div>
 
           <div className="progress-summary">
@@ -284,7 +286,7 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
           ) : null}
         </Card>
 
-        <Card className="panel" bordered={false}>
+        <Card className="panel event-panel" bordered={false}>
           <div className="panel-header compact">
             <div>
               <Text className="panel-kicker">EVENTS</Text>
@@ -308,32 +310,115 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
           </div>
         </Card>
 
-        <Card className="panel" bordered={false}>
+        <Card className="panel scene-preview-panel" bordered={false}>
           <div className="panel-header compact">
             <div>
               <Text className="panel-kicker">SCENES</Text>
-              <Title level={3}>生成摘要</Title>
+              <Title level={3}>逐场预览</Title>
             </div>
           </div>
 
-          <div className="scene-summary-list">
-            {generatedScenes.length === 0 ? (
-              <div className="scene-summary-row">
-                <Text>场景结果生成后会显示在这里。</Text>
-              </div>
-            ) : (
-              generatedScenes.map((scene) => (
-                <div className="scene-summary-row" key={`${scene.chapterIndex}-${scene.scene.sceneId ?? scene.title}`}>
-                  <Text className="chapter-index">CH {scene.chapterIndex}</Text>
-                  {scene.sceneIndexInChapter ? (
-                    <Text className="scene-summary-meta">第 {scene.sceneIndexInChapter} 场</Text>
-                  ) : null}
-                  <Title level={5}>{scene.title}</Title>
-                  <Text className="scene-summary-heading">{buildHeadingText(scene.scene.heading)}</Text>
-                  {scene.scene.sceneId ? <Tag bordered={false}>{scene.scene.sceneId}</Tag> : null}
+          <div className="scene-preview-grid">
+            <aside className="scene-outline">
+              {sceneOutlineItems.length === 0 ? (
+                <div className="scene-outline-empty">
+                  <Text>场景生成后会显示在这里。</Text>
                 </div>
-              ))
-            )}
+              ) : (
+                sceneOutlineItems.map((scene) => (
+                  <button
+                    className={`scene-outline-row ${scene.key === selectedScene?.key ? 'active' : ''}`}
+                    key={scene.key}
+                    onClick={() => {
+                      setSelectedSceneKey(scene.key)
+                      setSourceExpanded(false)
+                    }}
+                    type="button"
+                  >
+                    <span className="scene-outline-no">{scene.sceneNumber}</span>
+                    <span className="scene-outline-copy">
+                      <span className="scene-outline-title">{scene.title}</span>
+                      <span className="scene-outline-heading">{scene.headingText}</span>
+                    </span>
+                    <span className="scene-outline-ch">CH{scene.chapterIndex}</span>
+                  </button>
+                ))
+              )}
+            </aside>
+
+            {generatedScenes.length === 0 ? (
+              <div className="screenplay-empty">
+                <Text>等待第一场剧本生成…</Text>
+              </div>
+            ) : selectedScene ? (
+              <section className="screenplay-preview">
+                <div className="screenplay-scene-meta">
+                  <Tag bordered={false}>{selectedScene.sceneNumber}</Tag>
+                  <Text>第 {selectedScene.chapterIndex} 章</Text>
+                  {selectedScene.sceneIndexInChapter ? <Text>第 {selectedScene.sceneIndexInChapter} 场</Text> : null}
+                </div>
+                <Title level={4}>{selectedScene.title}</Title>
+
+                <div className="screenplay-paper">
+                  <div className="sp-scene-heading">
+                    <span>{selectedScene.sceneNumber}</span>
+                    {selectedScene.headingText}
+                  </div>
+
+                  {selectedScene.scene.actionLines.map((line, index) => (
+                    <p className="sp-action-line" key={`${getSceneKey(selectedScene)}-action-${index}`}>
+                      {line}
+                    </p>
+                  ))}
+
+                  {selectedScene.scene.dialogueBlocks.map((dialogue, index) => (
+                    <div className="sp-dialogue-block" key={`${getSceneKey(selectedScene)}-dialogue-${index}`}>
+                      <div className="sp-character">{dialogue.character}</div>
+                      {dialogue.parenthetical ? <div className="sp-parenthetical">{dialogue.parenthetical}</div> : null}
+                      <div className="sp-line">{dialogue.line}</div>
+                    </div>
+                  ))}
+
+                  {selectedScene.scene.transitions.map((transition, index) => (
+                    <p className="sp-transition" key={`${getSceneKey(selectedScene)}-transition-${index}`}>
+                      {transition}
+                    </p>
+                  ))}
+                </div>
+
+                {selectedScene.scene.visualizedInnerThoughts.length > 0 ? (
+                  <div className="thought-audit">
+                    <Text className="scene-section-title">内心戏视觉化留痕</Text>
+                    {selectedScene.scene.visualizedInnerThoughts.map((thought, index) => (
+                      <div className="thought-audit-row" key={`${getSceneKey(selectedScene)}-thought-${index}`}>
+                        <Text className="thought-label">原文</Text>
+                        <Text>{thought.original}</Text>
+                        <Text className="thought-label">手法</Text>
+                        <Text>{thought.method}</Text>
+                        <Text className="thought-label">结果</Text>
+                        <Text>{thought.result}</Text>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="source-preview">
+                  <div className="source-preview-head">
+                    <Text className="scene-section-title">本场原文</Text>
+                    <Button
+                      className="content-toggle"
+                      onClick={() => setSourceExpanded((current) => !current)}
+                      type="link"
+                    >
+                      {sourceExpanded ? '收起' : '展开'}
+                    </Button>
+                  </div>
+                  <div className="source-preview-text">
+                    {getSourcePreview(selectedScene.scene.sourceText || '', sourceExpanded)}
+                  </div>
+                </div>
+              </section>
+            ) : null}
           </div>
         </Card>
       </main>
