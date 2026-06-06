@@ -11,9 +11,13 @@ import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeF
 import { buildPipelinePhases, formatStreamEvent } from './prototypeFlow'
 import {
   buildYamlDownloadFileName,
+  buildPreviewTabs,
   buildSceneOutlineItems,
+  buildSceneTableRows,
+  buildThoughtAuditRows,
   getSceneKey,
   getSourcePreview,
+  type PreviewTabKey,
   resolveConvertEventUpdate,
   resolveSelectedScene,
 } from './screenplayPreview'
@@ -66,6 +70,7 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
   const [downloadingYaml, setDownloadingYaml] = useState(false)
   const [convertError, setConvertError] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [activePreviewTab, setActivePreviewTab] = useState<PreviewTabKey>('script')
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -185,6 +190,9 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
 
   const finishedSceneCount = generatedScenes.length
   const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(generatedScenes), [generatedScenes])
+  const previewTabs = useMemo(() => buildPreviewTabs(activePreviewTab), [activePreviewTab])
+  const sceneTableRows = useMemo(() => buildSceneTableRows(generatedScenes), [generatedScenes])
+  const thoughtAuditRows = useMemo(() => buildThoughtAuditRows(generatedScenes), [generatedScenes])
   const selectedScene = useMemo(
     () => resolveSelectedScene(generatedScenes, selectedSceneKey),
     [generatedScenes, selectedSceneKey],
@@ -365,72 +373,130 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
                 <Text>等待第一场剧本生成…</Text>
               </div>
             ) : selectedScene ? (
-              <section className="screenplay-preview">
-                <div className="screenplay-scene-meta">
-                  <Tag bordered={false}>{selectedScene.sceneNumber}</Tag>
-                  <Text>第 {selectedScene.chapterIndex} 章</Text>
-                  {selectedScene.sceneIndexInChapter ? <Text>第 {selectedScene.sceneIndexInChapter} 场</Text> : null}
-                </div>
-                <Title level={4}>{selectedScene.title}</Title>
-
-                <div className="screenplay-paper">
-                  <div className="sp-scene-heading">
-                    <span>{selectedScene.sceneNumber}</span>
-                    {selectedScene.headingText}
-                  </div>
-
-                  {selectedScene.scene.actionLines.map((line, index) => (
-                    <p className="sp-action-line" key={`${getSceneKey(selectedScene)}-action-${index}`}>
-                      {line}
-                    </p>
+              <section className="preview-tabs-panel">
+                <div className="preview-tab-row">
+                  {previewTabs.map((tab) => (
+                    <button
+                      className={`preview-tab${tab.active ? ' active' : ''}`}
+                      key={tab.key}
+                      onClick={() => setActivePreviewTab(tab.key)}
+                      type="button"
+                    >
+                      {tab.label}
+                    </button>
                   ))}
+                  <Button
+                    className="preview-export-button"
+                    disabled={!completed || !conversionId}
+                    icon={<DownloadOutlined />}
+                    loading={downloadingYaml}
+                    onClick={handleDownloadYaml}
+                  >
+                    导出 YAML
+                  </Button>
+                </div>
 
-                  {selectedScene.scene.dialogueBlocks.map((dialogue, index) => (
-                    <div className="sp-dialogue-block" key={`${getSceneKey(selectedScene)}-dialogue-${index}`}>
-                      <div className="sp-character">{dialogue.character}</div>
-                      {dialogue.parenthetical ? <div className="sp-parenthetical">{dialogue.parenthetical}</div> : null}
-                      <div className="sp-line">{dialogue.line}</div>
+                {activePreviewTab === 'script' ? (
+                  <div className="screenplay-preview">
+                    <div className="screenplay-scene-meta">
+                      <Tag bordered={false}>{selectedScene.sceneNumber}</Tag>
+                      <Text>第 {selectedScene.chapterIndex} 章</Text>
+                      {selectedScene.sceneIndexInChapter ? <Text>第 {selectedScene.sceneIndexInChapter} 场</Text> : null}
                     </div>
-                  ))}
+                    <Title level={4}>{selectedScene.title}</Title>
 
-                  {selectedScene.scene.transitions.map((transition, index) => (
-                    <p className="sp-transition" key={`${getSceneKey(selectedScene)}-transition-${index}`}>
-                      {transition}
-                    </p>
-                  ))}
-                </div>
-
-                {selectedScene.scene.visualizedInnerThoughts.length > 0 ? (
-                  <div className="thought-audit">
-                    <Text className="scene-section-title">内心戏视觉化留痕</Text>
-                    {selectedScene.scene.visualizedInnerThoughts.map((thought, index) => (
-                      <div className="thought-audit-row" key={`${getSceneKey(selectedScene)}-thought-${index}`}>
-                        <Text className="thought-label">原文</Text>
-                        <Text>{thought.original}</Text>
-                        <Text className="thought-label">手法</Text>
-                        <Text>{thought.method}</Text>
-                        <Text className="thought-label">结果</Text>
-                        <Text>{thought.result}</Text>
+                    <div className="screenplay-paper">
+                      <div className="sp-scene-heading">
+                        <span>{selectedScene.sceneNumber}</span>
+                        {selectedScene.headingText}
                       </div>
-                    ))}
+
+                      {selectedScene.scene.actionLines.map((line, index) => (
+                        <p className="sp-action-line" key={`${getSceneKey(selectedScene)}-action-${index}`}>
+                          {line}
+                        </p>
+                      ))}
+
+                      {selectedScene.scene.dialogueBlocks.map((dialogue, index) => (
+                        <div className="sp-dialogue-block" key={`${getSceneKey(selectedScene)}-dialogue-${index}`}>
+                          <div className="sp-character">{dialogue.character}</div>
+                          {dialogue.parenthetical ? <div className="sp-parenthetical">{dialogue.parenthetical}</div> : null}
+                          <div className="sp-line">{dialogue.line}</div>
+                        </div>
+                      ))}
+
+                      {selectedScene.scene.transitions.map((transition, index) => (
+                        <p className="sp-transition" key={`${getSceneKey(selectedScene)}-transition-${index}`}>
+                          {transition}
+                        </p>
+                      ))}
+                    </div>
+
+                    <div className="source-preview">
+                      <div className="source-preview-head">
+                        <Text className="scene-section-title">本场原文</Text>
+                        <Button
+                          className="content-toggle"
+                          onClick={() => setSourceExpanded((current) => !current)}
+                          type="link"
+                        >
+                          {sourceExpanded ? '收起' : '展开'}
+                        </Button>
+                      </div>
+                      <div className="source-preview-text">
+                        {getSourcePreview(selectedScene.scene.sourceText || '', sourceExpanded)}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
 
-                <div className="source-preview">
-                  <div className="source-preview-head">
-                    <Text className="scene-section-title">本场原文</Text>
-                    <Button
-                      className="content-toggle"
-                      onClick={() => setSourceExpanded((current) => !current)}
-                      type="link"
-                    >
-                      {sourceExpanded ? '收起' : '展开'}
-                    </Button>
+                {activePreviewTab === 'scene-table' ? (
+                  <div className="preview-table-wrap">
+                    <table className="preview-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>内/外</th>
+                          <th>地点</th>
+                          <th>时间</th>
+                          <th>源章</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sceneTableRows.map((row) => (
+                          <tr key={row.key}>
+                            <td>{row.sceneNumber}</td>
+                            <td>{row.interiorText}</td>
+                            <td>{row.location}</td>
+                            <td>{row.timeOfDay}</td>
+                            <td>{row.sourceChapterText}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="source-preview-text">
-                    {getSourcePreview(selectedScene.scene.sourceText || '', sourceExpanded)}
+                ) : null}
+
+                {activePreviewTab === 'thought-audit' ? (
+                  <div className="thought-audit-list">
+                    {thoughtAuditRows.length === 0 ? (
+                      <div className="screenplay-empty">
+                        <Text>当前已生成场景暂无内心戏视觉化留痕。</Text>
+                      </div>
+                    ) : (
+                      thoughtAuditRows.map((thought) => (
+                        <div className="thought-audit-row" key={thought.key}>
+                          <Text className="thought-label">{thought.sceneNumber} · 原文</Text>
+                          <Text>{thought.original}</Text>
+                          <Text className="thought-label">手法</Text>
+                          <Text>{thought.method}</Text>
+                          <Text className="thought-label">结果</Text>
+                          <Text>{thought.result}</Text>
+                        </div>
+                      ))
+                    )}
                   </div>
-                </div>
+                ) : null}
               </section>
             ) : null}
           </div>
