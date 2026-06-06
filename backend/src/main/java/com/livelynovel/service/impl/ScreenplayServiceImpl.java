@@ -393,6 +393,30 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     @Override
+    public SceneDTO updatePersistedScene(
+            String conversionId,
+            int chapterIndex,
+            int sceneIndexInChapter,
+            SceneDTO scene
+    ) {
+        if (conversionId == null || conversionId.isBlank() || scene == null) {
+            return null;
+        }
+        return sceneRepository
+                .findByConversionIdAndChapterIndexAndSceneIndexInChapter(
+                        conversionId,
+                        chapterIndex,
+                        sceneIndexInChapter
+                )
+                .map(entity -> {
+                    entity.setSceneJson(toJson(scene));
+                    sceneRepository.save(entity);
+                    return scene;
+                })
+                .orElse(null);
+    }
+
+    @Override
     public String exportConversionYaml(String conversionId) {
         ScreenplayConversionDetailDTO detail = getConversionDetail(conversionId);
         if (detail == null) {
