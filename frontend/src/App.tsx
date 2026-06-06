@@ -7,6 +7,7 @@ import ScreenplayPreviewPage from './pages/ScreenplayPreviewPage'
 import SingleSceneConvertPage from './pages/SingleSceneConvertPage'
 import type { AppPageKey } from './pages/appNavigation'
 import { useScreenplayConversionSession } from './pages/conversionSession'
+import { resumeConvertPage } from './pages/appNavigation'
 import type { PolishDraft } from './pages/screenplayPolish'
 import type { ImportFlowContext, ScreenplayConvertContext } from './types/novel'
 import './App.css'
@@ -33,6 +34,17 @@ function App() {
     }))
   }
 
+  function resumeConversion() {
+    const nextState = resumeConvertPage({
+      page,
+      singleSceneContext,
+      convertContext,
+      selectedSceneKey,
+    })
+    setConvertContext(nextState.convertContext)
+    setPage(nextState.page)
+  }
+
   if (page === 'single-scene' && singleSceneContext) {
     return (
       <SingleSceneConvertPage
@@ -48,6 +60,7 @@ function App() {
         session={conversionSession}
         onBack={backToImport}
         onPreview={() => setPage('preview')}
+        onResume={resumeConversion}
       />
     )
   }
