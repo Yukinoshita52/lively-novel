@@ -5,7 +5,7 @@ spring:
   application:
     name: lively-novel-backend
   datasource:
-    url: jdbc:sqlite:${LIVELY_NOVEL_DB_PATH:../data/livelynovel.db}
+    url: jdbc:sqlite:../data/livelynovel.db
     driver-class-name: org.sqlite.JDBC
     hikari:
       maximum-pool-size: 1
@@ -22,7 +22,7 @@ spring:
     openai:
       # DeepSeek OpenAI 兼容 API
       base-url: https://api.deepseek.com
-      api-key: ${DEEPSEEK_API_KEY}
+      api-key: sk-d5181dab5fad41ea8bace90d129c3572  # 替换为你的 API Key
       chat:
         options:
           model: deepseek-chat
