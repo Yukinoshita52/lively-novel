@@ -163,12 +163,13 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
-    void completesWithErrorWhenSceneAnchorsCannotBeMatched() throws Exception {
+    void emitsFailedEventWhenSceneAnchorsCannotBeMatched() throws Exception {
         String novelId = "nv-1234abcd";
         String chapterContent = "第一段原文。\n第二段原文。\n第三段原文。";
         SceneUnitDTO invalidUnit = sceneUnit(1, 1, 99, 100);
         CountDownLatch releaseGetChapters = new CountDownLatch(1);
         AtomicReference<Throwable> completionError = new AtomicReference<>();
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
 
         when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
             releaseGetChapters.await(2, TimeUnit.SECONDS);
@@ -180,26 +181,27 @@ class ScreenplayServiceImplTest {
 
         CountDownLatch completion = new CountDownLatch(1);
         SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
-        initializeEmitterHandler(emitter, new CopyOnWriteArrayList<>(), completion, completionError);
+        initializeEmitterHandler(emitter, sentPayloads, completion, completionError);
         releaseGetChapters.countDown();
         assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
 
-        assertThat(completionError.get()).isNotNull();
-        assertThat(completionError.get())
-                .hasMessageContaining("chapterIndex=1")
-                .hasMessageContaining("sceneIndexInChapter=1")
-                .hasMessageContaining("endSegmentIndex");
+        assertThat(completionError.get()).isNull();
+        assertThat(containsEvent(sentPayloads, "failed")).isTrue();
+        assertThat(containsReason(sentPayloads, "chapterIndex=1")).isTrue();
+        assertThat(containsReason(sentPayloads, "sceneIndexInChapter=1")).isTrue();
+        assertThat(containsReason(sentPayloads, "endSegmentIndex")).isTrue();
         verify(llmService, never()).convertSingleScene(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME));
     }
 
     @Test
-    void completesWithErrorWhenSceneUnitsLeaveSegmentGapAfterRetry() throws Exception {
+    void emitsFailedEventWhenSceneUnitsLeaveSegmentGapAfterRetry() throws Exception {
         String novelId = "nv-1234abcd";
         String chapterContent = "第一段。\n第二段。\n第三段。";
         SceneUnitDTO firstUnit = sceneUnit(1, 1, 1, 1);
         SceneUnitDTO secondUnit = sceneUnit(1, 2, 3, 3);
         CountDownLatch releaseGetChapters = new CountDownLatch(1);
         AtomicReference<Throwable> completionError = new AtomicReference<>();
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
 
         when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
             releaseGetChapters.await(2, TimeUnit.SECONDS);
@@ -211,13 +213,47 @@ class ScreenplayServiceImplTest {
 
         CountDownLatch completion = new CountDownLatch(1);
         SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
-        initializeEmitterHandler(emitter, new CopyOnWriteArrayList<>(), completion, completionError);
+        initializeEmitterHandler(emitter, sentPayloads, completion, completionError);
         releaseGetChapters.countDown();
         assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
 
-        assertThat(completionError.get()).isNotNull();
-        assertThat(completionError.get()).hasMessageContaining("片段不连续");
+        assertThat(completionError.get()).isNull();
+        assertThat(containsEvent(sentPayloads, "failed")).isTrue();
+        assertThat(containsReason(sentPayloads, "片段不连续")).isTrue();
         verify(llmService, times(2)).splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME);
+        verify(llmService, never()).convertSingleScene(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        );
+    }
+
+    @Test
+    void emitsFailedEventWhenSceneSplitValidationFails() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "第一段。\n第二段。\n第三段。";
+        SceneUnitDTO firstUnit = sceneUnit(1, 1, 1, 1);
+        SceneUnitDTO secondUnit = sceneUnit(1, 2, 3, 3);
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+        AtomicReference<Throwable> completionError = new AtomicReference<>();
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+            .thenReturn(List.of(firstUnit, secondUnit));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, completionError);
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        assertThat(completionError.get()).isNull();
+        assertThat(containsEvent(sentPayloads, "failed")).isTrue();
+        assertThat(containsMessage(sentPayloads, "转换未完成，请调整文本后重试。")).isTrue();
         verify(llmService, never()).convertSingleScene(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
@@ -256,10 +292,29 @@ class ScreenplayServiceImplTest {
     }
 
     private boolean containsChapterSplitEvent(List<Object> sentPayloads) {
+        return containsEvent(sentPayloads, "chapter_split");
+    }
+
+    private boolean containsEvent(List<Object> sentPayloads, String eventName) {
         return flattenPayloadData(sentPayloads).stream()
             .filter(String.class::isInstance)
             .map(String.class::cast)
-            .anyMatch(data -> data.contains("event:chapter_split"));
+            .anyMatch(data -> data.contains("event:" + eventName));
+    }
+
+    private boolean containsMessage(List<Object> sentPayloads, String expectedMessage) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .anyMatch(data -> expectedMessage.equals(data.get("message")));
+    }
+
+    private boolean containsReason(List<Object> sentPayloads, String expectedReasonPart) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .anyMatch(data -> data.get("reason") instanceof String reason
+                && reason.contains(expectedReasonPart));
     }
 
     private boolean containsSceneCount(List<Object> sentPayloads, int expectedSceneCount) {
