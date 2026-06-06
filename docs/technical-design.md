@@ -646,7 +646,7 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 Content-Type: application/x-yaml; charset=utf-8
 Content-Disposition: attachment; filename="她比烟花寂寞.yaml"
 ```
-**响应体：** 符合 `yaml-schema.md` 的完整 YAML 文本（即 `export.html` 左侧展示的内容，顶层含 `schemaVersion/title/screenplayType/plotSummary/characters/scenes/storylines`）。
+**响应体：** 符合 `yaml-schema.md` 的完整 YAML 文本（即 `export.html` 左侧展示的内容，顶层含 `schemaVersion/title/screenplayType/plotSummary/characters/scenes/storylines`）。导出场景使用 `scriptBlocks` 表达有序剧本正文，不输出内部持久化/重生使用的 `sourceText` 原文片段，也不输出内部改编审计字段。
 
 **可能错误码（以 JSON 包装返回，因无文件可下）：** `40401`、`40301`、`40101`。
 

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.livelynovel.model.dto.ChapterSegmentDTO;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
+import com.livelynovel.model.dto.DialogueBlockDTO;
 import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.SceneDTO;
@@ -431,9 +432,57 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         screenplay.put("characters", List.of());
         screenplay.put("scenes", detail.getScenes().stream()
                 .map(ScreenplayPersistedSceneDTO::getScene)
+                .map(this::toExportScene)
                 .toList());
         screenplay.put("storylines", List.of());
         return toYaml(screenplay);
+    }
+
+    private Map<String, Object> toExportScene(SceneDTO scene) {
+        Map<String, Object> exportScene = new LinkedHashMap<>();
+        exportScene.put("sceneId", scene.getSceneId());
+        exportScene.put("heading", scene.getHeading());
+        exportScene.put("scriptBlocks", toScriptBlocks(scene));
+        exportScene.put("sourceChapter", scene.getSourceChapter());
+        return exportScene;
+    }
+
+    private List<Map<String, Object>> toScriptBlocks(SceneDTO scene) {
+        List<Map<String, Object>> blocks = new java.util.ArrayList<>();
+        for (String actionLine : nullToEmpty(scene.getActionLines())) {
+            if (actionLine != null && !actionLine.isBlank()) {
+                Map<String, Object> block = new LinkedHashMap<>();
+                block.put("type", "ACTION");
+                block.put("text", actionLine);
+                blocks.add(block);
+            }
+        }
+        for (DialogueBlockDTO dialogueBlock : nullToEmpty(scene.getDialogueBlocks())) {
+            if (dialogueBlock == null) {
+                continue;
+            }
+            Map<String, Object> block = new LinkedHashMap<>();
+            block.put("type", "DIALOGUE");
+            block.put("character", dialogueBlock.getCharacter());
+            if (dialogueBlock.getParenthetical() != null && !dialogueBlock.getParenthetical().isBlank()) {
+                block.put("parenthetical", dialogueBlock.getParenthetical());
+            }
+            block.put("line", dialogueBlock.getLine());
+            blocks.add(block);
+        }
+        for (String transition : nullToEmpty(scene.getTransitions())) {
+            if (transition != null && !transition.isBlank()) {
+                Map<String, Object> block = new LinkedHashMap<>();
+                block.put("type", "TRANSITION");
+                block.put("text", transition);
+                blocks.add(block);
+            }
+        }
+        return blocks;
+    }
+
+    private static <T> List<T> nullToEmpty(List<T> values) {
+        return values == null ? List.of() : values;
     }
 
     private String toYaml(Map<String, Object> screenplay) {
