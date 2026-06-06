@@ -27,6 +27,9 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class ScreenplayServiceImpl implements ScreenplayService {
 
+    private static final int MAX_SCENE_SPLIT_ATTEMPTS = 2;
+    private static final int MULTI_SCENE_SEGMENT_THRESHOLD = 6;
+
     private final NovelService novelService;
     private final LlmService llmService;
     private final ChapterSegmentationService chapterSegmentationService;
@@ -84,14 +87,13 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                         "title", detail.getTitle()
                 ));
 
-                List<SceneUnitDTO> sceneUnits = llmService.splitChapterIntoScenes(
+                List<ChapterSegmentDTO> segments = chapterSegmentationService.segment(detail.getContent());
+                List<SceneUnitDTO> sceneUnits = splitChapterIntoScenesWithRetry(
                         detail.getContent(),
                         detail.getChapterIndex(),
-                        screenplayType
+                        screenplayType,
+                        segments
                 );
-                if (sceneUnits == null) {
-                    sceneUnits = Collections.emptyList();
-                }
                 sendEvent(emitter, "chapter_split", Map.of(
                         "chapterIndex", detail.getChapterIndex(),
                         "title", detail.getTitle(),
@@ -99,7 +101,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                 ));
 
                 List<String> sceneTexts = rebuildSceneTexts(
-                        chapterSegmentationService.segment(detail.getContent()),
+                        segments,
                         detail.getChapterIndex(),
                         sceneUnits
                 );
@@ -126,6 +128,94 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             emitter.complete();
         } catch (Exception e) {
             emitter.completeWithError(e);
+        }
+    }
+
+    private List<SceneUnitDTO> splitChapterIntoScenesWithRetry(
+            String chapterText,
+            int chapterIndex,
+            ScreenplayTypeEnum screenplayType,
+            List<ChapterSegmentDTO> segments
+    ) {
+        IllegalStateException lastError = null;
+        for (int attempt = 1; attempt <= MAX_SCENE_SPLIT_ATTEMPTS; attempt++) {
+            List<SceneUnitDTO> sceneUnits = llmService.splitChapterIntoScenes(
+                    chapterText,
+                    chapterIndex,
+                    screenplayType
+            );
+            if (sceneUnits == null) {
+                sceneUnits = Collections.emptyList();
+            }
+            try {
+                validateSceneUnits(sceneUnits, chapterIndex, segments.size());
+                return sceneUnits;
+            } catch (IllegalStateException e) {
+                lastError = e;
+            }
+        }
+        throw lastError;
+    }
+
+    private static void validateSceneUnits(List<SceneUnitDTO> sceneUnits, int chapterIndex, int totalSegments) {
+        if (totalSegments <= 0) {
+            throw new IllegalStateException("章节片段为空：chapterIndex=" + chapterIndex);
+        }
+        if (sceneUnits == null || sceneUnits.isEmpty()) {
+            throw new IllegalStateException("章节切场结果为空：chapterIndex=" + chapterIndex);
+        }
+        if (sceneUnits.size() == 1 && totalSegments >= MULTI_SCENE_SEGMENT_THRESHOLD) {
+            SceneUnitDTO sceneUnit = sceneUnits.get(0);
+            if (sceneUnit.getStartSegmentIndex() == 1 && sceneUnit.getEndSegmentIndex() == totalSegments) {
+                throw new IllegalStateException("章节切场退化为整章单场：chapterIndex=" + chapterIndex
+                        + ", totalSegments=" + totalSegments);
+            }
+        }
+
+        int expectedSceneIndex = 1;
+        int expectedStartSegmentIndex = 1;
+        for (SceneUnitDTO sceneUnit : sceneUnits) {
+            if (sceneUnit == null) {
+                throw new IllegalStateException("场景切分为空：chapterIndex=" + chapterIndex
+                        + ", sceneIndexInChapter=" + expectedSceneIndex);
+            }
+            if (sceneUnit.getSceneIndexInChapter() != expectedSceneIndex) {
+                throw new IllegalStateException("场景编号不连续：chapterIndex=" + chapterIndex
+                        + ", expectedSceneIndex=" + expectedSceneIndex
+                        + ", sceneIndexInChapter=" + sceneUnit.getSceneIndexInChapter());
+            }
+
+            int startSegmentIndex = sceneUnit.getStartSegmentIndex();
+            int endSegmentIndex = sceneUnit.getEndSegmentIndex();
+            if (startSegmentIndex <= 0) {
+                throw new IllegalStateException("起始片段非法：chapterIndex=" + chapterIndex
+                        + ", sceneIndexInChapter=" + sceneUnit.getSceneIndexInChapter()
+                        + ", startSegmentIndex=" + startSegmentIndex);
+            }
+            if (endSegmentIndex < startSegmentIndex) {
+                throw new IllegalStateException("结束片段非法：chapterIndex=" + chapterIndex
+                        + ", sceneIndexInChapter=" + sceneUnit.getSceneIndexInChapter()
+                        + ", endSegmentIndex=" + endSegmentIndex);
+            }
+            if (endSegmentIndex > totalSegments) {
+                throw new IllegalStateException("结束片段越界：chapterIndex=" + chapterIndex
+                        + ", sceneIndexInChapter=" + sceneUnit.getSceneIndexInChapter()
+                        + ", endSegmentIndex=" + endSegmentIndex);
+            }
+            if (startSegmentIndex != expectedStartSegmentIndex) {
+                throw new IllegalStateException("片段不连续：chapterIndex=" + chapterIndex
+                        + ", sceneIndexInChapter=" + sceneUnit.getSceneIndexInChapter()
+                        + ", expectedStartSegmentIndex=" + expectedStartSegmentIndex
+                        + ", startSegmentIndex=" + startSegmentIndex);
+            }
+
+            expectedSceneIndex++;
+            expectedStartSegmentIndex = endSegmentIndex + 1;
+        }
+        if (expectedStartSegmentIndex != totalSegments + 1) {
+            throw new IllegalStateException("片段未覆盖完整章节：chapterIndex=" + chapterIndex
+                    + ", expectedStartSegmentIndex=" + expectedStartSegmentIndex
+                    + ", totalSegments=" + totalSegments);
         }
     }
 

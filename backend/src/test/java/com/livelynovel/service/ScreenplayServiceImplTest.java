@@ -132,6 +132,37 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
+    void retriesWhenLongChapterFallsBackToSingleWholeChapterScene() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "第一段。\n第二段。\n第三段。\n第四段。\n第五段。\n第六段。";
+        SceneUnitDTO degradedUnit = sceneUnit(1, 1, 1, 6);
+        SceneUnitDTO firstUnit = sceneUnit(1, 1, 1, 3);
+        SceneUnitDTO secondUnit = sceneUnit(1, 2, 4, 6);
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+            .thenReturn(List.of(degradedUnit))
+            .thenReturn(List.of(firstUnit, secondUnit));
+        when(llmService.convertSingleScene("第一段。\n第二段。\n第三段。", ScreenplayTypeEnum.ANIME)).thenReturn(scene("scene-1"));
+        when(llmService.convertSingleScene("第四段。\n第五段。\n第六段。", ScreenplayTypeEnum.ANIME)).thenReturn(scene("scene-2"));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, new CopyOnWriteArrayList<>(), completion, new AtomicReference<>());
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        verify(llmService, times(2)).splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME);
+        verify(llmService, times(1)).convertSingleScene("第一段。\n第二段。\n第三段。", ScreenplayTypeEnum.ANIME);
+        verify(llmService, times(1)).convertSingleScene("第四段。\n第五段。\n第六段。", ScreenplayTypeEnum.ANIME);
+    }
+
+    @Test
     void completesWithErrorWhenSceneAnchorsCannotBeMatched() throws Exception {
         String novelId = "nv-1234abcd";
         String chapterContent = "第一段原文。\n第二段原文。\n第三段原文。";
@@ -159,6 +190,38 @@ class ScreenplayServiceImplTest {
                 .hasMessageContaining("sceneIndexInChapter=1")
                 .hasMessageContaining("endSegmentIndex");
         verify(llmService, never()).convertSingleScene(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME));
+    }
+
+    @Test
+    void completesWithErrorWhenSceneUnitsLeaveSegmentGapAfterRetry() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "第一段。\n第二段。\n第三段。";
+        SceneUnitDTO firstUnit = sceneUnit(1, 1, 1, 1);
+        SceneUnitDTO secondUnit = sceneUnit(1, 2, 3, 3);
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+        AtomicReference<Throwable> completionError = new AtomicReference<>();
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+            .thenReturn(List.of(firstUnit, secondUnit));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, new CopyOnWriteArrayList<>(), completion, completionError);
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        assertThat(completionError.get()).isNotNull();
+        assertThat(completionError.get()).hasMessageContaining("片段不连续");
+        verify(llmService, times(2)).splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME);
+        verify(llmService, never()).convertSingleScene(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        );
     }
 
     private void initializeEmitterHandler(

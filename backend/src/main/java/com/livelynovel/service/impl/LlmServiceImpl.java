@@ -1,7 +1,9 @@
 package com.livelynovel.service.impl;
 
 import com.livelynovel.model.dto.ChapterSegmentDTO;
+import com.livelynovel.model.dto.DialogueBlockDTO;
 import com.livelynovel.model.dto.SceneDTO;
+import com.livelynovel.model.dto.VisualizedInnerThoughtDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 import com.livelynovel.service.ChapterSegmentationService;
@@ -28,6 +30,7 @@ public class LlmServiceImpl implements LlmService {
     private final ChapterSegmentationService chapterSegmentationService;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Pattern SCENE_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*\"sceneIndexInChapter\"[^{}]*}", Pattern.DOTALL);
+    private static final Pattern JAPANESE_KANA_PATTERN = Pattern.compile("[\\u3040-\\u30ff]");
 
     public LlmServiceImpl(
             ChatClient.Builder chatClientBuilder,
@@ -46,7 +49,9 @@ public class LlmServiceImpl implements LlmService {
                 .call()
                 .entity(SceneDTO.class);
 
-        return fillSceneSourceMetadata(scene, text, 1);
+        SceneDTO resolvedScene = fillSceneSourceMetadata(scene, text, 1);
+        validateSceneLanguage(resolvedScene);
+        return resolvedScene;
     }
 
     @Override
@@ -134,6 +139,56 @@ public class LlmServiceImpl implements LlmService {
         resolvedScene.setSourceText(sourceText);
         resolvedScene.setSourceChapter(sourceChapter);
         return resolvedScene;
+    }
+
+    // 验证是否语言飘逸（此处策略是检测到有日文）
+    static void validateSceneLanguage(SceneDTO scene) {
+        if (scene == null) {
+            return;
+        }
+
+        List<String> generatedTexts = new ArrayList<>();
+        if (scene.getHeading() != null) {
+            generatedTexts.add(scene.getHeading().getLocation());
+            generatedTexts.add(scene.getHeading().getTimeOfDay());
+        }
+        addAll(generatedTexts, scene.getActionLines());
+        if (scene.getDialogueBlocks() != null) {
+            for (DialogueBlockDTO dialogueBlock : scene.getDialogueBlocks()) {
+                if (dialogueBlock == null) {
+                    continue;
+                }
+                generatedTexts.add(dialogueBlock.getCharacter());
+                generatedTexts.add(dialogueBlock.getParenthetical());
+                generatedTexts.add(dialogueBlock.getLine());
+            }
+        }
+        if (scene.getVisualizedInnerThoughts() != null) {
+            for (VisualizedInnerThoughtDTO innerThought : scene.getVisualizedInnerThoughts()) {
+                if (innerThought == null) {
+                    continue;
+                }
+                generatedTexts.add(innerThought.getResult());
+            }
+        }
+        addAll(generatedTexts, scene.getTransitions());
+
+        for (String text : generatedTexts) {
+            if (containsJapaneseKana(text)) {
+                throw new IllegalStateException("单场剧本生成出现语言漂移");
+            }
+        }
+    }
+
+    private static void addAll(List<String> target, List<String> values) {
+        if (values == null) {
+            return;
+        }
+        target.addAll(values);
+    }
+
+    private static boolean containsJapaneseKana(String text) {
+        return text != null && JAPANESE_KANA_PATTERN.matcher(text).find();
     }
 
     static List<SceneUnitDTO> parseSplitChapterScenesResult(String responseText) {
@@ -262,6 +317,8 @@ public class LlmServiceImpl implements LlmService {
                 5. summary 只写该场景单元发生了什么，保持简洁。
                 6. title 只写场景单元的简短标签，便于后续识别。
                 7. 每个场景必须返回 startSegmentIndex 和 endSegmentIndex，使用片段编号而不是原文锚点。
+                8. title 和 summary 必须使用简体中文，不要使用日文假名、英文夹写或解释性文本。
+                9. 不要把多片段长章节整章合并为 1 个场景；除非整章确实只有一个连续场景，否则应按地点、时间或叙事焦点拆成多场。
 
                 ## 输出要求
                 1. 返回 scenes 数组。
@@ -274,6 +331,7 @@ public class LlmServiceImpl implements LlmService {
                    - endSegmentIndex
                 3. 至少输出 1 个场景单元。
                 4. 不要输出 startAnchor 或 endAnchor。
+                5. 场景区间必须连续覆盖 1 到 totalSegments，不得重叠、跳段或漏段。
                 """.formatted(chapterIndex, screenplayType, segments.size());
     }
 
