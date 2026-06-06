@@ -3,6 +3,7 @@ package com.livelynovel.controller;
 import com.livelynovel.common.Result;
 import com.livelynovel.model.dto.ChapterDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
+import com.livelynovel.model.dto.NovelListResultDTO;
 import com.livelynovel.model.dto.NovelParseRequestDTO;
 import com.livelynovel.model.dto.NovelParseResultDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
@@ -90,6 +91,15 @@ public class NovelController {
         } catch (NovelValidationException e) {
             return Result.fail(e.getCode(), e.getMessage());
         }
+    }
+
+    /**
+     * 获取已导入小说的轻量历史列表。
+     */
+    @Operation(summary = "获取历史小说列表", description = "返回已导入小说的轻量列表")
+    @GetMapping
+    public Result<NovelListResultDTO> listNovels() {
+        return Result.ok(novelService.listNovels());
     }
 
     /**
