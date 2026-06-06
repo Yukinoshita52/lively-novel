@@ -1,5 +1,6 @@
 import type { GeneratedSceneSummary } from '../types/novel'
 import {
+  buildYamlDownloadFileName,
   buildSceneHeadingText,
   buildSceneOutlineItems,
   getSourcePreview,
@@ -80,6 +81,30 @@ assert(
 )
 assert(getSourcePreview('一二三四五六', false, 4) === '一二三四…', '折叠原文应截断并加省略号')
 assert(getSourcePreview('一二三四五六', true, 4) === '一二三四五六', '展开原文应显示全文')
+assert(buildYamlDownloadFileName(' 她比烟花寂寞 ') === '她比烟花寂寞-screenplay.yaml', 'YAML 文件名应使用作品标题')
+assert(buildYamlDownloadFileName('') === 'screenplay.yaml', '标题为空时应使用默认 YAML 文件名')
+
+const startedUpdate = resolveConvertEventUpdate(
+  'started',
+  {
+    conversionId: 'cv-1234abcd',
+    totalChapters: 3,
+  },
+  { totalChapters: 3 },
+)
+
+assert(startedUpdate?.conversionId === 'cv-1234abcd', 'started 事件应记录 conversionId 供导出 YAML 使用')
+
+const completedUpdate = resolveConvertEventUpdate(
+  'completed',
+  {
+    conversionId: 'cv-1234abcd',
+    totalChapters: 3,
+  },
+  { totalChapters: 3 },
+)
+
+assert(completedUpdate?.conversionId === 'cv-1234abcd', 'completed 事件应保留 conversionId 供完成后下载')
 
 const failedUpdate = resolveConvertEventUpdate(
   'failed',
