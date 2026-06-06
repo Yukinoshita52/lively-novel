@@ -4,6 +4,7 @@ type SsePayload = Record<string, unknown>
 
 export interface ConvertEventUpdate {
   event?: ConvertEventItem
+  conversionId?: string
   sceneCount?: {
     chapterIndex: number
     sceneCount: number
@@ -86,14 +87,28 @@ export function getSourcePreview(sourceText: string, expanded: boolean, maxLengt
   return `${sourceText.slice(0, maxLength)}…`
 }
 
+export function buildYamlDownloadFileName(title: string) {
+  const normalizedTitle = title.trim().replace(/[\\/:*?"<>|]+/g, '-')
+  return normalizedTitle ? `${normalizedTitle}-screenplay.yaml` : 'screenplay.yaml'
+}
+
+function getPayloadConversionId(payload: SsePayload) {
+  return typeof payload.conversionId === 'string' && payload.conversionId.trim()
+    ? payload.conversionId.trim()
+    : undefined
+}
+
 export function resolveConvertEventUpdate(
   eventName: string,
   payload: SsePayload,
   context: { totalChapters: number },
 ): ConvertEventUpdate | undefined {
+  const conversionId = getPayloadConversionId(payload)
+
   if (eventName === 'started') {
     const totalChapters = Number(payload.totalChapters ?? context.totalChapters)
     return {
+      conversionId,
       event: {
         type: 'started',
         message: `开始转换，共 ${totalChapters} 章`,
@@ -103,6 +118,7 @@ export function resolveConvertEventUpdate(
 
   if (eventName === 'chapter_loaded') {
     return {
+      conversionId,
       event: {
         type: 'chapter_loaded',
         message: `已读取第 ${payload.chapterIndex ?? '?'} 章：${String(payload.title ?? '未命名章节')}`,
@@ -119,6 +135,7 @@ export function resolveConvertEventUpdate(
       typeof payload.sceneCount === 'number' ? payload.sceneCount : Number(payload.sceneCount ?? 0)
 
     return {
+      conversionId,
       event: {
         type: 'chapter_split',
         message: `第 ${payload.chapterIndex ?? '?'} 章已切分为 ${payload.sceneCount ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
@@ -144,6 +161,7 @@ export function resolveConvertEventUpdate(
     }
 
     return {
+      conversionId,
       event: {
         type: 'scene_completed',
         message: `已生成第 ${payload.chapterIndex ?? '?'} 章第 ${sceneIndexInChapter ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
@@ -159,6 +177,7 @@ export function resolveConvertEventUpdate(
 
   if (eventName === 'completed') {
     return {
+      conversionId,
       event: {
         type: 'completed',
         message: `整本转换完成，共处理 ${payload.totalChapters ?? context.totalChapters} 章`,
@@ -170,6 +189,7 @@ export function resolveConvertEventUpdate(
   if (eventName === 'failed') {
     const message = String(payload.message ?? '转换未完成，请调整文本后重试。')
     return {
+      conversionId,
       event: {
         type: 'failed',
         message,

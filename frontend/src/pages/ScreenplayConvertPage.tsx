@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Card, Progress, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, DownloadOutlined } from '@ant-design/icons'
 import type {
   ConvertEventItem,
   GeneratedSceneSummary,
   ScreenplayConvertContext,
 } from '../types/novel'
+import { getScreenplayConversionYaml } from '../services/novel'
 import {
+  buildYamlDownloadFileName,
   buildSceneOutlineItems,
   getSceneKey,
   getSourcePreview,
@@ -58,7 +60,10 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const [sourceExpanded, setSourceExpanded] = useState(false)
   const [completed, setCompleted] = useState(false)
+  const [conversionId, setConversionId] = useState<string>()
+  const [downloadingYaml, setDownloadingYaml] = useState(false)
   const [convertError, setConvertError] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -92,6 +97,9 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
 
       if (update.event) {
         pushEvent(update.event.type, update.event.message)
+      }
+      if (update.conversionId) {
+        setConversionId(update.conversionId)
       }
       if (update.sceneCount) {
         setChapterSceneCounts((current) => ({
@@ -190,6 +198,31 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
     return Math.min(100, Math.round((finishedSceneCount / totalSceneCount) * 100))
   }, [finishedSceneCount, totalSceneCount])
 
+  async function handleDownloadYaml() {
+    if (!conversionId) {
+      return
+    }
+
+    setDownloadingYaml(true)
+    setDownloadError(null)
+
+    try {
+      const yamlBlob = await getScreenplayConversionYaml(conversionId)
+      const url = URL.createObjectURL(yamlBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = buildYamlDownloadFileName(context.title)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : '导出 YAML 失败')
+    } finally {
+      setDownloadingYaml(false)
+    }
+  }
+
   return (
     <div className="convert-shell">
       <header className="convert-topbar">
@@ -219,6 +252,15 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
             </div>
             <Progress percent={progressPercent} strokeColor="#9c4b2e" />
             <Text>{context.chapters.length} 章已进入待转换列表</Text>
+            <Button
+              disabled={!completed || !conversionId}
+              icon={<DownloadOutlined />}
+              loading={downloadingYaml}
+              onClick={handleDownloadYaml}
+              type="primary"
+            >
+              导出 YAML
+            </Button>
           </div>
 
           {convertError ? (
@@ -226,6 +268,15 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
               className="feedback-block"
               message="转换失败"
               description={convertError}
+              type="error"
+              showIcon
+            />
+          ) : null}
+          {downloadError ? (
+            <Alert
+              className="feedback-block"
+              message="导出失败"
+              description={downloadError}
               type="error"
               showIcon
             />
