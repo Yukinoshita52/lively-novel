@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Card, Spin, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { convertSingleScene, getNovelChapterDetail } from '../services/novel'
+import { normalizeScriptBlocks } from './screenplayPreview'
 import type {
   ImportFlowContext,
   NovelChapterDetail,
@@ -36,11 +37,7 @@ function SingleSceneConvertPage({ context, onBack }: SingleSceneConvertPageProps
   const [convertResult, setConvertResult] = useState<SceneResult | null>(null)
   const [contentExpanded, setContentExpanded] = useState(false)
 
-  useEffect(() => {
-    void loadChapter(selectedChapterIndex)
-  }, [selectedChapterIndex])
-
-  async function loadChapter(chapterIndex: number) {
+  const loadChapter = useCallback(async (chapterIndex: number) => {
     setChapterLoading(true)
     setConvertError(null)
 
@@ -56,7 +53,13 @@ function SingleSceneConvertPage({ context, onBack }: SingleSceneConvertPageProps
     } finally {
       setChapterLoading(false)
     }
-  }
+  }, [context.novelId])
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadChapter(selectedChapterIndex)
+    })
+  }, [loadChapter, selectedChapterIndex])
 
   async function handleConvert() {
     if (!chapterDetail?.content) {
@@ -184,44 +187,26 @@ function SingleSceneConvertPage({ context, onBack }: SingleSceneConvertPageProps
               </div>
 
               <section className="scene-section">
-                <Text className="scene-section-title">动作</Text>
-                {convertResult.actionLines.map((line, index) => (
-                  <Paragraph key={`action-${index}`}>{line}</Paragraph>
-                ))}
+                <Text className="scene-section-title">剧本正文</Text>
+                {normalizeScriptBlocks(convertResult).map((block, index) => {
+                  if (block.type === 'DIALOGUE') {
+                    return (
+                      <div className="dialogue-row" key={`script-${index}`}>
+                        <Text strong>{block.character}</Text>
+                        {block.parenthetical ? <Text>（{block.parenthetical}）</Text> : null}
+                        <Paragraph>{block.line}</Paragraph>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <Paragraph key={`script-${index}`}>
+                      {block.type === 'TRANSITION' ? <Tag bordered={false}>转场</Tag> : null}
+                      {block.text}
+                    </Paragraph>
+                  )
+                })}
               </section>
-
-              <section className="scene-section">
-                <Text className="scene-section-title">对白</Text>
-                {convertResult.dialogueBlocks.map((dialogue, index) => (
-                  <div className="dialogue-row" key={`dialogue-${index}`}>
-                    <Text strong>{dialogue.character}</Text>
-                    {dialogue.parenthetical ? <Text>（{dialogue.parenthetical}）</Text> : null}
-                    <Paragraph>{dialogue.line}</Paragraph>
-                  </div>
-                ))}
-              </section>
-
-              {convertResult.visualizedInnerThoughts.length > 0 ? (
-                <section className="scene-section">
-                  <Text className="scene-section-title">内心戏视觉化</Text>
-                  {convertResult.visualizedInnerThoughts.map((thought, index) => (
-                    <div className="thought-row" key={`thought-${index}`}>
-                      <Text>{thought.original}</Text>
-                      <Tag bordered={false}>{thought.method}</Tag>
-                      <Text>{thought.result}</Text>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
-
-              {convertResult.transitions.length > 0 ? (
-                <section className="scene-section">
-                  <Text className="scene-section-title">转场</Text>
-                  {convertResult.transitions.map((transition, index) => (
-                    <Paragraph key={`transition-${index}`}>{transition}</Paragraph>
-                  ))}
-                </section>
-              ) : null}
             </div>
           ) : (
             <div className="result-placeholder">

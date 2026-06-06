@@ -8,10 +8,9 @@ import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeF
 import {
   buildPreviewActions,
   buildPreviewTabs,
+  buildScriptBlockRows,
   buildSceneOutlineItems,
   buildSceneTableRows,
-  buildThoughtAuditRows,
-  getSceneKey,
   getSourcePreview,
   mapPersistedScenesToGeneratedScenes,
   resolveSelectedScene,
@@ -67,7 +66,6 @@ function ScreenplayPreviewPage({ session, onBackToConvert, onPolishScene }: Scre
   const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(generatedScenes), [generatedScenes])
   const previewTabs = useMemo(() => buildPreviewTabs(activePreviewTab), [activePreviewTab])
   const sceneTableRows = useMemo(() => buildSceneTableRows(generatedScenes), [generatedScenes])
-  const thoughtAuditRows = useMemo(() => buildThoughtAuditRows(generatedScenes), [generatedScenes])
   const selectedScene = useMemo(
     () => resolveSelectedScene(generatedScenes, selectedSceneKey),
     [generatedScenes, selectedSceneKey],
@@ -177,25 +175,23 @@ function ScreenplayPreviewPage({ session, onBackToConvert, onPolishScene }: Scre
                       {selectedScene.headingText}
                     </div>
 
-                    {selectedScene.scene.actionLines.map((line, index) => (
-                      <p className="sp-action-line" key={`${getSceneKey(selectedScene)}-action-${index}`}>
-                        {line}
-                      </p>
-                    ))}
+                    {buildScriptBlockRows(selectedScene).map((block) => {
+                      if (block.type === 'DIALOGUE') {
+                        return (
+                          <div className="sp-dialogue-block" key={block.key}>
+                            <div className="sp-character">{block.character}</div>
+                            {block.parenthetical ? <div className="sp-parenthetical">{block.parenthetical}</div> : null}
+                            <div className="sp-line">{block.line}</div>
+                          </div>
+                        )
+                      }
 
-                    {selectedScene.scene.dialogueBlocks.map((dialogue, index) => (
-                      <div className="sp-dialogue-block" key={`${getSceneKey(selectedScene)}-dialogue-${index}`}>
-                        <div className="sp-character">{dialogue.character}</div>
-                        {dialogue.parenthetical ? <div className="sp-parenthetical">{dialogue.parenthetical}</div> : null}
-                        <div className="sp-line">{dialogue.line}</div>
-                      </div>
-                    ))}
-
-                    {selectedScene.scene.transitions.map((transition, index) => (
-                      <p className="sp-transition" key={`${getSceneKey(selectedScene)}-transition-${index}`}>
-                        {transition}
-                      </p>
-                    ))}
+                      return (
+                        <p className={block.type === 'TRANSITION' ? 'sp-transition' : 'sp-action-line'} key={block.key}>
+                          {block.text}
+                        </p>
+                      )
+                    })}
                   </div>
 
                   <div className="source-preview">
@@ -243,26 +239,6 @@ function ScreenplayPreviewPage({ session, onBackToConvert, onPolishScene }: Scre
                 </div>
               ) : null}
 
-              {activePreviewTab === 'thought-audit' ? (
-                <div className="thought-audit-list">
-                  {thoughtAuditRows.length === 0 ? (
-                    <div className="screenplay-empty">
-                      <Text>当前已生成场景暂无内心戏视觉化留痕。</Text>
-                    </div>
-                  ) : (
-                    thoughtAuditRows.map((thought) => (
-                      <div className="thought-audit-row" key={thought.key}>
-                        <Text className="thought-label">{thought.sceneNumber} · 原文</Text>
-                        <Text>{thought.original}</Text>
-                        <Text className="thought-label">手法</Text>
-                        <Text>{thought.method}</Text>
-                        <Text className="thought-label">结果</Text>
-                        <Text>{thought.result}</Text>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : null}
             </section>
           ) : null}
         </div>

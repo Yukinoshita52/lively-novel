@@ -6,9 +6,9 @@
 >
 > **v1.1 变更**：① LLM 集成改用 Spring AI；② 引入 SQLite 持久化 + 内容哈希缓存；③ 增加完整登录认证（Spring Security + JWT）；④ 取消"无状态/不存储"设定。
 > **v1.2 变更**：LLM 框架改用 **Spring AI Alibaba**（构建于 Spring AI，中文文档更丰富）；DeepSeek 经 **OpenAI 兼容适配器**接入 **DeepSeek 官方 API**。
-> **v1.3 变更（§5 重审重写）**：① 全局分析改为**自适应 Map-Reduce**（短文单次／长文顺序滚动逐章 Map + Reduce，非并行以保跨章连贯）；② 修正中文 token 量级误算；③ 明确**场景切分**步骤补齐 A/B 缺环；④ prompt 改为"仅任务+规则"，Schema 交由 `.entity()` 注入；⑤ MVP **仅影视类**，广播剧/话剧规则列为扩展；⑥ 补人物名一致性、前场上下文、visualizedInnerThoughts 留痕语义。
+> **v1.3 变更（§5 重审重写）**：① 全局分析改为**自适应 Map-Reduce**（短文单次／长文顺序滚动逐章 Map + Reduce，非并行以保跨章连贯）；② 修正中文 token 量级误算；③ 明确**场景切分**步骤补齐 A/B 缺环；④ prompt 改为"仅任务+规则"，Schema 交由 `.entity()` 注入；⑤ MVP **仅影视类**，广播剧/话剧规则列为扩展；⑥ 补人物名一致性、前场上下文、内心戏视觉化语义。
 > **v1.4 变更（§6/7/8/9 复审）**：§6 补注册/登录滥用、并发任务、上传体积、提示注入、CORS、SQL 注入等风险；§7 标注初版、补 README/resources/common/dto/exception/test/data 等关键目录；§8 补 40401/42901/40303/50004 错误码；§9 补 WAL 开启、multipart 与 SSE 超时、全局预算、模型名核对提示。
-> **v1.5 变更（§4 重写）**：结合原型逐屏，为全部 16 个接口补全请求/响应详细设计；接口列表增加「原型来源」列；新增 §4.2 通用约定（鉴权/JSON 包装/SSE 约定）；注册改为返回 token 自动登录；响应字段与 `yaml-schema.md` 全面对齐（ANIME 默认、schemaVersion、visualizedInnerThoughts method 枚举）；补 ⑥⑨⑩⑪⑫⑬⑮⑯ 等此前缺失的接口示例。
+> **v1.5 变更（§4 重写）**：结合原型逐屏，为全部 16 个接口补全请求/响应详细设计；接口列表增加「原型来源」列；新增 §4.2 通用约定（鉴权/JSON 包装/SSE 约定）；注册改为返回 token 自动登录；响应字段与 `yaml-schema.md` 全面对齐（ANIME 默认、schemaVersion、scriptBlocks 正文块）；补 ⑥⑨⑩⑪⑫⑬⑮⑯ 等此前缺失的接口示例。
 
 ---
 
@@ -150,12 +150,9 @@ ScreenplayContent
  ├── scenes: List<Scene>
  │    ├── sceneId: String
  │    ├── heading: {interior, location, timeOfDay}
- │    ├── actionLines: List<String>
- │    ├── dialogueBlocks: List<{character, parenthetical?, line}>
- │    ├── transitions: List<String>
- │    ├── visualizedInnerThoughts: List<{original, method, result}>
+ │    ├── scriptBlocks: List<{type, text?, character?, parenthetical?, line?}>
  │    ├── sourceChapter: int
- │    └── sourceText: String
+ │    └── sourceText: String              ← 内部溯源/重生输入，不进入导出 YAML
  └── storylines: List<{name, type(MAIN|SUB), events[]}>
 ```
 
@@ -441,10 +438,11 @@ data: {
   "scene": {
     "sceneId": "s1",
     "heading": {"interior": true, "location": "出租屋", "timeOfDay": "夜"},
-    "actionLines": ["雨敲打着铁皮屋檐。林晚盘腿坐在地板上，膝头摊着简历。"],
-    "dialogueBlocks": [{"character":"林晚","parenthetical":"(画外音)","line":"又一次……我都习惯了。"}],
-    "visualizedInnerThoughts": [{"original":"心里像压了块石头","method":"CLOSE_UP","result":"指尖把纸角捻出褶皱"}],
-    "transitions": ["切至："],
+    "scriptBlocks": [
+      {"type":"ACTION","text":"雨敲打着铁皮屋檐。林晚盘腿坐在地板上，膝头摊着简历。"},
+      {"type":"DIALOGUE","character":"林晚","parenthetical":"画外音","line":"又一次……我都习惯了。"},
+      {"type":"TRANSITION","text":"切至："}
+    ],
     "sourceChapter": 1,
     "sourceText": "雨敲在铁皮屋檐上。林晚把简历又看了一遍……"
   }
@@ -496,10 +494,11 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
   "scenes": [
     { "sceneId": "s1",
       "heading": { "interior": true, "location": "出租屋", "timeOfDay": "夜" },
-      "actionLines": [ "雨敲打着铁皮屋檐。林晚盘腿坐在地板上。" ],
-      "dialogueBlocks": [ { "character": "林晚", "parenthetical": "(画外音)", "line": "又一次……我都习惯了。" } ],
-      "visualizedInnerThoughts": [ { "original": "心里像压了块石头", "method": "CLOSE_UP", "result": "指尖把纸角捻出褶皱" } ],
-      "transitions": [ "切至：" ],
+      "scriptBlocks": [
+        { "type": "ACTION", "text": "雨敲打着铁皮屋檐。林晚盘腿坐在地板上。" },
+        { "type": "DIALOGUE", "character": "林晚", "parenthetical": "画外音", "line": "又一次……我都习惯了。" },
+        { "type": "TRANSITION", "text": "切至：" }
+      ],
       "sourceChapter": 1,
       "sourceText": "雨敲在铁皮屋檐上。林晚把简历又看了一遍……" }
   ],
@@ -561,14 +560,15 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 
 > 原型：`scene-edit.html`「保存本场修改 ✓」。提交编辑后的整场 YAML 结构落库。
 
-**请求**（可编辑字段；`sourceChapter`/`sourceText` 为溯源字段，不可改，后端忽略传入值）：
+**请求**（可编辑字段；`sourceChapter`/`sourceText` 为内部溯源字段，不作为打磨主体）：
 ```json
 {
   "heading": { "interior": false, "location": "天台", "timeOfDay": "黄昏" },
-  "actionLines": [ "城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。" ],
-  "dialogueBlocks": [ { "character": "林晚", "parenthetical": "(画外音)", "line": "往下看一眼，就一眼……可那串电话还没挂断。" } ],
-  "visualizedInnerThoughts": [ { "original": "如果就这样跳下去，会不会比活着轻松", "method": "VO", "result": "往下看一眼，就一眼……" } ],
-  "transitions": [ "切至：" ]
+  "scriptBlocks": [
+    { "type": "ACTION", "text": "城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。" },
+    { "type": "DIALOGUE", "character": "林晚", "parenthetical": "画外音", "line": "往下看一眼，就一眼……可那串电话还没挂断。" },
+    { "type": "TRANSITION", "text": "切至：" }
+  ]
 }
 ```
 
@@ -578,10 +578,11 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
   "scene": {
     "sceneId": "s2",
     "heading": { "interior": false, "location": "天台", "timeOfDay": "黄昏" },
-    "actionLines": [ "城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。" ],
-    "dialogueBlocks": [ { "character": "林晚", "parenthetical": "(画外音)", "line": "往下看一眼，就一眼……可那串电话还没挂断。" } ],
-    "visualizedInnerThoughts": [ { "original": "如果就这样跳下去，会不会比活着轻松", "method": "VO", "result": "往下看一眼，就一眼……" } ],
-    "transitions": [ "切至：" ],
+    "scriptBlocks": [
+      { "type": "ACTION", "text": "城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。" },
+      { "type": "DIALOGUE", "character": "林晚", "parenthetical": "画外音", "line": "往下看一眼，就一眼……可那串电话还没挂断。" },
+      { "type": "TRANSITION", "text": "切至：" }
+    ],
     "sourceChapter": 2,
     "sourceText": "黄昏，城市在脚下铺开……"
   },
@@ -589,7 +590,7 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 }
 ```
 
-**校验：** `dialogueBlocks[].character` 必须存在于人物表（引用完整性，见 `yaml-schema.md` §8.3）；`method` 须 ∈ 枚举。
+**校验：** `scriptBlocks[type=DIALOGUE].character` 必须存在于人物表（引用完整性，见 `yaml-schema.md` §8.3）；`scriptBlocks[].type` 须 ∈ `ACTION/DIALOGUE/TRANSITION`。
 **可能错误码：** `40001`（字段非法/人物引用悬空）、`40401`（剧本或场景不存在）、`40301`（非本人）。
 
 #### ⑭ POST `/api/screenplay/{id}/scenes/{sceneId}/regenerate` — AI 重生单场（SSE）
@@ -805,9 +806,9 @@ PromptTemplateRegistry:
 5. "讲述"变"呈现"：如"她很绝望"→ 转为垂下眼帘、紧握双拳等可画面表现的动作。
 6. 转场：在场景末尾标注切至/淡出等。
 
-## 关于 visualizedInnerThoughts 字段
-它是**转换留痕**：记录"哪句内心描写、用了什么手法、转成了什么"。
-其转换结果**应当已经体现在本场的动作行/对白/画外音里**，不要另起炉灶重复叙述。
+## 关于 scriptBlocks 字段
+它是场景正文的唯一主体：动作、对白、转场都按阅读/演出顺序放入同一个列表。
+内心戏视觉化结果必须直接体现在 `ACTION`、`DIALOGUE` 或带画外音提示的对白块中，不输出内部改编日志。
 ```
 
 ---

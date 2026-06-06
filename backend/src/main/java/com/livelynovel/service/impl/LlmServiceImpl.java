@@ -2,8 +2,9 @@ package com.livelynovel.service.impl;
 
 import com.livelynovel.model.dto.ChapterSegmentDTO;
 import com.livelynovel.model.dto.DialogueBlockDTO;
+import com.livelynovel.model.dto.LlmSceneOutputDTO;
 import com.livelynovel.model.dto.SceneDTO;
-import com.livelynovel.model.dto.VisualizedInnerThoughtDTO;
+import com.livelynovel.model.dto.ScriptBlockDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 import com.livelynovel.service.ChapterSegmentationService;
@@ -11,6 +12,7 @@ import com.livelynovel.service.LlmService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Service;
 
@@ -44,11 +46,12 @@ public class LlmServiceImpl implements LlmService {
     public SceneDTO convertSingleScene(String text, ScreenplayTypeEnum screenplayType) {
         String prompt = buildPrompt(normalizeSceneText(text), screenplayType);
 
-        SceneDTO scene = chatClient.prompt()
+        LlmSceneOutputDTO llmScene = chatClient.prompt()
                 .user(prompt)
                 .call()
-                .entity(SceneDTO.class);
+                .entity(LlmSceneOutputDTO.class);
 
+        SceneDTO scene = toSceneDTO(llmScene);
         SceneDTO resolvedScene = fillSceneSourceMetadata(scene, text, 1);
         validateSceneLanguage(resolvedScene);
         return resolvedScene;
@@ -91,26 +94,55 @@ public class LlmServiceImpl implements LlmService {
 
                 ## 转换规则
                 1. 场景标题：内景/外景 - 地点 - 时间（如：内景 - 出租屋 - 夜）
-                2. 动作行：描述【可见】的动作与视觉细节，适合动画表现。
-                3. 对白：角色名 + 台词；角色名使用原文中的称呼。
+                2. 剧本正文必须写入 scriptBlocks 数组，并按实际阅读/演出顺序排列。
+                3. scriptBlocks 支持三类：
+                   - ACTION：使用 text 描述【可见】的动作与视觉细节。
+                   - DIALOGUE：使用 character、parenthetical、line 表达对白；parenthetical 可省略。
+                   - TRANSITION：使用 text 表达切至/淡出等转场。
                 4. 内心戏视觉化：把心理描写/独白转为——
                    - 画外音(V.O.)
                    - 可见动作（表情/肢体）
                    - 镜头特写（眼神/手部等细节）
                    - 说出口的对白
+                   转换后的内容必须落入 scriptBlocks。
                 5. "讲述"变"呈现"：如"她很绝望"→ 转为垂下眼帘、紧握双拳等可画面表现的动作。
-                6. 转场：在场景末尾标注切至/淡出等。
-
-                ## 关于 visualizedInnerThoughts 字段
-                它是转换留痕：记录"哪句内心描写、用了什么手法、转成了什么"。
-                其转换结果应当已经体现在动作行/对白里，不要另起炉灶重复叙述。
+                6. 转场：在场景末尾以 TRANSITION 块标注切至/淡出等。
 
                 ## 输出要求
                 sceneId 使用 "s1" 格式。
-                不要输出 sourceChapter 字段，sourceChapter 由系统回填。
-                不要输出 sourceText 字段，sourceText 由系统回填。
-                只输出结构化场景内容，不要附加解释、前后缀或 Markdown 代码块。
+                只输出 sceneId、heading、scriptBlocks。
+                输出 JSON 结构必须类似：
+                {
+                  "sceneId": "s1",
+                  "heading": {
+                    "interior": true,
+                    "location": "出租屋",
+                    "timeOfDay": "夜"
+                  },
+                  "scriptBlocks": [
+                    { "type": "ACTION", "text": "林晚把简历放在桌上，窗外雨声压过房间里的沉默。" },
+                    { "type": "DIALOGUE", "character": "林晚", "parenthetical": "画外音", "line": "我还不能停在这里。" },
+                    { "type": "TRANSITION", "text": "切至：便利店门口" }
+                  ]
+                }
+                只输出结构化场景 JSON，不附加解释、前后缀或 Markdown 代码块。
                 """.formatted(text);
+    }
+
+    static String llmSceneOutputFormat() {
+        return new BeanOutputConverter<>(LlmSceneOutputDTO.class).getFormat();
+    }
+
+    static SceneDTO toSceneDTO(LlmSceneOutputDTO llmScene) {
+        SceneDTO scene = new SceneDTO();
+        if (llmScene == null) {
+            return scene;
+        }
+
+        scene.setSceneId(llmScene.getSceneId());
+        scene.setHeading(llmScene.getHeading());
+        scene.setScriptBlocks(llmScene.getScriptBlocks());
+        return scene;
     }
 
     static String normalizeSceneText(String text) {
@@ -152,6 +184,17 @@ public class LlmServiceImpl implements LlmService {
             generatedTexts.add(scene.getHeading().getLocation());
             generatedTexts.add(scene.getHeading().getTimeOfDay());
         }
+        if (scene.getScriptBlocks() != null) {
+            for (ScriptBlockDTO block : scene.getScriptBlocks()) {
+                if (block == null) {
+                    continue;
+                }
+                generatedTexts.add(block.getText());
+                generatedTexts.add(block.getCharacter());
+                generatedTexts.add(block.getParenthetical());
+                generatedTexts.add(block.getLine());
+            }
+        }
         addAll(generatedTexts, scene.getActionLines());
         if (scene.getDialogueBlocks() != null) {
             for (DialogueBlockDTO dialogueBlock : scene.getDialogueBlocks()) {
@@ -161,14 +204,6 @@ public class LlmServiceImpl implements LlmService {
                 generatedTexts.add(dialogueBlock.getCharacter());
                 generatedTexts.add(dialogueBlock.getParenthetical());
                 generatedTexts.add(dialogueBlock.getLine());
-            }
-        }
-        if (scene.getVisualizedInnerThoughts() != null) {
-            for (VisualizedInnerThoughtDTO innerThought : scene.getVisualizedInnerThoughts()) {
-                if (innerThought == null) {
-                    continue;
-                }
-                generatedTexts.add(innerThought.getResult());
             }
         }
         addAll(generatedTexts, scene.getTransitions());

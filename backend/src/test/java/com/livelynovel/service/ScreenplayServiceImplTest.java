@@ -382,10 +382,12 @@ class ScreenplayServiceImplTest {
                 {
                   "sceneId": "s1",
                   "heading": {"interior": true, "location": "教室", "timeOfDay": "午后"},
-                  "actionLines": ["林秋把书包放在桌上。"],
-                  "dialogueBlocks": [{"character": "林秋", "line": "我已经没事了。"}],
-                  "visualizedInnerThoughts": [{"original": "她松了口气", "method": "ACTION", "result": "林秋把书包放在桌上。"}],
-                  "transitions": ["切至：走廊"],
+                  "scriptBlocks": [
+                    {"type": "ACTION", "text": "林秋把书包放在桌上。"},
+                    {"type": "DIALOGUE", "character": "林秋", "line": "我已经没事了。"},
+                    {"type": "ACTION", "text": "她抬头看向窗外。"},
+                    {"type": "TRANSITION", "text": "切至：走廊"}
+                  ],
                   "sourceChapter": 1,
                   "sourceText": "第一段原文。"
                 }
@@ -409,12 +411,19 @@ class ScreenplayServiceImplTest {
         assertThat(yaml).contains("type: \"DIALOGUE\"");
         assertThat(yaml).contains("character: \"林秋\"");
         assertThat(yaml).contains("line: \"我已经没事了。\"");
+        assertThat(yaml).containsSubsequence(
+                "text: \"林秋把书包放在桌上。\"",
+                "line: \"我已经没事了。\"",
+                "text: \"她抬头看向窗外。\"",
+                "text: \"切至：走廊\""
+        );
         assertThat(yaml).contains("type: \"TRANSITION\"");
         assertThat(yaml).contains("text: \"切至：走廊\"");
         assertThat(yaml).doesNotContain("visualizedInnerThoughts");
         assertThat(yaml).doesNotContain("她松了口气");
         assertThat(yaml).doesNotContain("sourceText");
         assertThat(yaml).doesNotContain("第一段原文。");
+        assertThat(yaml).doesNotContain(": null");
     }
 
     @Test

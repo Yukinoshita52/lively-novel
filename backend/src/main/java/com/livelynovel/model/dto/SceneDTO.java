@@ -10,6 +10,7 @@ import java.util.List;
 public class SceneDTO {
     private String sceneId;
     private SceneHeadingDTO heading;
+    private List<ScriptBlockDTO> scriptBlocks = new ArrayList<>();
     private List<String> actionLines = new ArrayList<>();
     private List<DialogueBlockDTO> dialogueBlocks = new ArrayList<>();
     private List<VisualizedInnerThoughtDTO> visualizedInnerThoughts = new ArrayList<>();
@@ -23,6 +24,8 @@ public class SceneDTO {
     public void setSceneId(String sceneId) { this.sceneId = sceneId; }
     public SceneHeadingDTO getHeading() { return heading; }
     public void setHeading(SceneHeadingDTO heading) { this.heading = heading; }
+    public List<ScriptBlockDTO> getScriptBlocks() { return scriptBlocks; }
+    public void setScriptBlocks(List<ScriptBlockDTO> scriptBlocks) { this.scriptBlocks = scriptBlocks; }
     public List<String> getActionLines() { return actionLines; }
     public void setActionLines(List<String> actionLines) { this.actionLines = actionLines; }
     public List<DialogueBlockDTO> getDialogueBlocks() { return dialogueBlocks; }
