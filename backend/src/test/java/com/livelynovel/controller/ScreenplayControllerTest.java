@@ -71,6 +71,33 @@ class ScreenplayControllerTest {
     }
 
     @Test
+    void returnsLatestCompletedConversionForNovelAndType() {
+        ScreenplayConversionDetailDTO detail = new ScreenplayConversionDetailDTO();
+        detail.setConversionId("cv-completed");
+        detail.setStatus("COMPLETED");
+        when(screenplayService.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME))
+                .thenReturn(detail);
+
+        Result<ScreenplayConversionDetailDTO> response =
+                controller.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME);
+
+        assertThat(response.getCode()).isEqualTo(0);
+        assertThat(response.getData().getConversionId()).isEqualTo("cv-completed");
+    }
+
+    @Test
+    void returnsNotFoundWhenLatestCompletedConversionMissing() {
+        when(screenplayService.getLatestCompletedConversion("nv-missing", ScreenplayTypeEnum.ANIME))
+                .thenReturn(null);
+
+        Result<ScreenplayConversionDetailDTO> response =
+                controller.getLatestCompletedConversion("nv-missing", ScreenplayTypeEnum.ANIME);
+
+        assertThat(response.getCode()).isEqualTo(40401);
+        assertThat(response.getData()).isNull();
+    }
+
+    @Test
     void exportsConversionYaml() {
         when(screenplayService.exportConversionYaml("cv-1234abcd"))
                 .thenReturn("schemaVersion: \"1.0\"\nscenes: []\n");

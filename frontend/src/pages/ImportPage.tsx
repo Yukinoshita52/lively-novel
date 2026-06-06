@@ -11,7 +11,12 @@ import {
   LoadingOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import { getNovelChapters, getNovelList, parseNovel, uploadNovel } from '../services/novel'
+import {
+  getNovelChapters,
+  getNovelList,
+  parseNovel,
+  uploadNovel,
+} from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
 import type {
   ChapterPreview,
@@ -431,7 +436,7 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
             disabled={!canStartConvert}
             onClick={handleStartConvert}
           >
-            开始转换
+            开始分析
           </Button>
           <Button
             block

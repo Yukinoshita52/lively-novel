@@ -6,6 +6,7 @@ import {
   buildSceneOutlineItems,
   buildSceneTableRows,
   buildThoughtAuditRows,
+  mapPersistedScenesToGeneratedScenes,
   getSourcePreview,
   resolveConvertEventUpdate,
   resolveSelectedScene,
@@ -111,6 +112,16 @@ assert(
   '内心戏留痕应带上场景编号',
 )
 
+const persistedScenes = mapPersistedScenesToGeneratedScenes([
+  {
+    chapterIndex: 1,
+    sceneIndexInChapter: 1,
+    scene: scenes[1].scene,
+  },
+])
+assert(persistedScenes[0].title === '内景 — 教室 — 午后', '持久化场景应使用 heading 生成预览标题')
+assert(persistedScenes[0].scene.sceneId === 's1', '持久化场景应保留 SceneDTO')
+
 const startedUpdate = resolveConvertEventUpdate(
   'started',
   {
@@ -132,6 +143,43 @@ const completedUpdate = resolveConvertEventUpdate(
 )
 
 assert(completedUpdate?.conversionId === 'cv-1234abcd', 'completed 事件应保留 conversionId 供完成后下载')
+
+const replayedSplitUpdate = resolveConvertEventUpdate(
+  'chapter_split',
+  {
+    conversionId: 'cv-1234abcd',
+    chapterIndex: 1,
+    sceneCount: 2,
+    title: '第一章',
+    replayed: true,
+    message: '已载入历史切场',
+  },
+  { totalChapters: 3 },
+)
+
+assert(
+  replayedSplitUpdate?.event?.message === '已载入历史切场：第 1 章，共 2 场',
+  '历史 chapter_split 事件应显示历史载入文案',
+)
+
+const replayedSceneUpdate = resolveConvertEventUpdate(
+  'scene_completed',
+  {
+    conversionId: 'cv-1234abcd',
+    chapterIndex: 1,
+    sceneIndexInChapter: 1,
+    title: '第一场',
+    replayed: true,
+    message: '已载入历史场景',
+    scene: scenes[1].scene,
+  },
+  { totalChapters: 3 },
+)
+
+assert(
+  replayedSceneUpdate?.event?.message === '已载入历史场景：第 1 章第 1 场：第一场',
+  '历史 scene_completed 事件应显示历史载入文案',
+)
 
 const failedUpdate = resolveConvertEventUpdate(
   'failed',

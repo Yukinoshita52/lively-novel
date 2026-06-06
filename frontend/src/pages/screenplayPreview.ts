@@ -1,4 +1,10 @@
-import type { ConvertEventItem, GeneratedSceneSummary, SceneHeading, SceneResult } from '../types/novel'
+import type {
+  ConvertEventItem,
+  GeneratedSceneSummary,
+  SceneHeading,
+  SceneResult,
+  ScreenplayPersistedScene,
+} from '../types/novel'
 
 type SsePayload = Record<string, unknown>
 
@@ -101,6 +107,15 @@ export function buildSceneOutlineItems(scenes: GeneratedSceneSummary[]): SceneOu
     }))
 }
 
+export function mapPersistedScenesToGeneratedScenes(scenes: ScreenplayPersistedScene[]): GeneratedSceneSummary[] {
+  return scenes.map((scene) => ({
+    chapterIndex: scene.chapterIndex,
+    sceneIndexInChapter: scene.sceneIndexInChapter,
+    title: buildSceneHeadingText(scene.scene.heading),
+    scene: scene.scene,
+  }))
+}
+
 export function buildSceneTableRows(scenes: GeneratedSceneSummary[]): SceneTableRow[] {
   return buildSceneOutlineItems(scenes).map((scene) => ({
     key: scene.key,
@@ -199,7 +214,9 @@ export function resolveConvertEventUpdate(
       conversionId,
       event: {
         type: 'chapter_split',
-        message: `第 ${payload.chapterIndex ?? '?'} 章已切分为 ${payload.sceneCount ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
+        message: payload.replayed
+          ? `${String(payload.message ?? '已载入历史切场')}：第 ${payload.chapterIndex ?? '?'} 章，共 ${payload.sceneCount ?? '?'} 场`
+          : `第 ${payload.chapterIndex ?? '?'} 章已切分为 ${payload.sceneCount ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
       },
       sceneCount:
         chapterIndex > 0 && sceneCount > 0
@@ -225,7 +242,9 @@ export function resolveConvertEventUpdate(
       conversionId,
       event: {
         type: 'scene_completed',
-        message: `已生成第 ${payload.chapterIndex ?? '?'} 章第 ${sceneIndexInChapter ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
+        message: payload.replayed
+          ? `${String(payload.message ?? '已载入历史场景')}：第 ${payload.chapterIndex ?? '?'} 章第 ${sceneIndexInChapter ?? '?'} 场：${String(payload.title ?? '未命名章节')}`
+          : `已生成第 ${payload.chapterIndex ?? '?'} 章第 ${sceneIndexInChapter ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
       },
       generatedScene: {
         chapterIndex: Number(payload.chapterIndex ?? 0),
