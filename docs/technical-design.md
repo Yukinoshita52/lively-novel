@@ -196,8 +196,8 @@ Screenplay (持久化)
 | 2 | POST | `/api/auth/login` | 登录，返回 JWT | 否 | JSON | `login.html` |
 | 3 | GET | `/api/auth/me` | 当前用户信息/配额 | 是 | JSON | 所有页顶栏配额条 |
 | 4 | POST | `/api/novel/parse` | 粘贴文本并解析章节（当前无状态，不落库） | 否 | JSON | `import.html` |
-| 5 | POST | `/api/novel/upload` | 上传 txt 文件并解析 | 是 | JSON | `import.html` |
-| 6 | GET | `/api/novel/{id}/chapters` | 获取章节列表 | 是(本人) | JSON | `import.html`（复用回显） |
+| 5 | POST | `/api/novel/upload` | 上传 txt 文件并解析（当前无鉴权） | 否 | JSON | `import.html` |
+| 6 | GET | `/api/novel/{id}/chapters` | 获取章节列表（当前无鉴权） | 否 | JSON | `import.html`（复用回显） |
 | 7 | GET | `/api/novel` | 我的小说列表（复用历史） | 是 | JSON | `import.html` |
 | 8 | POST | `/api/screenplay/convert` | 提交转换任务 | 是 | SSE | `converting.html` |
 | 9 | GET | `/api/screenplay` | 我的剧本列表 | 是 | JSON | `preview.html`（切换剧本） |
@@ -217,7 +217,7 @@ Screenplay (持久化)
 
 除 `register`/`login` 外，所有接口须在请求头携带 `Authorization: Bearer <JWT>`。带 `(本人)` 的接口在鉴权之外，还校验**资源归属**（`资源.userId == 当前用户`），不符返回 `40301`。
 
-> 当前代码基线中的 `POST /api/novel/parse` 为**无状态章节识别切片**，尚未接入 JWT，也不落库；待持久层与认证切片完成后，再按本节统一鉴权。
+> 当前代码基线中的 `POST /api/novel/parse`、`POST /api/novel/upload`、`GET /api/novel/{id}/chapters` 尚未接入 JWT；其中 `parse` 为无状态章节识别，`upload` 与 `/{id}/chapters` 已接入 SQLite 持久化。待认证切片完成后，再按本节统一鉴权。
 
 #### 4.2.2 JSON 响应包装
 
@@ -1081,7 +1081,7 @@ lively-novel/
 # application.yml
 spring:
   datasource:
-    url: jdbc:sqlite:./data/livelynovel.db    # 文件模式，重启不丢
+    url: jdbc:sqlite:../data/livelynovel.db   # backend 模块启动时落到仓库根 data/ 目录
     driver-class-name: org.sqlite.JDBC
     hikari:
       maximum-pool-size: 1                     # SQLite 单写者，连接池设小避免写锁竞争
