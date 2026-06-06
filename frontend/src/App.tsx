@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import ImportPage from './pages/ImportPage'
 import ScreenplayConvertPage from './pages/ScreenplayConvertPage'
+import ScreenplayExportPage from './pages/ScreenplayExportPage'
+import ScreenplayPolishPage from './pages/ScreenplayPolishPage'
 import ScreenplayPreviewPage from './pages/ScreenplayPreviewPage'
 import SingleSceneConvertPage from './pages/SingleSceneConvertPage'
 import type { AppPageKey } from './pages/appNavigation'
@@ -12,11 +14,13 @@ function App() {
   const [page, setPage] = useState<AppPageKey>('import')
   const [singleSceneContext, setSingleSceneContext] = useState<ImportFlowContext | null>(null)
   const [convertContext, setConvertContext] = useState<ScreenplayConvertContext | null>(null)
+  const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const conversionSession = useScreenplayConversionSession(convertContext)
 
   function backToImport() {
     setPage('import')
     setConvertContext(null)
+    setSelectedSceneKey(undefined)
   }
 
   if (page === 'single-scene' && singleSceneContext) {
@@ -43,6 +47,31 @@ function App() {
       <ScreenplayPreviewPage
         session={conversionSession}
         onBackToConvert={() => setPage('convert')}
+        onPolishScene={(sceneKey) => {
+          setSelectedSceneKey(sceneKey)
+          setPage('polish')
+        }}
+      />
+    )
+  }
+
+  if (page === 'polish' && conversionSession) {
+    return (
+      <ScreenplayPolishPage
+        session={conversionSession}
+        selectedSceneKey={selectedSceneKey}
+        onSelectScene={setSelectedSceneKey}
+        onBackToPreview={() => setPage('preview')}
+        onExport={() => setPage('export')}
+      />
+    )
+  }
+
+  if (page === 'export' && conversionSession) {
+    return (
+      <ScreenplayExportPage
+        session={conversionSession}
+        onBackToPolish={() => setPage('polish')}
       />
     )
   }

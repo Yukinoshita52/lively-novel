@@ -47,6 +47,16 @@ export interface PreviewTab {
   active: boolean
 }
 
+export interface PreviewAction {
+  label: string
+  enabled: boolean
+}
+
+export interface PreviewActions {
+  primary: PreviewAction
+  secondary: PreviewAction[]
+}
+
 export interface SceneTableRow {
   key: string
   sceneNumber: string
@@ -75,6 +85,21 @@ export function buildPreviewTabs(activeTab: PreviewTabKey): PreviewTab[] {
     ...tab,
     active: tab.key === activeTab,
   }))
+}
+
+export function buildPreviewActions(hasSelectedScene: boolean): PreviewActions {
+  return {
+    primary: {
+      label: '打磨本场',
+      enabled: hasSelectedScene,
+    },
+    secondary: [
+      {
+        label: '返回转换',
+        enabled: true,
+      },
+    ],
+  }
 }
 
 export function buildSceneHeadingText(heading?: SceneHeading) {
@@ -153,6 +178,21 @@ export function resolveSelectedScene(
     : undefined
 
   return selected ?? outlineItems[outlineItems.length - 1]
+}
+
+export function resolveAdjacentSceneKeys(scenes: GeneratedSceneSummary[], selectedSceneKey?: string) {
+  const outlineItems = buildSceneOutlineItems(scenes)
+  const selectedIndex = selectedSceneKey
+    ? outlineItems.findIndex((scene) => scene.key === selectedSceneKey)
+    : outlineItems.length - 1
+  const normalizedIndex = selectedIndex >= 0 ? selectedIndex : outlineItems.length - 1
+
+  return {
+    previousKey: normalizedIndex > 0 ? outlineItems[normalizedIndex - 1]?.key : undefined,
+    nextKey: normalizedIndex >= 0 && normalizedIndex < outlineItems.length - 1
+      ? outlineItems[normalizedIndex + 1]?.key
+      : undefined,
+  }
 }
 
 export function getSourcePreview(sourceText: string, expanded: boolean, maxLength = 360) {
