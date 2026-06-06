@@ -7,7 +7,7 @@ import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeF
 import {
   buildSceneHeadingText,
   buildSceneOutlineItems,
-  getSceneKey,
+  buildScriptBlockRows,
   resolveAdjacentSceneKeys,
   resolveSelectedScene,
 } from './screenplayPreview'
@@ -15,9 +15,7 @@ import {
   buildPolishSceneYaml,
   createPolishDraft,
   resetPolishDraft,
-  updateActionLinesText,
-  updateDialogueText,
-  updateTransitionsText,
+  updateScriptBlocksText,
   type PolishDraft,
 } from './screenplayPolish'
 
@@ -207,28 +205,12 @@ function ScreenplayPolishPage({
             ) : null}
             <div className="polish-editor">
               <label>
-                <Text className="thought-label">动作行</Text>
+                <Text className="thought-label">剧本正文块</Text>
+                <Text className="polish-editor-hint">每行格式：ACTION|画面描述、DIALOGUE|角色|括号提示|台词、TRANSITION|转场</Text>
                 <TextArea
-                  autoSize={{ minRows: 4, maxRows: 8 }}
-                  value={draft.actionLinesText}
-                  onChange={(event) => updateDraft(updateActionLinesText(draft, event.target.value))}
-                />
-              </label>
-              <label>
-                <Text className="thought-label">对白块</Text>
-                <Text className="polish-editor-hint">每行格式：角色|括号提示|台词</Text>
-                <TextArea
-                  autoSize={{ minRows: 4, maxRows: 8 }}
-                  value={draft.dialogueText}
-                  onChange={(event) => updateDraft(updateDialogueText(draft, event.target.value))}
-                />
-              </label>
-              <label>
-                <Text className="thought-label">转场</Text>
-                <TextArea
-                  autoSize={{ minRows: 2, maxRows: 5 }}
-                  value={draft.transitionsText}
-                  onChange={(event) => updateDraft(updateTransitionsText(draft, event.target.value))}
+                  autoSize={{ minRows: 8, maxRows: 14 }}
+                  value={draft.scriptBlocksText}
+                  onChange={(event) => updateDraft(updateScriptBlocksText(draft, event.target.value))}
                 />
               </label>
             </div>
@@ -275,25 +257,23 @@ function ScreenplayPolishPage({
                   {buildSceneHeadingText(draftScene.heading)}
                 </div>
 
-                {draftScene.actionLines.map((line, index) => (
-                  <p className="sp-action-line" key={`${getSceneKey(scene)}-action-${index}`}>
-                    {line}
-                  </p>
-                ))}
+                {buildScriptBlockRows({ ...scene, scene: draftScene }).map((block) => {
+                  if (block.type === 'DIALOGUE') {
+                    return (
+                      <div className="sp-dialogue-block" key={block.key}>
+                        <div className="sp-character">{block.character}</div>
+                        {block.parenthetical ? <div className="sp-parenthetical">{block.parenthetical}</div> : null}
+                        <div className="sp-line">{block.line}</div>
+                      </div>
+                    )
+                  }
 
-                {draftScene.dialogueBlocks.map((dialogue, index) => (
-                  <div className="sp-dialogue-block" key={`${getSceneKey(scene)}-dialogue-${index}`}>
-                    <div className="sp-character">{dialogue.character}</div>
-                    {dialogue.parenthetical ? <div className="sp-parenthetical">{dialogue.parenthetical}</div> : null}
-                    <div className="sp-line">{dialogue.line}</div>
-                  </div>
-                ))}
-
-                {draftScene.transitions.map((transition, index) => (
-                  <p className="sp-transition" key={`${getSceneKey(scene)}-transition-${index}`}>
-                    {transition}
-                  </p>
-                ))}
+                  return (
+                    <p className={block.type === 'TRANSITION' ? 'sp-transition' : 'sp-action-line'} key={block.key}>
+                      {block.text}
+                    </p>
+                  )
+                })}
               </div>
             </div>
           </Card>

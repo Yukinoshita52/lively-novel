@@ -116,6 +116,16 @@ export interface DialogueBlock {
   line: string
 }
 
+export type ScriptBlockType = 'ACTION' | 'DIALOGUE' | 'TRANSITION'
+
+export interface ScriptBlock {
+  type: ScriptBlockType
+  text?: string
+  character?: string
+  parenthetical?: string
+  line?: string
+}
+
 export interface VisualizedInnerThought {
   original: string
   method: string
@@ -125,10 +135,11 @@ export interface VisualizedInnerThought {
 export interface SceneResult {
   sceneId: string
   heading: SceneHeading
-  actionLines: string[]
-  dialogueBlocks: DialogueBlock[]
-  visualizedInnerThoughts: VisualizedInnerThought[]
-  transitions: string[]
+  scriptBlocks?: ScriptBlock[]
+  actionLines?: string[]
+  dialogueBlocks?: DialogueBlock[]
+  visualizedInnerThoughts?: VisualizedInnerThought[]
+  transitions?: string[]
   sourceChapter: number
   sourceText: string
 }

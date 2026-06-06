@@ -1,21 +1,20 @@
-import type { DialogueBlock, SceneResult } from '../types/novel'
+import type { SceneResult, ScriptBlock } from '../types/novel'
 
 export interface PolishDraft {
   scene: SceneResult
   savedScene: SceneResult
-  actionLinesText: string
-  dialogueText: string
-  transitionsText: string
+  scriptBlocksText: string
 }
 
 function cloneScene(scene: SceneResult): SceneResult {
   return {
     ...scene,
     heading: { ...scene.heading },
-    actionLines: [...scene.actionLines],
-    dialogueBlocks: scene.dialogueBlocks.map((dialogue) => ({ ...dialogue })),
-    visualizedInnerThoughts: scene.visualizedInnerThoughts.map((thought) => ({ ...thought })),
-    transitions: [...scene.transitions],
+    scriptBlocks: normalizeScriptBlocks(scene).map((block) => ({ ...block })),
+    actionLines: scene.actionLines ? [...scene.actionLines] : undefined,
+    dialogueBlocks: scene.dialogueBlocks?.map((dialogue) => ({ ...dialogue })),
+    visualizedInnerThoughts: scene.visualizedInnerThoughts?.map((thought) => ({ ...thought })),
+    transitions: scene.transitions ? [...scene.transitions] : undefined,
   }
 }
 
@@ -26,23 +25,54 @@ function toNonEmptyLines(text: string) {
     .filter(Boolean)
 }
 
-function serializeDialogue(dialogue: DialogueBlock) {
-  return [dialogue.character, dialogue.parenthetical ?? '', dialogue.line].join('|')
+function serializeScriptBlock(block: ScriptBlock) {
+  if (block.type === 'DIALOGUE') {
+    return ['DIALOGUE', block.character ?? '', block.parenthetical ?? '', block.line ?? ''].join('|')
+  }
+
+  return [block.type, block.text ?? ''].join('|')
 }
 
-function parseDialogueLine(line: string): DialogueBlock | undefined {
-  const [character = '', parenthetical = '', ...lineParts] = line.split('|')
-  const dialogueLine = lineParts.join('|').trim()
-  const normalizedCharacter = character.trim()
-  if (!normalizedCharacter || !dialogueLine) {
-    return undefined
+function normalizeScriptBlocks(scene: SceneResult): ScriptBlock[] {
+  if (scene.scriptBlocks?.length) {
+    return scene.scriptBlocks
   }
 
-  return {
-    character: normalizedCharacter,
-    parenthetical: parenthetical.trim() || undefined,
-    line: dialogueLine,
+  return [
+    ...(scene.actionLines ?? [])
+      .filter((text) => text.trim())
+      .map((text) => ({ type: 'ACTION' as const, text })),
+    ...(scene.dialogueBlocks ?? [])
+      .filter((dialogue) => dialogue.character.trim() && dialogue.line.trim())
+      .map((dialogue) => ({
+        type: 'DIALOGUE' as const,
+        character: dialogue.character,
+        parenthetical: dialogue.parenthetical,
+        line: dialogue.line,
+      })),
+    ...(scene.transitions ?? [])
+      .filter((text) => text.trim())
+      .map((text) => ({ type: 'TRANSITION' as const, text })),
+  ]
+}
+
+function parseScriptBlockLine(line: string): ScriptBlock | undefined {
+  const [rawType = '', first = '', second = '', ...rest] = line.split('|')
+  const type = rawType.trim().toUpperCase()
+  if (type === 'ACTION' || type === 'TRANSITION') {
+    const text = [first, second, ...rest].filter(Boolean).join('|').trim()
+    return text ? { type, text } : undefined
   }
+  if (type === 'DIALOGUE') {
+    const character = first.trim()
+    const parenthetical = second.trim()
+    const dialogueLine = rest.join('|').trim()
+    return character && dialogueLine
+      ? { type, character, parenthetical: parenthetical || undefined, line: dialogueLine }
+      : undefined
+  }
+
+  return undefined
 }
 
 export function createPolishDraft(scene: SceneResult): PolishDraft {
@@ -51,9 +81,7 @@ export function createPolishDraft(scene: SceneResult): PolishDraft {
   return {
     scene: clonedScene,
     savedScene: cloneScene(scene),
-    actionLinesText: clonedScene.actionLines.join('\n'),
-    dialogueText: clonedScene.dialogueBlocks.map(serializeDialogue).join('\n'),
-    transitionsText: clonedScene.transitions.join('\n'),
+    scriptBlocksText: normalizeScriptBlocks(clonedScene).map(serializeScriptBlock).join('\n'),
   }
 }
 
@@ -61,37 +89,15 @@ export function resetPolishDraft(draft: PolishDraft): PolishDraft {
   return createPolishDraft(draft.savedScene)
 }
 
-export function updateActionLinesText(draft: PolishDraft, actionLinesText: string): PolishDraft {
+export function updateScriptBlocksText(draft: PolishDraft, scriptBlocksText: string): PolishDraft {
   return {
     ...draft,
-    actionLinesText,
+    scriptBlocksText,
     scene: {
       ...draft.scene,
-      actionLines: toNonEmptyLines(actionLinesText),
-    },
-  }
-}
-
-export function updateDialogueText(draft: PolishDraft, dialogueText: string): PolishDraft {
-  return {
-    ...draft,
-    dialogueText,
-    scene: {
-      ...draft.scene,
-      dialogueBlocks: toNonEmptyLines(dialogueText)
-        .map(parseDialogueLine)
-        .filter((dialogue): dialogue is DialogueBlock => Boolean(dialogue)),
-    },
-  }
-}
-
-export function updateTransitionsText(draft: PolishDraft, transitionsText: string): PolishDraft {
-  return {
-    ...draft,
-    transitionsText,
-    scene: {
-      ...draft.scene,
-      transitions: toNonEmptyLines(transitionsText),
+      scriptBlocks: toNonEmptyLines(scriptBlocksText)
+        .map(parseScriptBlockLine)
+        .filter((block): block is ScriptBlock => Boolean(block)),
     },
   }
 }
@@ -125,9 +131,7 @@ export function buildPolishSceneYaml(scene: SceneResult) {
   const editableScene = {
     sceneId: scene.sceneId,
     heading: scene.heading,
-    actionLines: scene.actionLines,
-    dialogueBlocks: scene.dialogueBlocks,
-    transitions: scene.transitions,
+    scriptBlocks: normalizeScriptBlocks(scene),
     sourceChapter: scene.sourceChapter,
   }
 

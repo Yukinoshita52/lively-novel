@@ -1,6 +1,7 @@
 import type {
   ConvertEventItem,
   GeneratedSceneSummary,
+  ScriptBlock,
   SceneHeading,
   SceneResult,
   ScreenplayPersistedScene,
@@ -39,7 +40,7 @@ export interface SceneOutlineItem extends GeneratedSceneSummary {
   headingText: string
 }
 
-export type PreviewTabKey = 'script' | 'scene-table' | 'thought-audit'
+export type PreviewTabKey = 'script' | 'scene-table'
 
 export interface PreviewTab {
   key: PreviewTabKey
@@ -74,10 +75,13 @@ export interface ThoughtAuditRow {
   result: string
 }
 
+export interface ScriptBlockRow extends ScriptBlock {
+  key: string
+}
+
 const PREVIEW_TABS: Array<Omit<PreviewTab, 'active'>> = [
   { key: 'script', label: '剧本' },
   { key: 'scene-table', label: '场景表' },
-  { key: 'thought-audit', label: '内心戏留痕' },
 ]
 
 export function buildPreviewTabs(activeTab: PreviewTabKey): PreviewTab[] {
@@ -152,16 +156,39 @@ export function buildSceneTableRows(scenes: GeneratedSceneSummary[]): SceneTable
   }))
 }
 
-export function buildThoughtAuditRows(scenes: GeneratedSceneSummary[]): ThoughtAuditRow[] {
-  return buildSceneOutlineItems(scenes).flatMap((scene) =>
-    scene.scene.visualizedInnerThoughts.map((thought, index) => ({
-      key: `${scene.key}-thought-${index}`,
-      sceneNumber: scene.sceneNumber,
-      original: thought.original,
-      method: thought.method,
-      result: thought.result,
-    })),
-  )
+export function buildThoughtAuditRows(_scenes?: GeneratedSceneSummary[]): ThoughtAuditRow[] {
+  void _scenes
+  return []
+}
+
+export function normalizeScriptBlocks(scene: SceneResult): ScriptBlock[] {
+  if (scene.scriptBlocks?.length) {
+    return scene.scriptBlocks
+  }
+
+  return [
+    ...(scene.actionLines ?? [])
+      .filter((text) => text.trim())
+      .map((text) => ({ type: 'ACTION' as const, text })),
+    ...(scene.dialogueBlocks ?? [])
+      .filter((dialogue) => dialogue.character.trim() && dialogue.line.trim())
+      .map((dialogue) => ({
+        type: 'DIALOGUE' as const,
+        character: dialogue.character,
+        parenthetical: dialogue.parenthetical,
+        line: dialogue.line,
+      })),
+    ...(scene.transitions ?? [])
+      .filter((text) => text.trim())
+      .map((text) => ({ type: 'TRANSITION' as const, text })),
+  ]
+}
+
+export function buildScriptBlockRows(scene: GeneratedSceneSummary): ScriptBlockRow[] {
+  return normalizeScriptBlocks(scene.scene).map((block, index) => ({
+    ...block,
+    key: `${getSceneKey(scene)}-script-${index}`,
+  }))
 }
 
 export function resolveSelectedScene(
