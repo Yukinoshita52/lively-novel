@@ -58,6 +58,8 @@ class ScreenplayControllerWebMvcTest {
 
         assertThat(streamResult.getResponse().getContentType()).startsWith(MediaType.TEXT_EVENT_STREAM_VALUE);
         assertThat(streamResult.getResponse().getContentAsString()).contains("event:started");
+        assertThat(streamResult.getResponse().getContentAsString()).contains("event:chapter_split");
+        assertThat(streamResult.getResponse().getContentAsString()).contains("event:scene_completed");
     }
 
     private SseEmitter startedEmitter() {
@@ -65,6 +67,16 @@ class ScreenplayControllerWebMvcTest {
         CompletableFuture.runAsync(() -> {
             try {
                 emitter.send(SseEmitter.event().name("started").data(Map.of("novelId", "nv-1234abcd")));
+                emitter.send(SseEmitter.event().name("chapter_split")
+                        .data(Map.of("chapterIndex", 1, "sceneCount", 2)));
+                emitter.send(SseEmitter.event().name("scene_completed")
+                        .data(Map.of(
+                                "chapterIndex", 1,
+                                "sceneIndexInChapter", 1,
+                                "title", "站台雨夜",
+                                "sceneCount", 2,
+                                "scene", Map.of("sceneId", "scene-1")
+                        )));
                 emitter.complete();
             } catch (IOException e) {
                 emitter.completeWithError(e);

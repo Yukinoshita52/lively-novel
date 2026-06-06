@@ -1,10 +1,21 @@
 package com.livelynovel.service.impl;
 
+import com.livelynovel.model.dto.ChapterSegmentDTO;
 import com.livelynovel.model.dto.SceneDTO;
+import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.service.ChapterSegmentationService;
 import com.livelynovel.service.LlmService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * LLM 服务实现类。
@@ -14,26 +25,53 @@ import org.springframework.stereotype.Service;
 public class LlmServiceImpl implements LlmService {
 
     private final ChatClient chatClient;
+    private final ChapterSegmentationService chapterSegmentationService;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Pattern SCENE_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*\"sceneIndexInChapter\"[^{}]*}", Pattern.DOTALL);
 
-    public LlmServiceImpl(ChatClient.Builder chatClientBuilder) {
+    public LlmServiceImpl(
+            ChatClient.Builder chatClientBuilder,
+            ChapterSegmentationService chapterSegmentationService
+    ) {
         this.chatClient = chatClientBuilder.build();
+        this.chapterSegmentationService = chapterSegmentationService;
     }
 
     @Override
     public SceneDTO convertSingleScene(String text, ScreenplayTypeEnum screenplayType) {
-        String prompt = buildPrompt(text, screenplayType);
+        String prompt = buildPrompt(normalizeSceneText(text), screenplayType);
 
-        return chatClient.prompt()
+        SceneDTO scene = chatClient.prompt()
                 .user(prompt)
                 .call()
                 .entity(SceneDTO.class);
+
+        return fillSceneSourceMetadata(scene, text, 1);
+    }
+
+    @Override
+    public List<SceneUnitDTO> splitChapterIntoScenes(
+            String chapterText,
+            int chapterIndex,
+            ScreenplayTypeEnum screenplayType
+    ) {
+        List<ChapterSegmentDTO> segments = chapterSegmentationService.segment(chapterText);
+        String prompt = buildSplitChapterPrompt(segments, chapterIndex, screenplayType);
+
+        String responseText = chatClient.prompt()
+                .user(prompt)
+                .tools(new ChapterSegmentTools(segments))
+                .call()
+                .content();
+
+        return parseSplitChapterScenesResult(responseText);
     }
 
     /**
      * 构建 Prompt。
      * MVP 阶段仅实现 ANIME 类型模板。
      */
-    private String buildPrompt(String text, ScreenplayTypeEnum screenplayType) {
+    String buildPrompt(String text, ScreenplayTypeEnum screenplayType) {
         // MVP 仅支持 ANIME，后续扩展其他类型
         if (screenplayType != ScreenplayTypeEnum.ANIME) {
             throw new UnsupportedOperationException(
@@ -64,8 +102,234 @@ public class LlmServiceImpl implements LlmService {
 
                 ## 输出要求
                 sceneId 使用 "s1" 格式。
-                sourceChapter 设为 1。
-                sourceText 填入原文。
+                不要输出 sourceChapter 字段，sourceChapter 由系统回填。
+                不要输出 sourceText 字段，sourceText 由系统回填。
+                只输出结构化场景内容，不要附加解释、前后缀或 Markdown 代码块。
                 """.formatted(text);
+    }
+
+    static String normalizeSceneText(String text) {
+        if (text == null) {
+            return "";
+        }
+
+        StringBuilder normalized = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char current = text.charAt(i);
+            if (current == '\t') {
+                normalized.append("    ");
+                continue;
+            }
+            if (Character.isISOControl(current) && current != '\n' && current != '\r') {
+                normalized.append(' ');
+                continue;
+            }
+            normalized.append(current);
+        }
+        return normalized.toString();
+    }
+
+    static SceneDTO fillSceneSourceMetadata(SceneDTO scene, String sourceText, int sourceChapter) {
+        SceneDTO resolvedScene = scene == null ? new SceneDTO() : scene;
+        resolvedScene.setSourceText(sourceText);
+        resolvedScene.setSourceChapter(sourceChapter);
+        return resolvedScene;
+    }
+
+    static List<SceneUnitDTO> parseSplitChapterScenesResult(String responseText) {
+        String json = extractJsonObject(responseText);
+        try {
+            SplitChapterScenesResult result = OBJECT_MAPPER.readValue(json, SplitChapterScenesResult.class);
+            if (result == null || result.getScenes() == null) {
+                return List.of();
+            }
+            return result.getScenes();
+        } catch (JsonProcessingException e) {
+            List<SceneUnitDTO> fallbackScenes = parseSceneUnitsLeniently(json);
+            if (!fallbackScenes.isEmpty()) {
+                return fallbackScenes;
+            }
+            throw new RuntimeException("章节切场结构化解析失败", e);
+        }
+    }
+
+    static List<SceneUnitDTO> parseSceneUnitsLeniently(String jsonLikeText) {
+        if (jsonLikeText == null || jsonLikeText.isBlank()) {
+            return List.of();
+        }
+
+        List<SceneUnitDTO> scenes = new ArrayList<>();
+        Matcher matcher = SCENE_OBJECT_PATTERN.matcher(jsonLikeText);
+        while (matcher.find()) {
+            String sceneObject = matcher.group();
+            Integer sceneIndexInChapter = extractIntField(sceneObject, "sceneIndexInChapter");
+            Integer sourceChapter = extractIntField(sceneObject, "sourceChapter");
+            Integer startSegmentIndex = extractIntField(sceneObject, "startSegmentIndex");
+            Integer endSegmentIndex = extractIntField(sceneObject, "endSegmentIndex");
+            if (sceneIndexInChapter == null || startSegmentIndex == null || endSegmentIndex == null) {
+                continue;
+            }
+
+            SceneUnitDTO scene = new SceneUnitDTO();
+            scene.setSceneIndexInChapter(sceneIndexInChapter);
+            scene.setSourceChapter(sourceChapter == null ? 1 : sourceChapter);
+            scene.setTitle(defaultIfBlank(extractStringField(sceneObject, "title"), "第 " + sceneIndexInChapter + " 场"));
+            scene.setSummary(defaultIfBlank(extractStringField(sceneObject, "summary"), ""));
+            scene.setStartSegmentIndex(startSegmentIndex);
+            scene.setEndSegmentIndex(endSegmentIndex);
+            scenes.add(scene);
+        }
+        return scenes;
+    }
+
+    private static Integer extractIntField(String text, String fieldName) {
+        Pattern pattern = Pattern.compile("\"" + Pattern.quote(fieldName) + "\"\\s*:\\s*(\\d+)");
+        Matcher matcher = pattern.matcher(text);
+        if (!matcher.find()) {
+            return null;
+        }
+        return Integer.parseInt(matcher.group(1));
+    }
+
+    private static String extractStringField(String text, String fieldName) {
+        Pattern pattern = Pattern.compile("\"" + Pattern.quote(fieldName) + "\"\\s*:\\s*\"([^\"\\r\\n]*)\"");
+        Matcher matcher = pattern.matcher(text);
+        if (!matcher.find()) {
+            return null;
+        }
+        return matcher.group(1);
+    }
+
+    private static String defaultIfBlank(String value, String defaultValue) {
+        return value == null || value.isBlank() ? defaultValue : value;
+    }
+
+    static String extractJsonObject(String responseText) {
+        if (responseText == null || responseText.isBlank()) {
+            throw new IllegalStateException("章节切场响应为空");
+        }
+
+        int fenceStart = responseText.indexOf("```json");
+        if (fenceStart >= 0) {
+            int jsonStart = responseText.indexOf('{', fenceStart);
+            int fenceEnd = responseText.indexOf("```", jsonStart);
+            if (jsonStart >= 0 && fenceEnd > jsonStart) {
+                return responseText.substring(jsonStart, fenceEnd).strip();
+            }
+        }
+
+        int firstBrace = responseText.indexOf('{');
+        int lastBrace = responseText.lastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            return responseText.substring(firstBrace, lastBrace + 1).strip();
+        }
+
+        throw new IllegalStateException("章节切场响应中未找到 JSON 对象");
+    }
+
+    /**
+     * 构建章节切场 Prompt。
+     * MVP 阶段仅实现 ANIME 类型模板。
+     */
+    String buildSplitChapterPrompt(
+            List<ChapterSegmentDTO> segments,
+            int chapterIndex,
+            ScreenplayTypeEnum screenplayType
+    ) {
+        if (screenplayType != ScreenplayTypeEnum.ANIME) {
+            throw new UnsupportedOperationException(
+                    "MVP 阶段仅支持 ANIME 类型，暂不支持: " + screenplayType);
+        }
+
+        return """
+                你是一位动画编剧策划，正在为小说改编做【章节内场景切分】。
+                你的任务不是生成最终剧本，而是把单章正文切成多个连续的场景单元。
+
+                ## 输入信息
+                - sourceChapter: %d
+                - screenplayType: %s
+                - totalSegments: %d
+
+                ## 可用工具
+                1. listChapterSegments：查看本章全部编号片段，返回格式为 [segmentIndex] 片段正文
+                2. getSegmentRange：根据 startSegmentIndex 和 endSegmentIndex 查看一段连续原文
+
+                ## 切分规则
+                1. 依据地点变化、时间跳跃、叙事焦点明显切换来拆分场景。
+                2. 同一时间同一地点的连续动作，尽量保持在同一场景单元中。
+                3. 请优先调用工具查看片段与区间，不要凭空猜测片段边界。
+                4. 不要生成最终剧本字段，不要编写对白格式，不要补写原文没有的新情节。
+                5. summary 只写该场景单元发生了什么，保持简洁。
+                6. title 只写场景单元的简短标签，便于后续识别。
+                7. 每个场景必须返回 startSegmentIndex 和 endSegmentIndex，使用片段编号而不是原文锚点。
+
+                ## 输出要求
+                1. 返回 scenes 数组。
+                2. scenes 中每项包含：
+                   - sceneIndexInChapter: 从 1 开始连续编号
+                   - sourceChapter: 固定为输入的 sourceChapter
+                   - title
+                   - summary
+                   - startSegmentIndex
+                   - endSegmentIndex
+                3. 至少输出 1 个场景单元。
+                4. 不要输出 startAnchor 或 endAnchor。
+                """.formatted(chapterIndex, screenplayType, segments.size());
+    }
+
+    static class ChapterSegmentTools {
+
+        private final List<ChapterSegmentDTO> segments;
+
+        ChapterSegmentTools(List<ChapterSegmentDTO> segments) {
+            this.segments = segments == null ? List.of() : segments;
+        }
+
+        @Tool(description = "列出当前章节的全部编号片段，返回格式为 [segmentIndex] 片段正文")
+        String listChapterSegments() {
+            StringBuilder builder = new StringBuilder();
+            for (ChapterSegmentDTO segment : segments) {
+                if (builder.length() > 0) {
+                    builder.append('\n');
+                }
+                builder.append('[')
+                        .append(segment.getSegmentIndex())
+                        .append("] ")
+                        .append(segment.getText());
+            }
+            return builder.toString();
+        }
+
+        @Tool(description = "根据起止片段编号返回连续原文，startSegmentIndex 和 endSegmentIndex 均为闭区间")
+        String getSegmentRange(int startSegmentIndex, int endSegmentIndex) {
+            if (startSegmentIndex <= 0 || endSegmentIndex < startSegmentIndex || endSegmentIndex > segments.size()) {
+                throw new IllegalArgumentException("片段区间非法");
+            }
+
+            StringBuilder builder = new StringBuilder();
+            for (int index = startSegmentIndex - 1; index < endSegmentIndex; index++) {
+                if (builder.length() > 0) {
+                    builder.append('\n');
+                }
+                builder.append(segments.get(index).getText());
+            }
+            return builder.toString();
+        }
+    }
+
+    /**
+     * 章节切场结构化输出包装类型。
+     */
+    public static class SplitChapterScenesResult {
+
+        private List<SceneUnitDTO> scenes;
+
+        public List<SceneUnitDTO> getScenes() {
+            return scenes;
+        }
+
+        public void setScenes(List<SceneUnitDTO> scenes) {
+            this.scenes = scenes;
+        }
     }
 }

@@ -409,6 +409,12 @@
   margin: 0;
 }
 
+.scene-summary-meta {
+  color: #8c3f21;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
+}
+
 .scene-summary-heading {
   color: #7a6656;
   line-height: 1.7;
