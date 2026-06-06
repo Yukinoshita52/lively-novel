@@ -367,7 +367,7 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
-    void exportsPersistedConversionAsYaml() {
+    void exportsScriptYamlWithoutSourceText() {
         ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
         conversion.setId("cv-1234abcd");
         conversion.setNovelId("nv-1234abcd");
@@ -403,8 +403,18 @@ class ScreenplayServiceImplTest {
         assertThat(yaml).contains("storylines: []");
         assertThat(yaml).contains("scenes:");
         assertThat(yaml).contains("sceneId: \"s1\"");
-        assertThat(yaml).contains("visualizedInnerThoughts:");
-        assertThat(yaml).contains("sourceText: \"第一段原文。\"");
+        assertThat(yaml).contains("scriptBlocks:");
+        assertThat(yaml).contains("type: \"ACTION\"");
+        assertThat(yaml).contains("text: \"林秋把书包放在桌上。\"");
+        assertThat(yaml).contains("type: \"DIALOGUE\"");
+        assertThat(yaml).contains("character: \"林秋\"");
+        assertThat(yaml).contains("line: \"我已经没事了。\"");
+        assertThat(yaml).contains("type: \"TRANSITION\"");
+        assertThat(yaml).contains("text: \"切至：走廊\"");
+        assertThat(yaml).doesNotContain("visualizedInnerThoughts");
+        assertThat(yaml).doesNotContain("她松了口气");
+        assertThat(yaml).doesNotContain("sourceText");
+        assertThat(yaml).doesNotContain("第一段原文。");
     }
 
     @Test

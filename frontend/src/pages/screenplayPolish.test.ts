@@ -1,5 +1,6 @@
 import {
   createPolishDraft,
+  buildPolishSceneYaml,
   resetPolishDraft,
   updateActionLinesText,
   updateDialogueText,
@@ -45,6 +46,12 @@ assert(draft.scene !== scene, '本地打磨草稿不应直接复用原始 SceneR
 assert(draft.actionLinesText === '林秋把书包放在桌上。', '动作行应序列化为可编辑文本')
 assert(draft.dialogueText === '林秋|(低声)|今天先到这里。', '对白应序列化为角色、提示和台词三段')
 assert(draft.transitionsText === '切至：', '转场应序列化为可编辑文本')
+const polishYaml = buildPolishSceneYaml(draft.scene)
+assert(polishYaml.includes('sceneId: s1'), '本场结构预览应保留场景 ID')
+assert(polishYaml.includes('actionLines:'), '本场结构预览应保留可编辑动作行')
+assert(!polishYaml.includes('visualizedInnerThoughts'), '本场结构预览不应展示内心戏审计字段')
+assert(!polishYaml.includes('sourceText'), '本场结构预览不应展示原文溯源字段')
+assert(!polishYaml.includes('第一场原文。'), '本场结构预览不应展示原文内容')
 
 const actionDraft = updateActionLinesText(draft, '她抬头看向窗外。\n\n风吹动窗帘。')
 assert(actionDraft.scene.actionLines.length === 2, '空行不应生成动作行')
