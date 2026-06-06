@@ -195,7 +195,7 @@ Screenplay (持久化)
 | 1 | POST | `/api/auth/register` | 注册并自动登录 | 否 | JSON | `login.html` |
 | 2 | POST | `/api/auth/login` | 登录，返回 JWT | 否 | JSON | `login.html` |
 | 3 | GET | `/api/auth/me` | 当前用户信息/配额 | 是 | JSON | 所有页顶栏配额条 |
-| 4 | POST | `/api/novel/parse` | 粘贴文本并解析章节 | 是 | JSON | `import.html` |
+| 4 | POST | `/api/novel/parse` | 粘贴文本并解析章节（当前无状态，不落库） | 否 | JSON | `import.html` |
 | 5 | POST | `/api/novel/upload` | 上传 txt 文件并解析 | 是 | JSON | `import.html` |
 | 6 | GET | `/api/novel/{id}/chapters` | 获取章节列表 | 是(本人) | JSON | `import.html`（复用回显） |
 | 7 | GET | `/api/novel` | 我的小说列表（复用历史） | 是 | JSON | `import.html` |
@@ -216,6 +216,8 @@ Screenplay (持久化)
 #### 4.2.1 鉴权
 
 除 `register`/`login` 外，所有接口须在请求头携带 `Authorization: Bearer <JWT>`。带 `(本人)` 的接口在鉴权之外，还校验**资源归属**（`资源.userId == 当前用户`），不符返回 `40301`。
+
+> 当前代码基线中的 `POST /api/novel/parse` 为**无状态章节识别切片**，尚未接入 JWT，也不落库；待持久层与认证切片完成后，再按本节统一鉴权。
 
 #### 4.2.2 JSON 响应包装
 
@@ -313,9 +315,7 @@ Screenplay (持久化)
 **响应 `data`：**
 ```json
 {
-  "novelId": "nv-7f3a",
   "title": "她比烟花寂寞",
-  "contentHash": "sha256:9c1e...",
   "totalChapters": 3,
   "totalWordCount": 12000,
   "chapters": [
@@ -326,7 +326,7 @@ Screenplay (持久化)
 }
 ```
 
-**说明：** `contentHash` 用于后续转换缓存命中（§5.5）；章节标题/字数由后端确定性切分得出（§5.2 步骤①）。
+**说明：** 当前实现为**无状态解析**：仅返回章节元信息，**不落库、不返回 `novelId/contentHash`**。章节标题/字数由后端确定性切分得出（§5.2 步骤①）；`novelId/contentHash` 待持久层切片补入。
 
 **可能错误码：** `40001`（文本为空）、`40002`（超 20 万字）、`40003`（不足 3 章）。
 
