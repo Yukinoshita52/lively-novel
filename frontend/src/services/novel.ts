@@ -78,6 +78,21 @@ export async function convertSingleScene(text: string) {
 }
 
 export async function getScreenplayConversionDetail(conversionId: string) {
-  const response = await fetch(`/api/screenplay/conversions/${conversionId}`)
+  const response = await fetch(`/api/screenplay/conversions/${encodeURIComponent(conversionId)}`)
   return unwrapResponse<ScreenplayConversionDetail>(response)
+}
+
+export function buildScreenplayYamlUrl(conversionId: string) {
+  return `/api/screenplay/conversions/${encodeURIComponent(conversionId)}/yaml`
+}
+
+export async function getScreenplayConversionYaml(conversionId: string) {
+  const response = await fetch(buildScreenplayYamlUrl(conversionId))
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(message || '导出 YAML 失败')
+  }
+
+  return response.blob()
 }
