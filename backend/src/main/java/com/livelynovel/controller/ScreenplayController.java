@@ -2,6 +2,7 @@ package com.livelynovel.controller;
 
 import com.livelynovel.common.Result;
 import com.livelynovel.model.dto.SceneDTO;
+import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.dto.ScreenplayConvertRequestDTO;
 import com.livelynovel.model.dto.SingleSceneConvertRequestDTO;
 import com.livelynovel.service.LlmService;
@@ -10,6 +11,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,6 +47,16 @@ public class ScreenplayController {
                 request.getNovelId(),
                 request.getScreenplayType()
         );
+    }
+
+    @Operation(summary = "获取整本转换详情", description = "根据 conversionId 返回已持久化的转换状态与场景结果")
+    @GetMapping("/conversions/{conversionId}")
+    public Result<ScreenplayConversionDetailDTO> getConversionDetail(@PathVariable String conversionId) {
+        ScreenplayConversionDetailDTO detail = screenplayService.getConversionDetail(conversionId);
+        if (detail == null) {
+            return Result.fail(40401, "转换任务不存在");
+        }
+        return Result.ok(detail);
     }
 
     /**
