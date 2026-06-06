@@ -5,10 +5,19 @@ import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
+import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
+import com.livelynovel.model.entity.ScreenplayConversionEntity;
+import com.livelynovel.model.entity.ScreenplaySceneEntity;
+import com.livelynovel.model.entity.ScreenplaySceneUnitEntity;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.repository.ScreenplayConversionRepository;
+import com.livelynovel.repository.ScreenplaySceneRepository;
+import com.livelynovel.repository.ScreenplaySceneUnitRepository;
 import com.livelynovel.service.impl.ChapterSegmentationServiceImpl;
 import com.livelynovel.service.impl.ScreenplayServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -18,6 +27,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -35,12 +45,32 @@ class ScreenplayServiceImplTest {
 
     private final NovelService novelService = mock(NovelService.class);
     private final LlmService llmService = mock(LlmService.class);
+    private final ScreenplayConversionRepository conversionRepository = mock(ScreenplayConversionRepository.class);
+    private final ScreenplaySceneUnitRepository sceneUnitRepository = mock(ScreenplaySceneUnitRepository.class);
+    private final ScreenplaySceneRepository sceneRepository = mock(ScreenplaySceneRepository.class);
     private final ChapterSegmentationService chapterSegmentationService = new ChapterSegmentationServiceImpl();
     private final ScreenplayServiceImpl screenplayService = new ScreenplayServiceImpl(
             novelService,
             llmService,
-            chapterSegmentationService
+            chapterSegmentationService,
+            conversionRepository,
+            sceneUnitRepository,
+            sceneRepository
     );
+
+    @BeforeEach
+    void setUp() {
+        when(conversionRepository.save(org.mockito.ArgumentMatchers.any(ScreenplayConversionEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(sceneUnitRepository.saveAll(org.mockito.ArgumentMatchers.anyList()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(sceneRepository.save(org.mockito.ArgumentMatchers.any(ScreenplaySceneEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(llmService.convertSingleScene(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        )).thenReturn(scene("scene-default"));
+    }
 
     @Test
     void splitsChapterIntoMultipleSceneUnitsBeforeConvertingEachScene() throws Exception {
@@ -129,6 +159,91 @@ class ScreenplayServiceImplTest {
 
         assertThat(containsChapterSplitEvent(sentPayloads)).isTrue();
         assertThat(containsSceneCount(sentPayloads, 2)).isTrue();
+    }
+
+    @Test
+    void persistsConversionSceneUnitsAndGeneratedScenes() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "第一段原文。\n第二段原文。\n第三段原文。";
+        SceneUnitDTO firstUnit = sceneUnit(1, 1, 1, 2);
+        SceneUnitDTO secondUnit = sceneUnit(1, 2, 3, 3);
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+            .thenReturn(List.of(firstUnit, secondUnit));
+        when(llmService.convertSingleScene("第一段原文。\n第二段原文", ScreenplayTypeEnum.ANIME)).thenReturn(scene("scene-1"));
+        when(llmService.convertSingleScene("第三段原文", ScreenplayTypeEnum.ANIME)).thenReturn(scene("scene-2"));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, new AtomicReference<>());
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        ArgumentCaptor<ScreenplayConversionEntity> conversionCaptor =
+                ArgumentCaptor.forClass(ScreenplayConversionEntity.class);
+        verify(conversionRepository, times(2)).save(conversionCaptor.capture());
+        assertThat(conversionCaptor.getAllValues().get(0).getId()).startsWith("cv-");
+        assertThat(conversionCaptor.getAllValues().get(0).getNovelId()).isEqualTo(novelId);
+        assertThat(conversionCaptor.getAllValues().get(0).getScreenplayType()).isEqualTo(ScreenplayTypeEnum.ANIME);
+        assertThat(conversionCaptor.getAllValues().get(1).getStatus()).isEqualTo("COMPLETED");
+
+        ArgumentCaptor<List<ScreenplaySceneUnitEntity>> sceneUnitsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(sceneUnitRepository).saveAll(sceneUnitsCaptor.capture());
+        assertThat(sceneUnitsCaptor.getValue()).hasSize(2);
+        assertThat(sceneUnitsCaptor.getValue().get(0).getSourceText()).isEqualTo("第一段原文。\n第二段原文。");
+        assertThat(sceneUnitsCaptor.getValue().get(1).getSourceText()).isEqualTo("第三段原文。");
+
+        ArgumentCaptor<ScreenplaySceneEntity> sceneCaptor = ArgumentCaptor.forClass(ScreenplaySceneEntity.class);
+        verify(sceneRepository, times(2)).save(sceneCaptor.capture());
+        assertThat(sceneCaptor.getAllValues()).extracting(ScreenplaySceneEntity::getSceneJson)
+                .allMatch(json -> json.toString().contains("\"sceneId\""));
+        assertThat(containsConversionId(sentPayloads)).isTrue();
+    }
+
+    @Test
+    void returnsPersistedConversionDetailWithGeneratedScenes() {
+        ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
+        conversion.setId("cv-1234abcd");
+        conversion.setNovelId("nv-1234abcd");
+        conversion.setScreenplayType(ScreenplayTypeEnum.ANIME);
+        conversion.setStatus("COMPLETED");
+
+        ScreenplaySceneEntity sceneEntity = new ScreenplaySceneEntity();
+        sceneEntity.setConversionId("cv-1234abcd");
+        sceneEntity.setChapterIndex(1);
+        sceneEntity.setSceneIndexInChapter(1);
+        sceneEntity.setSceneJson("""
+                {
+                  "sceneId": "s1",
+                  "heading": {"interior": true, "location": "教室", "timeOfDay": "午后"},
+                  "actionLines": ["林秋把书包放在桌上。"],
+                  "dialogueBlocks": [],
+                  "visualizedInnerThoughts": [],
+                  "transitions": [],
+                  "sourceChapter": 1,
+                  "sourceText": "第一段原文。"
+                }
+                """);
+
+        when(conversionRepository.findById("cv-1234abcd")).thenReturn(Optional.of(conversion));
+        when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-1234abcd"))
+                .thenReturn(List.of(sceneEntity));
+
+        ScreenplayConversionDetailDTO detail = screenplayService.getConversionDetail("cv-1234abcd");
+
+        assertThat(detail).isNotNull();
+        assertThat(detail.getConversionId()).isEqualTo("cv-1234abcd");
+        assertThat(detail.getNovelId()).isEqualTo("nv-1234abcd");
+        assertThat(detail.getStatus()).isEqualTo("COMPLETED");
+        assertThat(detail.getScenes()).hasSize(1);
+        assertThat(detail.getScenes().get(0).getScene().getSceneId()).isEqualTo("s1");
     }
 
     @Test
@@ -315,6 +430,14 @@ class ScreenplayServiceImplTest {
             .map(Map.class::cast)
             .anyMatch(data -> data.get("reason") instanceof String reason
                 && reason.contains(expectedReasonPart));
+    }
+
+    private boolean containsConversionId(List<Object> sentPayloads) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .anyMatch(data -> data.get("conversionId") instanceof String conversionId
+                && conversionId.startsWith("cv-"));
     }
 
     private boolean containsSceneCount(List<Object> sentPayloads, int expectedSceneCount) {

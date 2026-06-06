@@ -1,13 +1,23 @@
 package com.livelynovel.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.livelynovel.model.dto.ChapterSegmentDTO;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
 import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
+import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
+import com.livelynovel.model.dto.ScreenplayPersistedSceneDTO;
+import com.livelynovel.model.entity.ScreenplayConversionEntity;
+import com.livelynovel.model.entity.ScreenplaySceneEntity;
+import com.livelynovel.model.entity.ScreenplaySceneUnitEntity;
 import com.livelynovel.service.ChapterSegmentationService;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.repository.ScreenplayConversionRepository;
+import com.livelynovel.repository.ScreenplaySceneRepository;
+import com.livelynovel.repository.ScreenplaySceneUnitRepository;
 import com.livelynovel.service.LlmService;
 import com.livelynovel.service.NovelService;
 import com.livelynovel.service.ScreenplayService;
@@ -20,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 
 /**
  * 整本转换骨架实现。
@@ -30,19 +41,29 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     private static final int MAX_SCENE_SPLIT_ATTEMPTS = 2;
     private static final int MULTI_SCENE_SEGMENT_THRESHOLD = 6;
     private static final String CONVERT_FAILED_MESSAGE = "转换未完成，请调整文本后重试。";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final NovelService novelService;
     private final LlmService llmService;
     private final ChapterSegmentationService chapterSegmentationService;
+    private final ScreenplayConversionRepository conversionRepository;
+    private final ScreenplaySceneUnitRepository sceneUnitRepository;
+    private final ScreenplaySceneRepository sceneRepository;
 
     public ScreenplayServiceImpl(
             NovelService novelService,
             LlmService llmService,
-            ChapterSegmentationService chapterSegmentationService
+            ChapterSegmentationService chapterSegmentationService,
+            ScreenplayConversionRepository conversionRepository,
+            ScreenplaySceneUnitRepository sceneUnitRepository,
+            ScreenplaySceneRepository sceneRepository
     ) {
         this.novelService = novelService;
         this.llmService = llmService;
         this.chapterSegmentationService = chapterSegmentationService;
+        this.conversionRepository = conversionRepository;
+        this.sceneUnitRepository = sceneUnitRepository;
+        this.sceneRepository = sceneRepository;
     }
 
     @Override
@@ -55,14 +76,17 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     void convertNovel(String novelId, ScreenplayTypeEnum screenplayType, SseEmitter emitter) {
+        ScreenplayConversionEntity conversion = createConversion(novelId, screenplayType);
         try {
             NovelChaptersResultDTO chaptersResult = novelService.getChapters(novelId);
             if (chaptersResult == null) {
-                completeWithFailedEvent(emitter, "小说不存在");
+                markConversionFailed(conversion, "小说不存在");
+                completeWithFailedEvent(emitter, conversion.getId(), "小说不存在");
                 return;
             }
 
             sendEvent(emitter, "started", Map.of(
+                    "conversionId", conversion.getId(),
                     "novelId", novelId,
                     "title", chaptersResult.getTitle(),
                     "totalChapters", chaptersResult.getTotalChapters()
@@ -84,6 +108,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                 }
 
                 sendEvent(emitter, "chapter_loaded", Map.of(
+                        "conversionId", conversion.getId(),
                         "chapterIndex", detail.getChapterIndex(),
                         "title", detail.getTitle()
                 ));
@@ -96,6 +121,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                         segments
                 );
                 sendEvent(emitter, "chapter_split", Map.of(
+                        "conversionId", conversion.getId(),
                         "chapterIndex", detail.getChapterIndex(),
                         "title", detail.getTitle(),
                         "sceneCount", sceneUnits.size()
@@ -106,13 +132,16 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                         detail.getChapterIndex(),
                         sceneUnits
                 );
+                persistSceneUnits(conversion.getId(), sceneUnits, sceneTexts);
                 for (int i = 0; i < sceneUnits.size(); i++) {
                     SceneUnitDTO sceneUnit = sceneUnits.get(i);
                     String sceneText = sceneTexts.get(i);
                     SceneDTO scene = llmService.convertSingleScene(sceneText, screenplayType);
                     scene.setSourceChapter(detail.getChapterIndex());
                     scene.setSourceText(sceneText);
+                    persistGeneratedScene(conversion.getId(), detail.getChapterIndex(), sceneUnit, scene);
                     Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("conversionId", conversion.getId());
                     payload.put("chapterIndex", detail.getChapterIndex());
                     payload.put("sceneIndexInChapter", sceneUnit.getSceneIndexInChapter());
                     payload.put("title", sceneUnit.getTitle());
@@ -122,19 +151,132 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                 }
             }
 
+            markConversionCompleted(conversion);
             sendEvent(emitter, "completed", Map.of(
+                    "conversionId", conversion.getId(),
                     "novelId", novelId,
                     "totalChapters", chaptersResult.getTotalChapters()
             ));
             emitter.complete();
         } catch (Exception e) {
-            completeWithFailedEvent(emitter, e.getMessage());
+            markConversionFailed(conversion, e.getMessage());
+            completeWithFailedEvent(emitter, conversion.getId(), e.getMessage());
         }
     }
 
-    private void completeWithFailedEvent(SseEmitter emitter, String reason) {
+    private ScreenplayConversionEntity createConversion(String novelId, ScreenplayTypeEnum screenplayType) {
+        ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
+        conversion.setId(generateConversionId());
+        conversion.setNovelId(novelId);
+        conversion.setScreenplayType(screenplayType);
+        conversion.setStatus("RUNNING");
+        return conversionRepository.save(conversion);
+    }
+
+    private void markConversionCompleted(ScreenplayConversionEntity conversion) {
+        conversion.setStatus("COMPLETED");
+        conversion.setErrorMessage(null);
+        conversionRepository.save(conversion);
+    }
+
+    private void markConversionFailed(ScreenplayConversionEntity conversion, String reason) {
+        conversion.setStatus("FAILED");
+        conversion.setErrorMessage(reason == null || reason.isBlank() ? "未知错误" : reason);
+        conversionRepository.save(conversion);
+    }
+
+    private void persistSceneUnits(String conversionId, List<SceneUnitDTO> sceneUnits, List<String> sceneTexts) {
+        List<ScreenplaySceneUnitEntity> entities = new java.util.ArrayList<>(sceneUnits.size());
+        for (int i = 0; i < sceneUnits.size(); i++) {
+            SceneUnitDTO sceneUnit = sceneUnits.get(i);
+            ScreenplaySceneUnitEntity entity = new ScreenplaySceneUnitEntity();
+            entity.setConversionId(conversionId);
+            entity.setChapterIndex(sceneUnit.getSourceChapter());
+            entity.setSceneIndexInChapter(sceneUnit.getSceneIndexInChapter());
+            entity.setTitle(sceneUnit.getTitle());
+            entity.setSummary(sceneUnit.getSummary());
+            entity.setStartSegmentIndex(sceneUnit.getStartSegmentIndex());
+            entity.setEndSegmentIndex(sceneUnit.getEndSegmentIndex());
+            entity.setSourceText(sceneTexts.get(i));
+            entity.setStatus("SPLIT");
+            entities.add(entity);
+        }
+        sceneUnitRepository.saveAll(entities);
+    }
+
+    private void persistGeneratedScene(
+            String conversionId,
+            int chapterIndex,
+            SceneUnitDTO sceneUnit,
+            SceneDTO scene
+    ) {
+        ScreenplaySceneEntity entity = new ScreenplaySceneEntity();
+        entity.setConversionId(conversionId);
+        entity.setChapterIndex(chapterIndex);
+        entity.setSceneIndexInChapter(sceneUnit.getSceneIndexInChapter());
+        entity.setSceneJson(toJson(scene));
+        sceneRepository.save(entity);
+    }
+
+    private String toJson(SceneDTO scene) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(scene);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("场景持久化序列化失败", e);
+        }
+    }
+
+    private String generateConversionId() {
+        return "cv-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    }
+
+    @Override
+    public ScreenplayConversionDetailDTO getConversionDetail(String conversionId) {
+        if (conversionId == null || conversionId.isBlank()) {
+            return null;
+        }
+        return conversionRepository.findById(conversionId)
+                .map(this::toConversionDetail)
+                .orElse(null);
+    }
+
+    private ScreenplayConversionDetailDTO toConversionDetail(ScreenplayConversionEntity conversion) {
+        ScreenplayConversionDetailDTO detail = new ScreenplayConversionDetailDTO();
+        detail.setConversionId(conversion.getId());
+        detail.setNovelId(conversion.getNovelId());
+        detail.setScreenplayType(conversion.getScreenplayType());
+        detail.setStatus(conversion.getStatus());
+        detail.setErrorMessage(conversion.getErrorMessage());
+
+        List<ScreenplayPersistedSceneDTO> scenes = sceneRepository
+                .findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc(conversion.getId())
+                .stream()
+                .map(this::toPersistedScene)
+                .toList();
+        detail.setScenes(scenes);
+        return detail;
+    }
+
+    private ScreenplayPersistedSceneDTO toPersistedScene(ScreenplaySceneEntity entity) {
+        ScreenplayPersistedSceneDTO persistedScene = new ScreenplayPersistedSceneDTO();
+        persistedScene.setChapterIndex(entity.getChapterIndex());
+        persistedScene.setSceneIndexInChapter(entity.getSceneIndexInChapter());
+        persistedScene.setScene(fromJson(entity.getSceneJson()));
+        return persistedScene;
+    }
+
+    private SceneDTO fromJson(String sceneJson) {
+        try {
+            return OBJECT_MAPPER.readValue(sceneJson, SceneDTO.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("场景持久化反序列化失败", e);
+        }
+    }
+
+    private void completeWithFailedEvent(SseEmitter emitter, String conversionId, String reason) {
         try {
             sendEvent(emitter, "failed", Map.of(
+                    "conversionId", conversionId,
                     "message", CONVERT_FAILED_MESSAGE,
                     "reason", reason == null || reason.isBlank() ? "未知错误" : reason
             ));

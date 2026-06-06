@@ -89,6 +89,21 @@ export interface GeneratedSceneSummary {
   scene: SceneResult
 }
 
+export interface ScreenplayPersistedScene {
+  chapterIndex: number
+  sceneIndexInChapter: number
+  scene: SceneResult
+}
+
+export interface ScreenplayConversionDetail {
+  conversionId: string
+  novelId: string
+  screenplayType: string
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED' | string
+  errorMessage?: string | null
+  scenes: ScreenplayPersistedScene[]
+}
+
 export interface SceneHeading {
   interior: boolean
   location: string

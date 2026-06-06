@@ -1,5 +1,6 @@
 package com.livelynovel.service;
 
+import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -9,4 +10,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public interface ScreenplayService {
 
     SseEmitter convertNovel(String novelId, ScreenplayTypeEnum screenplayType);
+
+    ScreenplayConversionDetailDTO getConversionDetail(String conversionId);
 }

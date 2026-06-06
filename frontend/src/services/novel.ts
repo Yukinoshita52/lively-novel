@@ -6,6 +6,7 @@ import type {
   NovelParseResult,
   NovelUploadResult,
   SceneResult,
+  ScreenplayConversionDetail,
 } from '../types/novel'
 
 async function unwrapResponse<T>(response: Response): Promise<T> {
@@ -74,4 +75,9 @@ export async function convertSingleScene(text: string) {
   })
 
   return unwrapResponse<SceneResult>(response)
+}
+
+export async function getScreenplayConversionDetail(conversionId: string) {
+  const response = await fetch(`/api/screenplay/conversions/${conversionId}`)
+  return unwrapResponse<ScreenplayConversionDetail>(response)
 }
