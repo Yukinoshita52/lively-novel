@@ -2,14 +2,19 @@ package com.livelynovel.controller;
 
 import com.livelynovel.common.Result;
 import com.livelynovel.model.dto.SceneDTO;
+import com.livelynovel.model.dto.ScreenplayConvertRequestDTO;
 import com.livelynovel.model.dto.SingleSceneConvertRequestDTO;
 import com.livelynovel.service.LlmService;
+import com.livelynovel.service.ScreenplayService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 剧本转换接口。
@@ -21,9 +26,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class ScreenplayController {
 
     private final LlmService llmService;
+    private final ScreenplayService screenplayService;
 
-    public ScreenplayController(LlmService llmService) {
+    public ScreenplayController(LlmService llmService, ScreenplayService screenplayService) {
         this.llmService = llmService;
+        this.screenplayService = screenplayService;
+    }
+
+    @Operation(summary = "提交整本转换任务", description = "基于已存小说启动整本转换骨架，返回 SSE 事件流")
+    @PostMapping(value = "/convert", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Object convert(@RequestBody ScreenplayConvertRequestDTO request) {
+        if (request.getNovelId() == null || request.getNovelId().isBlank()) {
+            return ResponseEntity.badRequest().body(Result.fail(40001, "novelId 不能为空"));
+        }
+
+        return screenplayService.convertNovel(
+                request.getNovelId(),
+                request.getScreenplayType()
+        );
     }
 
     /**
