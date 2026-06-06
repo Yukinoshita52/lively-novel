@@ -19,6 +19,7 @@ import type {
   NovelChaptersResult,
   NovelListItem,
   NovelParseResult,
+  ScreenplayConvertContext,
 } from '../types/novel'
 
 const { Text, Title } = Typography
@@ -62,7 +63,8 @@ type DisplayResult = {
 }
 
 type ImportPageProps = {
-  onStartConvert: (context: ImportFlowContext) => void
+  onStartConvert: (context: ScreenplayConvertContext) => void
+  onStartSingleScene: (context: ImportFlowContext) => void
 }
 
 function formatWordCount(wordCount: number) {
@@ -105,7 +107,7 @@ function toDisplayResult(result: NovelParseResult | NovelChaptersResult): Displa
   }
 }
 
-function ImportPage({ onStartConvert }: ImportPageProps) {
+function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [title, setTitle] = useState(SAMPLE_TITLE)
   const [text, setText] = useState(SAMPLE_TEXT)
@@ -211,6 +213,20 @@ function ImportPage({ onStartConvert }: ImportPageProps) {
     }
 
     onStartConvert({
+      novelId: chapterResult.novelId,
+      title: chapterResult.title,
+      totalChapters: chapterResult.totalChapters,
+      chapters: chapterResult.chapters,
+      screenplayType: selectedType,
+    })
+  }
+
+  function handleStartSingleScene() {
+    if (!chapterResult?.novelId) {
+      return
+    }
+
+    onStartSingleScene({
       novelId: chapterResult.novelId,
       title: chapterResult.title,
       chapters: chapterResult.chapters,
@@ -422,6 +438,15 @@ function ImportPage({ onStartConvert }: ImportPageProps) {
             onClick={handleStartConvert}
           >
             开始转换
+          </Button>
+          <Button
+            block
+            className="secondary-button"
+            size="large"
+            disabled={!canStartConvert}
+            onClick={handleStartSingleScene}
+          >
+            单章打磨
           </Button>
         </div>
       </main>
