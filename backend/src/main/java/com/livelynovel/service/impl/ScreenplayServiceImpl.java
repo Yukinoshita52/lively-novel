@@ -83,7 +83,21 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     void convertNovel(String novelId, ScreenplayTypeEnum screenplayType, SseEmitter emitter) {
-        ScreenplayConversionEntity conversion = createConversion(novelId, screenplayType);
+        java.util.Optional<ScreenplayConversionEntity> reusableConversion = java.util.Optional.ofNullable(
+                conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
+                        novelId,
+                        screenplayType,
+                        List.of("RUNNING", "FAILED", "COMPLETED")
+                )
+        ).orElse(java.util.Optional.empty());
+        ScreenplayConversionEntity conversion = reusableConversion
+                .orElseGet(() -> createConversion(novelId, screenplayType));
+        boolean alreadyCompleted = "COMPLETED".equals(conversion.getStatus());
+        if (reusableConversion.isPresent() && !alreadyCompleted) {
+            conversion.setStatus("RUNNING");
+            conversion.setErrorMessage(null);
+            conversionRepository.save(conversion);
+        }
         try {
             NovelChaptersResultDTO chaptersResult = novelService.getChapters(novelId);
             if (chaptersResult == null) {
@@ -104,61 +118,131 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                 chapters = Collections.emptyList();
             }
 
+            List<ScreenplaySceneUnitEntity> persistedSceneUnits = sceneUnitRepository
+                    .findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc(conversion.getId());
+            List<ScreenplaySceneEntity> persistedScenes = sceneRepository
+                    .findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc(conversion.getId());
+            if (persistedSceneUnits == null) {
+                persistedSceneUnits = Collections.emptyList();
+            }
+            if (persistedScenes == null) {
+                persistedScenes = Collections.emptyList();
+            }
+
             for (ChapterPreviewDTO chapter : chapters) {
                 if (chapter == null) {
                     continue;
                 }
 
-                NovelChapterDetailDTO detail = novelService.getChapterDetail(novelId, chapter.getChapterIndex());
-                if (detail == null || detail.getContent() == null || detail.getContent().isBlank()) {
-                    continue;
+                List<ScreenplaySceneUnitEntity> chapterSceneUnits = persistedSceneUnits.stream()
+                        .filter(sceneUnit -> sceneUnit.getChapterIndex() == chapter.getChapterIndex())
+                        .toList();
+                boolean replayedChapterSplit = !chapterSceneUnits.isEmpty();
+                List<SceneUnitDTO> sceneUnits;
+                List<String> sceneTexts;
+                int chapterIndex;
+                String chapterTitle;
+
+                if (replayedChapterSplit) {
+                    chapterIndex = chapter.getChapterIndex();
+                    chapterTitle = chapter.getTitle();
+                    sendEvent(emitter, "chapter_loaded", Map.of(
+                            "conversionId", conversion.getId(),
+                            "chapterIndex", chapterIndex,
+                            "title", chapterTitle,
+                            "replayed", true,
+                            "message", "已载入历史章节"
+                    ));
+                    sceneUnits = chapterSceneUnits.stream()
+                            .map(this::toSceneUnit)
+                            .toList();
+                    sceneTexts = chapterSceneUnits.stream()
+                            .map(ScreenplaySceneUnitEntity::getSourceText)
+                            .toList();
+                    sendEvent(emitter, "chapter_split", Map.of(
+                            "conversionId", conversion.getId(),
+                            "chapterIndex", chapterIndex,
+                            "title", chapterTitle,
+                            "sceneCount", sceneUnits.size(),
+                            "replayed", true,
+                            "message", "已载入历史切场"
+                    ));
+                } else {
+                    NovelChapterDetailDTO detail = novelService.getChapterDetail(novelId, chapter.getChapterIndex());
+                    if (detail == null || detail.getContent() == null || detail.getContent().isBlank()) {
+                        continue;
+                    }
+                    chapterIndex = detail.getChapterIndex();
+                    chapterTitle = detail.getTitle();
+
+                    sendEvent(emitter, "chapter_loaded", Map.of(
+                            "conversionId", conversion.getId(),
+                            "chapterIndex", chapterIndex,
+                            "title", chapterTitle
+                    ));
+
+                    List<ChapterSegmentDTO> segments = chapterSegmentationService.segment(detail.getContent());
+                    sceneUnits = splitChapterIntoScenesWithRetry(
+                            detail.getContent(),
+                            chapterIndex,
+                            screenplayType,
+                            segments
+                    );
+                    sendEvent(emitter, "chapter_split", Map.of(
+                            "conversionId", conversion.getId(),
+                            "chapterIndex", chapterIndex,
+                            "title", chapterTitle,
+                            "sceneCount", sceneUnits.size()
+                    ));
+
+                    sceneTexts = rebuildSceneTexts(
+                            segments,
+                            chapterIndex,
+                            sceneUnits
+                    );
+                    persistSceneUnits(conversion.getId(), sceneUnits, sceneTexts);
                 }
 
-                sendEvent(emitter, "chapter_loaded", Map.of(
-                        "conversionId", conversion.getId(),
-                        "chapterIndex", detail.getChapterIndex(),
-                        "title", detail.getTitle()
-                ));
-
-                List<ChapterSegmentDTO> segments = chapterSegmentationService.segment(detail.getContent());
-                List<SceneUnitDTO> sceneUnits = splitChapterIntoScenesWithRetry(
-                        detail.getContent(),
-                        detail.getChapterIndex(),
-                        screenplayType,
-                        segments
-                );
-                sendEvent(emitter, "chapter_split", Map.of(
-                        "conversionId", conversion.getId(),
-                        "chapterIndex", detail.getChapterIndex(),
-                        "title", detail.getTitle(),
-                        "sceneCount", sceneUnits.size()
-                ));
-
-                List<String> sceneTexts = rebuildSceneTexts(
-                        segments,
-                        detail.getChapterIndex(),
-                        sceneUnits
-                );
-                persistSceneUnits(conversion.getId(), sceneUnits, sceneTexts);
                 for (int i = 0; i < sceneUnits.size(); i++) {
                     SceneUnitDTO sceneUnit = sceneUnits.get(i);
                     String sceneText = sceneTexts.get(i);
+                    ScreenplaySceneEntity persistedScene = findPersistedScene(
+                            persistedScenes,
+                            chapterIndex,
+                            sceneUnit.getSceneIndexInChapter()
+                    );
+                    if (persistedScene != null) {
+                        sendSceneCompletedEvent(
+                                emitter,
+                                conversion.getId(),
+                                chapterIndex,
+                                sceneUnit,
+                                fromJson(persistedScene.getSceneJson()),
+                                sceneUnits.size(),
+                                true
+                        );
+                        continue;
+                    }
+
                     SceneDTO scene = llmService.convertSingleScene(sceneText, screenplayType);
-                    scene.setSourceChapter(detail.getChapterIndex());
+                    scene.setSourceChapter(chapterIndex);
                     scene.setSourceText(sceneText);
-                    persistGeneratedScene(conversion.getId(), detail.getChapterIndex(), sceneUnit, scene);
-                    Map<String, Object> payload = new LinkedHashMap<>();
-                    payload.put("conversionId", conversion.getId());
-                    payload.put("chapterIndex", detail.getChapterIndex());
-                    payload.put("sceneIndexInChapter", sceneUnit.getSceneIndexInChapter());
-                    payload.put("title", sceneUnit.getTitle());
-                    payload.put("sceneCount", sceneUnits.size());
-                    payload.put("scene", scene);
-                    sendEvent(emitter, "scene_completed", payload);
+                    persistGeneratedScene(conversion.getId(), chapterIndex, sceneUnit, scene);
+                    sendSceneCompletedEvent(
+                            emitter,
+                            conversion.getId(),
+                            chapterIndex,
+                            sceneUnit,
+                            scene,
+                            sceneUnits.size(),
+                            false
+                    );
                 }
             }
 
-            markConversionCompleted(conversion);
+            if (!alreadyCompleted) {
+                markConversionCompleted(conversion);
+            }
             sendEvent(emitter, "completed", Map.of(
                     "conversionId", conversion.getId(),
                     "novelId", novelId,
@@ -225,6 +309,52 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         sceneRepository.save(entity);
     }
 
+    private SceneUnitDTO toSceneUnit(ScreenplaySceneUnitEntity entity) {
+        SceneUnitDTO dto = new SceneUnitDTO();
+        dto.setSourceChapter(entity.getChapterIndex());
+        dto.setSceneIndexInChapter(entity.getSceneIndexInChapter());
+        dto.setTitle(entity.getTitle());
+        dto.setSummary(entity.getSummary());
+        dto.setStartSegmentIndex(entity.getStartSegmentIndex());
+        dto.setEndSegmentIndex(entity.getEndSegmentIndex());
+        return dto;
+    }
+
+    private ScreenplaySceneEntity findPersistedScene(
+            List<ScreenplaySceneEntity> persistedScenes,
+            int chapterIndex,
+            int sceneIndexInChapter
+    ) {
+        return persistedScenes.stream()
+                .filter(scene -> scene.getChapterIndex() == chapterIndex)
+                .filter(scene -> scene.getSceneIndexInChapter() == sceneIndexInChapter)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void sendSceneCompletedEvent(
+            SseEmitter emitter,
+            String conversionId,
+            int chapterIndex,
+            SceneUnitDTO sceneUnit,
+            SceneDTO scene,
+            int sceneCount,
+            boolean replayed
+    ) throws IOException {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("conversionId", conversionId);
+        payload.put("chapterIndex", chapterIndex);
+        payload.put("sceneIndexInChapter", sceneUnit.getSceneIndexInChapter());
+        payload.put("title", sceneUnit.getTitle());
+        payload.put("sceneCount", sceneCount);
+        payload.put("scene", scene);
+        if (replayed) {
+            payload.put("replayed", true);
+            payload.put("message", "已载入历史场景");
+        }
+        sendEvent(emitter, "scene_completed", payload);
+    }
+
     private String toJson(SceneDTO scene) {
         try {
             return OBJECT_MAPPER.writeValueAsString(scene);
@@ -243,6 +373,21 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             return null;
         }
         return conversionRepository.findById(conversionId)
+                .map(this::toConversionDetail)
+                .orElse(null);
+    }
+
+    @Override
+    public ScreenplayConversionDetailDTO getLatestCompletedConversion(String novelId, ScreenplayTypeEnum screenplayType) {
+        if (novelId == null || novelId.isBlank() || screenplayType == null) {
+            return null;
+        }
+        return conversionRepository
+                .findFirstByNovelIdAndScreenplayTypeAndStatusOrderByUpdatedAtDesc(
+                        novelId,
+                        screenplayType,
+                        "COMPLETED"
+                )
                 .map(this::toConversionDetail)
                 .orElse(null);
     }
@@ -410,7 +555,18 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     private void sendEvent(SseEmitter emitter, String eventName, Object payload) throws IOException {
-        emitter.send(SseEmitter.event().name(eventName).data(payload));
+        Object eventPayload = payload;
+        if (payload instanceof Map<?, ?> payloadMap) {
+            Map<String, Object> enrichedPayload = new LinkedHashMap<>();
+            enrichedPayload.put("eventName", eventName);
+            for (Map.Entry<?, ?> entry : payloadMap.entrySet()) {
+                if (entry.getKey() instanceof String key) {
+                    enrichedPayload.put(key, entry.getValue());
+                }
+            }
+            eventPayload = enrichedPayload;
+        }
+        emitter.send(SseEmitter.event().name(eventName).data(eventPayload));
     }
 
     static List<String> rebuildSceneTexts(

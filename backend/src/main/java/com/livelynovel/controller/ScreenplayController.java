@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -55,6 +56,19 @@ public class ScreenplayController {
         ScreenplayConversionDetailDTO detail = screenplayService.getConversionDetail(conversionId);
         if (detail == null) {
             return Result.fail(40401, "转换任务不存在");
+        }
+        return Result.ok(detail);
+    }
+
+    @Operation(summary = "获取最近完成转换", description = "根据 novelId 和 screenplayType 返回最近已完成的持久化转换")
+    @GetMapping("/conversions/latest")
+    public Result<ScreenplayConversionDetailDTO> getLatestCompletedConversion(
+            @RequestParam String novelId,
+            @RequestParam com.livelynovel.model.enums.ScreenplayTypeEnum screenplayType
+    ) {
+        ScreenplayConversionDetailDTO detail = screenplayService.getLatestCompletedConversion(novelId, screenplayType);
+        if (detail == null) {
+            return Result.fail(40401, "暂无已完成转换");
         }
         return Result.ok(detail);
     }
