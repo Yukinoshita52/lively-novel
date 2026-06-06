@@ -82,6 +82,15 @@ export async function getScreenplayConversionDetail(conversionId: string) {
   return unwrapResponse<ScreenplayConversionDetail>(response)
 }
 
+export function buildLatestCompletedConversionUrl(novelId: string, screenplayType: string) {
+  return `/api/screenplay/conversions/latest?novelId=${encodeURIComponent(novelId)}&screenplayType=${encodeURIComponent(screenplayType)}`
+}
+
+export async function getLatestCompletedConversion(novelId: string, screenplayType: string) {
+  const response = await fetch(buildLatestCompletedConversionUrl(novelId, screenplayType))
+  return unwrapResponse<ScreenplayConversionDetail>(response)
+}
+
 export function buildScreenplayYamlUrl(conversionId: string) {
   return `/api/screenplay/conversions/${encodeURIComponent(conversionId)}/yaml`
 }
