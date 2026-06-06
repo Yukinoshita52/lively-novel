@@ -1,7 +1,9 @@
 package com.livelynovel.service.impl;
 
 import com.livelynovel.model.dto.ChapterSegmentDTO;
+import com.livelynovel.model.dto.DialogueBlockDTO;
 import com.livelynovel.model.dto.SceneDTO;
+import com.livelynovel.model.dto.SceneHeadingDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 import org.junit.jupiter.api.Test;
@@ -10,6 +12,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +48,30 @@ class LlmServiceImplUnitTest {
     }
 
     @Test
+    void rejectSceneWhenGeneratedTextContainsJapaneseKana() {
+        SceneDTO scene = new SceneDTO();
+        scene.setHeading(new SceneHeadingDTO(true, "教室", "放課後"));
+        scene.setActionLines(List.of("林秋把书包放在桌上。"));
+        scene.setDialogueBlocks(List.of(new DialogueBlockDTO("林秋", null, "もう大丈夫。")));
+
+        assertThatThrownBy(() -> LlmServiceImpl.validateSceneLanguage(scene))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("语言漂移");
+    }
+
+    @Test
+    void acceptsSceneWhenGeneratedTextIsChinese() {
+        SceneDTO scene = new SceneDTO();
+        scene.setHeading(new SceneHeadingDTO(true, "教室", "放学后"));
+        scene.setActionLines(List.of("林秋把书包放在桌上。"));
+        scene.setDialogueBlocks(List.of(new DialogueBlockDTO("林秋", null, "我已经没事了。")));
+        scene.setTransitions(List.of("切至：走廊"));
+        scene.setSourceText("原文里即使出现かな也不参与生成文本语言检测。");
+
+        LlmServiceImpl.validateSceneLanguage(scene);
+    }
+
+    @Test
     void buildSplitChapterPromptUsesSegmentIndexesInsteadOfAnchors() {
         LlmServiceImpl service = new LlmServiceImpl(mockBuilder(), chapterText -> List.of());
 
@@ -55,6 +82,9 @@ class LlmServiceImplUnitTest {
         assertThat(prompt).contains("listChapterSegments");
         assertThat(prompt).contains("getSegmentRange");
         assertThat(prompt).contains("不要输出 startAnchor 或 endAnchor");
+        assertThat(prompt).contains("必须使用简体中文");
+        assertThat(prompt).contains("不要把多片段长章节整章合并为 1 个场景");
+        assertThat(prompt).contains("连续覆盖 1 到 totalSegments");
     }
 
     @Test
