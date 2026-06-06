@@ -15,6 +15,7 @@ import { getNovelChapters, getNovelList, parseNovel, uploadNovel } from '../serv
 import type {
   ChapterPreview,
   ChapterSummary,
+  ImportFlowContext,
   NovelChaptersResult,
   NovelListItem,
   NovelParseResult,
@@ -50,12 +51,7 @@ const SCREENPLAY_TYPES = [
   { code: 'THEATER', name: '话剧', enabled: false },
 ]
 
-type DisplayChapter = {
-  chapterIndex: number
-  title: string
-  wordCount: number
-  preview?: string
-}
+type DisplayChapter = ChapterPreview
 
 type DisplayResult = {
   novelId?: string
@@ -63,6 +59,10 @@ type DisplayResult = {
   totalChapters: number
   totalWordCount: number
   chapters: DisplayChapter[]
+}
+
+type ImportPageProps = {
+  onStartConvert: (context: ImportFlowContext) => void
 }
 
 function formatWordCount(wordCount: number) {
@@ -105,7 +105,7 @@ function toDisplayResult(result: NovelParseResult | NovelChaptersResult): Displa
   }
 }
 
-function ImportPage() {
+function ImportPage({ onStartConvert }: ImportPageProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [title, setTitle] = useState(SAMPLE_TITLE)
   const [text, setText] = useState(SAMPLE_TEXT)
@@ -205,7 +205,24 @@ function ImportPage() {
     await handleFileSelected(file)
   }
 
-  const hasValidResult = Boolean(chapterResult && chapterResult.totalChapters >= 3)
+  function handleStartConvert() {
+    if (!chapterResult?.novelId) {
+      return
+    }
+
+    onStartConvert({
+      novelId: chapterResult.novelId,
+      title: chapterResult.title,
+      chapters: chapterResult.chapters,
+      selectedChapterIndex: chapterResult.chapters[0]?.chapterIndex ?? 1,
+    })
+  }
+
+  const canStartConvert = Boolean(
+    chapterResult &&
+    chapterResult.totalChapters >= 3 &&
+    chapterResult.novelId,
+  )
 
   return (
     <div className="app-shell">
@@ -396,7 +413,14 @@ function ImportPage() {
               ))}
             </div>
           </Card>
-          <Button block className="convert-button" size="large" type="primary" disabled={!hasValidResult}>
+          <Button
+            block
+            className="convert-button"
+            size="large"
+            type="primary"
+            disabled={!canStartConvert}
+            onClick={handleStartConvert}
+          >
             开始转换
           </Button>
         </div>

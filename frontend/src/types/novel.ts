@@ -53,3 +53,47 @@ export interface NovelListResult {
   novels: NovelListItem[]
   total: number
 }
+
+export interface NovelChapterDetail {
+  novelId: string
+  chapterIndex: number
+  title: string
+  content: string
+  wordCount: number
+}
+
+export interface ImportFlowContext {
+  novelId: string
+  title: string
+  chapters: ChapterPreview[]
+  selectedChapterIndex: number
+}
+
+export interface SceneHeading {
+  interior: boolean
+  location: string
+  timeOfDay: string
+}
+
+export interface DialogueBlock {
+  character: string
+  parenthetical?: string
+  line: string
+}
+
+export interface VisualizedInnerThought {
+  original: string
+  method: string
+  result: string
+}
+
+export interface SceneResult {
+  sceneId: string
+  heading: SceneHeading
+  actionLines: string[]
+  dialogueBlocks: DialogueBlock[]
+  visualizedInnerThoughts: VisualizedInnerThought[]
+  transitions: string[]
+  sourceChapter: number
+  sourceText: string
+}

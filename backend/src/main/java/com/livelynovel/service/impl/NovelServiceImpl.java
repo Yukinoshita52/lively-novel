@@ -3,6 +3,7 @@ package com.livelynovel.service.impl;
 import com.livelynovel.model.entity.NovelEntity;
 import com.livelynovel.model.dto.ChapterDTO;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
+import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.NovelListItemDTO;
 import com.livelynovel.model.dto.NovelListResultDTO;
@@ -97,6 +98,20 @@ public class NovelServiceImpl implements NovelService {
     }
 
     @Override
+    public NovelChapterDetailDTO getChapterDetail(String novelId, int chapterIndex) {
+        NovelEntity novel = novelRepository.findById(novelId).orElse(null);
+        if (novel == null) {
+            return null;
+        }
+
+        return chapterSplitter.split(novel.getRawContent()).stream()
+                .filter(chapter -> chapter.getChapterIndex() == chapterIndex)
+                .findFirst()
+                .map(chapter -> toChapterDetail(novel.getId(), chapter))
+                .orElse(null);
+    }
+
+    @Override
     public NovelListResultDTO listNovels() {
         List<NovelListItemDTO> novels = novelRepository.findAll().stream()
                 .sorted(java.util.Comparator.comparing(NovelEntity::getCreatedAt).reversed())
@@ -169,6 +184,16 @@ public class NovelServiceImpl implements NovelService {
         item.setTotalWordCount(novel.getTotalWordCount());
         item.setCreatedAt(novel.getCreatedAt() == null ? null : novel.getCreatedAt().toString());
         return item;
+    }
+
+    private NovelChapterDetailDTO toChapterDetail(String novelId, ChapterDTO chapter) {
+        NovelChapterDetailDTO detail = new NovelChapterDetailDTO();
+        detail.setNovelId(novelId);
+        detail.setChapterIndex(chapter.getChapterIndex());
+        detail.setTitle(chapter.getTitle());
+        detail.setContent(chapter.getContent());
+        detail.setWordCount(chapter.getWordCount());
+        return detail;
     }
 
     private String buildPreview(String content) {
