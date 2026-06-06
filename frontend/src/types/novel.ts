@@ -69,6 +69,26 @@ export interface ImportFlowContext {
   selectedChapterIndex: number
 }
 
+export interface ScreenplayConvertContext {
+  novelId: string
+  title: string
+  totalChapters: number
+  chapters: ChapterPreview[]
+  screenplayType: string
+}
+
+export interface ConvertEventItem {
+  type: 'started' | 'chapter_loaded' | 'scene_generated' | 'completed' | 'error'
+  message: string
+}
+
+export interface GeneratedSceneSummary {
+  chapterIndex: number
+  title: string
+  sceneId?: string
+  heading?: SceneHeading
+}
+
 export interface SceneHeading {
   interior: boolean
   location: string
