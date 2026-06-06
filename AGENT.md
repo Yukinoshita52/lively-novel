@@ -59,6 +59,7 @@
 - 设计结论以 `docs/` 下正式文档为准，草稿不作为事实来源。
 - 路径调整后，同步检查 `AGENT.md`、设计文档和代码注释中的引用。
 - 原型文件统一放在 `docs/prototype/`，不再占用仓库根目录。
+- `docs/superpowers/specs/` 下的 spec 文档统一使用中文编写。
 
 ## 5. Commit 规范
 
