@@ -2,6 +2,8 @@ package com.livelynovel.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.livelynovel.model.dto.ChapterSegmentDTO;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
 import com.livelynovel.model.dto.NovelChapterDetailDTO;
@@ -42,6 +44,11 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     private static final int MULTI_SCENE_SEGMENT_THRESHOLD = 6;
     private static final String CONVERT_FAILED_MESSAGE = "转换未完成，请调整文本后重试。";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(
+            YAMLFactory.builder()
+                    .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                    .build()
+    );
 
     private final NovelService novelService;
     private final LlmService llmService;
@@ -238,6 +245,34 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         return conversionRepository.findById(conversionId)
                 .map(this::toConversionDetail)
                 .orElse(null);
+    }
+
+    @Override
+    public String exportConversionYaml(String conversionId) {
+        ScreenplayConversionDetailDTO detail = getConversionDetail(conversionId);
+        if (detail == null) {
+            return null;
+        }
+
+        Map<String, Object> screenplay = new LinkedHashMap<>();
+        screenplay.put("schemaVersion", "1.0");
+        screenplay.put("title", "");
+        screenplay.put("screenplayType", detail.getScreenplayType());
+        screenplay.put("plotSummary", "");
+        screenplay.put("characters", List.of());
+        screenplay.put("scenes", detail.getScenes().stream()
+                .map(ScreenplayPersistedSceneDTO::getScene)
+                .toList());
+        screenplay.put("storylines", List.of());
+        return toYaml(screenplay);
+    }
+
+    private String toYaml(Map<String, Object> screenplay) {
+        try {
+            return YAML_MAPPER.writeValueAsString(screenplay);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("剧本 YAML 导出失败", e);
+        }
     }
 
     private ScreenplayConversionDetailDTO toConversionDetail(ScreenplayConversionEntity conversion) {

@@ -59,6 +59,20 @@ public class ScreenplayController {
         return Result.ok(detail);
     }
 
+    @Operation(summary = "导出整本转换 YAML", description = "根据 conversionId 导出符合 YAML Schema 的剧本初稿")
+    @GetMapping(value = "/conversions/{conversionId}/yaml", produces = "text/yaml;charset=UTF-8")
+    public ResponseEntity<String> exportConversionYaml(@PathVariable String conversionId) {
+        String yaml = screenplayService.exportConversionYaml(conversionId);
+        if (yaml == null) {
+            return ResponseEntity.status(404)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body("转换任务不存在");
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/yaml;charset=UTF-8"))
+                .body(yaml);
+    }
+
     /**
      * 单场转换（最小转换切片）。
      * 输入一段文本 → LLM → 返回结构化 SceneDTO。
