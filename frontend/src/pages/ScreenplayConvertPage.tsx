@@ -4,6 +4,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons'
 import type {
   ConvertEventItem,
   GeneratedSceneSummary,
+  SceneResult,
   SceneHeading,
   ScreenplayConvertContext,
 } from '../types/novel'
@@ -53,10 +54,24 @@ function delimiterLengthAt(buffer: string, index: number) {
   return buffer.startsWith('\r\n\r\n', index) ? 4 : 2
 }
 
+function toSceneResult(value: unknown): SceneResult | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const candidate = value as SceneResult
+  if (typeof candidate.sceneId !== 'string') {
+    return undefined
+  }
+
+  return candidate
+}
+
 function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) {
   const [connecting, setConnecting] = useState(true)
   const [events, setEvents] = useState<ConvertEventItem[]>([])
   const [generatedScenes, setGeneratedScenes] = useState<GeneratedSceneSummary[]>([])
+  const [chapterSceneCounts, setChapterSceneCounts] = useState<Record<number, number>>({})
   const [completed, setCompleted] = useState(false)
   const [convertError, setConvertError] = useState<string | null>(null)
 
@@ -98,18 +113,49 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
         return
       }
 
-      if (eventName === 'scene_generated') {
+      if (eventName === 'chapter_split') {
+        const chapterIndex =
+          typeof payload.chapterIndex === 'number'
+            ? payload.chapterIndex
+            : Number(payload.chapterIndex ?? 0)
+        const sceneCount =
+          typeof payload.sceneCount === 'number' ? payload.sceneCount : Number(payload.sceneCount ?? 0)
+
+        if (chapterIndex > 0 && sceneCount > 0) {
+          setChapterSceneCounts((current) => ({
+            ...current,
+            [chapterIndex]: sceneCount,
+          }))
+        }
+
         pushEvent(
-          'scene_generated',
-          `已生成第 ${payload.chapterIndex ?? '?'} 章场景：${String(payload.title ?? '未命名章节')}`,
+          'chapter_split',
+          `第 ${payload.chapterIndex ?? '?'} 章已切分为 ${payload.sceneCount ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
+        )
+        return
+      }
+
+      if (eventName === 'scene_completed') {
+        const sceneIndexInChapter =
+          typeof payload.sceneIndexInChapter === 'number'
+            ? payload.sceneIndexInChapter
+            : Number(payload.sceneIndexInChapter ?? 0) || undefined
+        const scene = toSceneResult(payload.scene)
+        if (!scene) {
+          return
+        }
+
+        pushEvent(
+          'scene_completed',
+          `已生成第 ${payload.chapterIndex ?? '?'} 章第 ${sceneIndexInChapter ?? '?'} 场：${String(payload.title ?? '未命名章节')}`,
         )
         setGeneratedScenes((current) => [
           ...current,
           {
             chapterIndex: Number(payload.chapterIndex ?? 0),
+            sceneIndexInChapter,
             title: String(payload.title ?? '未命名章节'),
-            sceneId: typeof payload.sceneId === 'string' ? payload.sceneId : undefined,
-            heading: payload.heading as SceneHeading | undefined,
+            scene,
           },
         ])
         return
@@ -183,13 +229,17 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
     }
   }, [context.novelId, context.screenplayType, context.totalChapters])
 
-  const finishedCount = generatedScenes.length
+  const finishedSceneCount = generatedScenes.length
+  const totalSceneCount = useMemo(
+    () => Object.values(chapterSceneCounts).reduce((sum, count) => sum + count, 0),
+    [chapterSceneCounts],
+  )
   const progressPercent = useMemo(() => {
-    if (context.totalChapters <= 0) {
+    if (totalSceneCount <= 0) {
       return 0
     }
-    return Math.min(100, Math.round((finishedCount / context.totalChapters) * 100))
-  }, [context.totalChapters, finishedCount])
+    return Math.min(100, Math.round((finishedSceneCount / totalSceneCount) * 100))
+  }, [finishedSceneCount, totalSceneCount])
 
   return (
     <div className="convert-shell">
@@ -215,7 +265,9 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
           <div className="progress-summary">
             <div className="progress-status">
               <Title level={4}>{completed ? '已完成' : connecting ? '连接中' : '转换中'}</Title>
-              <Text className="progress-ratio">{finishedCount} / {context.totalChapters} 章</Text>
+              <Text className="progress-ratio">
+                {finishedSceneCount} / {totalSceneCount || '?'} 场
+              </Text>
             </div>
             <Progress percent={progressPercent} strokeColor="#9c4b2e" />
             <Text>{context.chapters.length} 章已进入待转换列表</Text>
@@ -271,11 +323,14 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
               </div>
             ) : (
               generatedScenes.map((scene) => (
-                <div className="scene-summary-row" key={`${scene.chapterIndex}-${scene.sceneId ?? scene.title}`}>
+                <div className="scene-summary-row" key={`${scene.chapterIndex}-${scene.scene.sceneId ?? scene.title}`}>
                   <Text className="chapter-index">CH {scene.chapterIndex}</Text>
+                  {scene.sceneIndexInChapter ? (
+                    <Text className="scene-summary-meta">第 {scene.sceneIndexInChapter} 场</Text>
+                  ) : null}
                   <Title level={5}>{scene.title}</Title>
-                  <Text className="scene-summary-heading">{buildHeadingText(scene.heading)}</Text>
-                  {scene.sceneId ? <Tag bordered={false}>{scene.sceneId}</Tag> : null}
+                  <Text className="scene-summary-heading">{buildHeadingText(scene.scene.heading)}</Text>
+                  {scene.scene.sceneId ? <Tag bordered={false}>{scene.scene.sceneId}</Tag> : null}
                 </div>
               ))
             )}

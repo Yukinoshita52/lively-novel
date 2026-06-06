@@ -78,15 +78,15 @@ export interface ScreenplayConvertContext {
 }
 
 export interface ConvertEventItem {
-  type: 'started' | 'chapter_loaded' | 'scene_generated' | 'completed' | 'error'
+  type: 'started' | 'chapter_loaded' | 'chapter_split' | 'scene_completed' | 'completed' | 'error'
   message: string
 }
 
 export interface GeneratedSceneSummary {
   chapterIndex: number
+  sceneIndexInChapter?: number
   title: string
-  sceneId?: string
-  heading?: SceneHeading
+  scene: SceneResult
 }
 
 export interface SceneHeading {
