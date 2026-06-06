@@ -1,14 +1,23 @@
 import { useState } from 'react'
 import ImportPage from './pages/ImportPage'
 import ScreenplayConvertPage from './pages/ScreenplayConvertPage'
+import ScreenplayPreviewPage from './pages/ScreenplayPreviewPage'
 import SingleSceneConvertPage from './pages/SingleSceneConvertPage'
+import type { AppPageKey } from './pages/appNavigation'
+import { useScreenplayConversionSession } from './pages/conversionSession'
 import type { ImportFlowContext, ScreenplayConvertContext } from './types/novel'
 import './App.css'
 
 function App() {
-  const [page, setPage] = useState<'import' | 'single-scene' | 'convert'>('import')
+  const [page, setPage] = useState<AppPageKey>('import')
   const [singleSceneContext, setSingleSceneContext] = useState<ImportFlowContext | null>(null)
   const [convertContext, setConvertContext] = useState<ScreenplayConvertContext | null>(null)
+  const conversionSession = useScreenplayConversionSession(convertContext)
+
+  function backToImport() {
+    setPage('import')
+    setConvertContext(null)
+  }
 
   if (page === 'single-scene' && singleSceneContext) {
     return (
@@ -19,11 +28,21 @@ function App() {
     )
   }
 
-  if (page === 'convert' && convertContext) {
+  if (page === 'convert' && conversionSession) {
     return (
       <ScreenplayConvertPage
-        context={convertContext}
-        onBack={() => setPage('import')}
+        session={conversionSession}
+        onBack={backToImport}
+        onPreview={() => setPage('preview')}
+      />
+    )
+  }
+
+  if (page === 'preview' && conversionSession) {
+    return (
+      <ScreenplayPreviewPage
+        session={conversionSession}
+        onBackToConvert={() => setPage('convert')}
       />
     )
   }
