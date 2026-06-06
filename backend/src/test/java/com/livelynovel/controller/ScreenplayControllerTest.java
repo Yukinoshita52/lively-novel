@@ -69,4 +69,26 @@ class ScreenplayControllerTest {
         assertThat(response.getCode()).isEqualTo(40401);
         assertThat(response.getData()).isNull();
     }
+
+    @Test
+    void exportsConversionYaml() {
+        when(screenplayService.exportConversionYaml("cv-1234abcd"))
+                .thenReturn("schemaVersion: \"1.0\"\nscenes: []\n");
+
+        ResponseEntity<String> response = controller.exportConversionYaml("cv-1234abcd");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getHeaders().getContentType().toString()).contains("text/yaml");
+        assertThat(response.getBody()).contains("schemaVersion");
+    }
+
+    @Test
+    void returnsNotFoundWhenExportConversionMissing() {
+        when(screenplayService.exportConversionYaml("cv-missing")).thenReturn(null);
+
+        ResponseEntity<String> response = controller.exportConversionYaml("cv-missing");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+        assertThat(response.getBody()).contains("转换任务不存在");
+    }
 }
