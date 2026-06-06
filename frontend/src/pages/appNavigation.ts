@@ -1,11 +1,12 @@
 import type { ImportFlowContext, ScreenplayConvertContext } from '../types/novel'
 
-export type AppPageKey = 'import' | 'single-scene' | 'convert' | 'preview'
+export type AppPageKey = 'import' | 'single-scene' | 'convert' | 'preview' | 'polish' | 'export'
 
 export interface AppFlowState {
   page: AppPageKey
   singleSceneContext: ImportFlowContext | null
   convertContext: ScreenplayConvertContext | null
+  selectedSceneKey?: string
 }
 
 export function createInitialAppFlowState(): AppFlowState {
@@ -35,5 +36,35 @@ export function returnToConvertPage(state: AppFlowState): AppFlowState {
   return {
     ...state,
     page: 'convert',
+  }
+}
+
+export function enterPolishPage(state: AppFlowState, selectedSceneKey: string): AppFlowState {
+  return {
+    ...state,
+    page: 'polish',
+    selectedSceneKey,
+  }
+}
+
+export function selectPolishScene(state: AppFlowState, selectedSceneKey: string): AppFlowState {
+  return {
+    ...state,
+    page: 'polish',
+    selectedSceneKey,
+  }
+}
+
+export function returnToPreviewPage(state: AppFlowState): AppFlowState {
+  return {
+    ...state,
+    page: 'preview',
+  }
+}
+
+export function enterExportPage(state: AppFlowState): AppFlowState {
+  return {
+    ...state,
+    page: 'export',
   }
 }

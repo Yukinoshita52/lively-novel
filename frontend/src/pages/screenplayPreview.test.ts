@@ -6,6 +6,8 @@ import {
   buildSceneOutlineItems,
   buildSceneTableRows,
   buildThoughtAuditRows,
+  buildPreviewActions,
+  resolveAdjacentSceneKeys,
   mapPersistedScenesToGeneratedScenes,
   getSourcePreview,
   resolveConvertEventUpdate,
@@ -78,6 +80,12 @@ assert(
 )
 assert(resolveSelectedScene(scenes, undefined)?.scene.sceneId === 's2', '未选择时应默认显示最新生成场景')
 assert(resolveSelectedScene(scenes, '1-1')?.scene.sceneId === 's1', '应按稳定场景 key 选中指定场景')
+const adjacentFromFirst = resolveAdjacentSceneKeys(scenes, '1-1')
+assert(!adjacentFromFirst.previousKey, '第一个场景不应有上一场景')
+assert(adjacentFromFirst.nextKey === '1-2', '第一个场景的下一场景应指向第二个场景')
+const adjacentFromSecond = resolveAdjacentSceneKeys(scenes, '1-2')
+assert(adjacentFromSecond.previousKey === '1-1', '第二个场景的上一场景应指向第一个场景')
+assert(!adjacentFromSecond.nextKey, '最后一个场景不应有下一场景')
 assert(
   resolveSelectedScene([...scenes, { ...scenes[0], sceneIndexInChapter: 3, title: '第三场' }], '1-1')?.scene.sceneId ===
     's1',
@@ -89,6 +97,9 @@ assert(buildYamlDownloadFileName(' 她比烟花寂寞 ') === '她比烟花寂寞
 assert(buildYamlDownloadFileName('') === 'screenplay.yaml', '标题为空时应使用默认 YAML 文件名')
 assert(buildPreviewTabs('script')[0].active, '预览页默认应高亮剧本 tab')
 assert(buildPreviewTabs('scene-table')[1].label === '场景表', '预览页应提供场景表 tab')
+const previewActions = buildPreviewActions(true)
+assert(previewActions.primary.label === '打磨本场', '预览页主动作应进入单场打磨')
+assert(!previewActions.secondary.some((action) => action.label.includes('导出')), '预览页不应提供导出 YAML 动作')
 assert(buildSceneTableRows(scenes)[0].sceneNumber === 'S1', '场景表应沿用场景大纲排序编号')
 assert(buildSceneTableRows(scenes)[0].interiorText === '内景', '场景表应展示内景/外景')
 assert(buildSceneTableRows(scenes)[0].location === '教室', '场景表应展示地点')

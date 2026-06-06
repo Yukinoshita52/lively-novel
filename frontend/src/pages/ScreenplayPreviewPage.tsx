@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Card, Spin, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined, DownloadOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from './conversionSession'
 import type { GeneratedSceneSummary, ScreenplayConversionDetail } from '../types/novel'
-import { getScreenplayConversionDetail, getScreenplayConversionYaml } from '../services/novel'
+import { getScreenplayConversionDetail } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
 import {
+  buildPreviewActions,
   buildPreviewTabs,
   buildSceneOutlineItems,
   buildSceneTableRows,
   buildThoughtAuditRows,
-  buildYamlDownloadFileName,
   getSceneKey,
   getSourcePreview,
   mapPersistedScenesToGeneratedScenes,
@@ -23,16 +23,15 @@ const { Text, Title } = Typography
 type ScreenplayPreviewPageProps = {
   session: ConversionSessionState
   onBackToConvert: () => void
+  onPolishScene: (sceneKey: string) => void
 }
 
-function ScreenplayPreviewPage({ session, onBackToConvert }: ScreenplayPreviewPageProps) {
+function ScreenplayPreviewPage({ session, onBackToConvert, onPolishScene }: ScreenplayPreviewPageProps) {
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const [sourceExpanded, setSourceExpanded] = useState(false)
   const [activePreviewTab, setActivePreviewTab] = useState<PreviewTabKey>('script')
   const [conversionDetail, setConversionDetail] = useState<ScreenplayConversionDetail | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
-  const [downloadingYaml, setDownloadingYaml] = useState(false)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session.conversionId || !session.completed) {
@@ -74,31 +73,7 @@ function ScreenplayPreviewPage({ session, onBackToConvert }: ScreenplayPreviewPa
     [generatedScenes, selectedSceneKey],
   )
   const loadingDetail = Boolean(session.completed && session.conversionId && !conversionDetail && !detailError)
-
-  async function handleDownloadYaml() {
-    if (!session.conversionId) {
-      return
-    }
-
-    setDownloadingYaml(true)
-    setDownloadError(null)
-
-    try {
-      const yamlBlob = await getScreenplayConversionYaml(session.conversionId)
-      const url = URL.createObjectURL(yamlBlob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = buildYamlDownloadFileName(session.context.title)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : '导出 YAML 失败')
-    } finally {
-      setDownloadingYaml(false)
-    }
-  }
+  const previewActions = buildPreviewActions(Boolean(selectedScene))
 
   return (
     <PrototypeFrame currentStep="preview" maxWidth={1280}>
@@ -126,9 +101,6 @@ function ScreenplayPreviewPage({ session, onBackToConvert }: ScreenplayPreviewPa
         ) : null}
         {detailError ? (
           <Alert className="feedback-block" message="预览详情读取失败" description={detailError} type="warning" showIcon />
-        ) : null}
-        {downloadError ? (
-          <Alert className="feedback-block" message="导出失败" description={downloadError} type="error" showIcon />
         ) : null}
 
         <div className="scene-preview-grid">
@@ -178,12 +150,15 @@ function ScreenplayPreviewPage({ session, onBackToConvert }: ScreenplayPreviewPa
                 ))}
                 <Button
                   className="preview-export-button"
-                  disabled={!session.completed || !session.conversionId}
-                  icon={<DownloadOutlined />}
-                  loading={downloadingYaml}
-                  onClick={handleDownloadYaml}
+                  disabled={!previewActions.primary.enabled || !selectedScene}
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    if (selectedScene) {
+                      onPolishScene(selectedScene.key)
+                    }
+                  }}
                 >
-                  导出 YAML
+                  {previewActions.primary.label}
                 </Button>
               </div>
 
