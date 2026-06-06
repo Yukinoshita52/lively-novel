@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Alert, Button, Card, Progress } from 'antd'
-import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from './conversionSession'
-import { resolvePreviewEntryState } from './conversionSession'
+import { resolvePreviewEntryState, resolveResumeEntryState } from './conversionSession'
 import { getScreenplayConversionYaml } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
 import { buildPipelinePhases, formatStreamEvent } from './prototypeFlow'
@@ -12,9 +12,10 @@ type ScreenplayConvertPageProps = {
   session: ConversionSessionState
   onBack: () => void
   onPreview: () => void
+  onResume: () => void
 }
 
-function ScreenplayConvertPage({ session, onBack, onPreview }: ScreenplayConvertPageProps) {
+function ScreenplayConvertPage({ session, onBack, onPreview, onResume }: ScreenplayConvertPageProps) {
   const [downloadingYaml, setDownloadingYaml] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
@@ -39,6 +40,7 @@ function ScreenplayConvertPage({ session, onBack, onPreview }: ScreenplayConvert
     [finishedSceneCount, session.completed, session.convertError, totalSceneCount],
   )
   const previewEntry = resolvePreviewEntryState(session)
+  const resumeEntry = resolveResumeEntryState(session)
 
   async function handleDownloadYaml() {
     if (!session.conversionId) {
@@ -112,6 +114,11 @@ function ScreenplayConvertPage({ session, onBack, onPreview }: ScreenplayConvert
             <Button disabled={!previewEntry.enabled} icon={<EyeOutlined />} onClick={onPreview} type="primary">
               {previewEntry.label}
             </Button>
+            {resumeEntry.enabled ? (
+              <Button icon={<ReloadOutlined />} onClick={onResume}>
+                {resumeEntry.label}
+              </Button>
+            ) : null}
             <Button
               disabled={!session.completed || !session.conversionId}
               icon={<DownloadOutlined />}
@@ -126,7 +133,7 @@ function ScreenplayConvertPage({ session, onBack, onPreview }: ScreenplayConvert
             <Alert
               className="feedback-block"
               message="转换失败"
-              description={session.convertError}
+              description={<span style={{ whiteSpace: 'pre-line' }}>{session.convertError}</span>}
               type="error"
               showIcon
             />

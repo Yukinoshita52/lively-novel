@@ -39,6 +39,14 @@ export function returnToConvertPage(state: AppFlowState): AppFlowState {
   }
 }
 
+export function resumeConvertPage(state: AppFlowState): AppFlowState {
+  return {
+    ...state,
+    page: 'convert',
+    convertContext: state.convertContext ? { ...state.convertContext } : state.convertContext,
+  }
+}
+
 export function enterPolishPage(state: AppFlowState, selectedSceneKey: string): AppFlowState {
   return {
     ...state,

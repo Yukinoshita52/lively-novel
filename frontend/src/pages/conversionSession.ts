@@ -23,6 +23,11 @@ export interface PreviewEntryState {
   label: string
 }
 
+export interface ResumeEntryState {
+  enabled: boolean
+  label: string
+}
+
 export function createInitialConversionSessionState(context: ScreenplayConvertContext): ConversionSessionState {
   return {
     context,
@@ -74,6 +79,13 @@ export function resolvePreviewEntryState(state: ConversionSessionState): Preview
   return {
     enabled,
     label: state.completed ? '进入预览' : '查看已生成预览',
+  }
+}
+
+export function resolveResumeEntryState(state: ConversionSessionState): ResumeEntryState {
+  return {
+    enabled: Boolean(state.convertError) && !state.running,
+    label: '继续转换',
   }
 }
 
