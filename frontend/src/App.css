@@ -137,10 +137,21 @@
   margin-bottom: 0;
 }
 
+.file-copy {
+  color: #7a6656;
+  display: block;
+  font-size: 0.88rem;
+  margin-top: 8px;
+}
+
 .button-group {
   display: flex;
   flex-shrink: 0;
   gap: 12px;
+}
+
+.file-input {
+  display: none;
 }
 
 .feedback-block {
@@ -181,7 +192,7 @@
 }
 
 .chapter-row {
-  align-items: center;
+  align-items: flex-start;
   background: rgba(255, 255, 255, 0.64);
   border: 1px solid rgba(120, 82, 49, 0.1);
   border-radius: 18px;
@@ -191,6 +202,10 @@
   padding: 16px 18px;
 }
 
+.chapter-copy {
+  min-width: 0;
+}
+
 .chapter-index {
   color: #8c3f21;
   display: block;
@@ -198,6 +213,14 @@
   font-size: 0.76rem;
   letter-spacing: 0.14em;
   margin-bottom: 4px;
+}
+
+.chapter-preview {
+  color: #7a6656;
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  margin-top: 8px;
 }
 
 .side-column {
@@ -250,13 +273,7 @@
   display: block;
   font-size: 1rem;
   font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.type-detail {
-  color: #7a6656;
-  display: block;
-  font-size: 0.88rem;
+  margin-bottom: 0;
 }
 
 .convert-button {
