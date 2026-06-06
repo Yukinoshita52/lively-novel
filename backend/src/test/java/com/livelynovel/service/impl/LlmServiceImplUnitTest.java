@@ -1,9 +1,9 @@
 package com.livelynovel.service.impl;
 
 import com.livelynovel.model.dto.ChapterSegmentDTO;
-import com.livelynovel.model.dto.DialogueBlockDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneHeadingDTO;
+import com.livelynovel.model.dto.ScriptBlockDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 import org.junit.jupiter.api.Test;
@@ -24,10 +24,34 @@ class LlmServiceImplUnitTest {
 
         String prompt = service.buildPrompt("片段原文", ScreenplayTypeEnum.ANIME);
 
-        assertThat(prompt).doesNotContain("sourceText 填入原文");
-        assertThat(prompt).doesNotContain("sourceChapter 设为 1");
-        assertThat(prompt).contains("不要输出 sourceText 字段");
-        assertThat(prompt).contains("不要输出 sourceChapter 字段");
+        assertThat(prompt).contains("scriptBlocks");
+        assertThat(prompt).contains("\"sceneId\": \"s1\"");
+        assertThat(prompt).contains("\"type\": \"ACTION\"");
+        assertThat(prompt).contains("\"type\": \"DIALOGUE\"");
+        assertThat(prompt).contains("\"type\": \"TRANSITION\"");
+        assertThat(prompt).doesNotContain("actionLines");
+        assertThat(prompt).doesNotContain("dialogueBlocks");
+        assertThat(prompt).doesNotContain("visualizedInnerThoughts");
+        assertThat(prompt).doesNotContain("sourceText");
+        assertThat(prompt).doesNotContain("sourceChapter");
+    }
+
+    @Test
+    void llmSceneOutputFormatOnlyExposesNativeScriptBlocksFields() {
+        String format = LlmServiceImpl.llmSceneOutputFormat();
+
+        assertThat(format).contains("sceneId");
+        assertThat(format).contains("heading");
+        assertThat(format).contains("scriptBlocks");
+        assertThat(format).contains("character");
+        assertThat(format).contains("parenthetical");
+        assertThat(format).contains("line");
+        assertThat(format).doesNotContain("actionLines");
+        assertThat(format).doesNotContain("dialogueBlocks");
+        assertThat(format).doesNotContain("transitions");
+        assertThat(format).doesNotContain("visualizedInnerThoughts");
+        assertThat(format).doesNotContain("sourceChapter");
+        assertThat(format).doesNotContain("sourceText");
     }
 
     @Test
@@ -51,8 +75,10 @@ class LlmServiceImplUnitTest {
     void rejectSceneWhenGeneratedTextContainsJapaneseKana() {
         SceneDTO scene = new SceneDTO();
         scene.setHeading(new SceneHeadingDTO(true, "教室", "放課後"));
-        scene.setActionLines(List.of("林秋把书包放在桌上。"));
-        scene.setDialogueBlocks(List.of(new DialogueBlockDTO("林秋", null, "もう大丈夫。")));
+        scene.setScriptBlocks(List.of(
+                ScriptBlockDTO.action("林秋把书包放在桌上。"),
+                ScriptBlockDTO.dialogue("林秋", null, "もう大丈夫。")
+        ));
 
         assertThatThrownBy(() -> LlmServiceImpl.validateSceneLanguage(scene))
                 .isInstanceOf(IllegalStateException.class)
@@ -63,9 +89,11 @@ class LlmServiceImplUnitTest {
     void acceptsSceneWhenGeneratedTextIsChinese() {
         SceneDTO scene = new SceneDTO();
         scene.setHeading(new SceneHeadingDTO(true, "教室", "放学后"));
-        scene.setActionLines(List.of("林秋把书包放在桌上。"));
-        scene.setDialogueBlocks(List.of(new DialogueBlockDTO("林秋", null, "我已经没事了。")));
-        scene.setTransitions(List.of("切至：走廊"));
+        scene.setScriptBlocks(List.of(
+                ScriptBlockDTO.action("林秋把书包放在桌上。"),
+                ScriptBlockDTO.dialogue("林秋", null, "我已经没事了。"),
+                ScriptBlockDTO.transition("切至：走廊")
+        ));
         scene.setSourceText("原文里即使出现かな也不参与生成文本语言检测。");
 
         LlmServiceImpl.validateSceneLanguage(scene);
