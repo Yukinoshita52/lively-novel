@@ -2,6 +2,7 @@ package com.livelynovel.controller;
 
 import com.livelynovel.common.Result;
 import com.livelynovel.model.dto.ChapterDTO;
+import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.NovelParseRequestDTO;
 import com.livelynovel.model.dto.NovelParseResultDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
@@ -10,6 +11,8 @@ import com.livelynovel.service.NovelService;
 import com.livelynovel.common.exception.NovelValidationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -87,6 +90,19 @@ public class NovelController {
         } catch (NovelValidationException e) {
             return Result.fail(e.getCode(), e.getMessage());
         }
+    }
+
+    /**
+     * 回读已存小说的章节列表与 preview。
+     */
+    @Operation(summary = "获取已存小说章节", description = "根据 novelId 返回章节列表与预览")
+    @GetMapping("/{id}/chapters")
+    public Result<NovelChaptersResultDTO> getChapters(@PathVariable("id") String novelId) {
+        NovelChaptersResultDTO result = novelService.getChapters(novelId);
+        if (result == null) {
+            return Result.fail(40401, "小说不存在");
+        }
+        return Result.ok(result);
     }
 
     /** 组装响应体；正文不回传（仅保留章节元信息）。 */

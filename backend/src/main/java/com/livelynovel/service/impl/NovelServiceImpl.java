@@ -2,6 +2,8 @@ package com.livelynovel.service.impl;
 
 import com.livelynovel.model.entity.NovelEntity;
 import com.livelynovel.model.dto.ChapterDTO;
+import com.livelynovel.model.dto.ChapterPreviewDTO;
+import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
 import com.livelynovel.repository.NovelRepository;
 import com.livelynovel.service.ChapterSplitter;
@@ -26,6 +28,8 @@ public class NovelServiceImpl implements NovelService {
 
     private static final int MAX_WORD_COUNT = 200_000;
     private static final int MIN_CHAPTERS = 3;
+    private static final int PREVIEW_LIMIT = 24;
+
     private final NovelRepository novelRepository;
     private final ChapterSplitter chapterSplitter;
 
@@ -70,6 +74,26 @@ public class NovelServiceImpl implements NovelService {
         return result;
     }
 
+    @Override
+    public NovelChaptersResultDTO getChapters(String novelId) {
+        NovelEntity novel = novelRepository.findById(novelId).orElse(null);
+        if (novel == null) {
+            return null;
+        }
+
+        List<ChapterPreviewDTO> chapterPreviews = chapterSplitter.split(novel.getRawContent()).stream()
+                .map(this::toPreview)
+                .toList();
+
+        NovelChaptersResultDTO result = new NovelChaptersResultDTO();
+        result.setNovelId(novel.getId());
+        result.setTitle(novel.getTitle());
+        result.setTotalChapters(novel.getTotalChapters());
+        result.setTotalWordCount(novel.getTotalWordCount());
+        result.setChapters(chapterPreviews);
+        return result;
+    }
+
     private void validateTxtFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new NovelValidationException(40001, "文件不能为空");
@@ -111,6 +135,23 @@ public class NovelServiceImpl implements NovelService {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 不可用", e);
         }
+    }
+
+    private ChapterPreviewDTO toPreview(ChapterDTO chapter) {
+        ChapterPreviewDTO preview = new ChapterPreviewDTO();
+        preview.setChapterIndex(chapter.getChapterIndex());
+        preview.setTitle(chapter.getTitle());
+        preview.setWordCount(chapter.getWordCount());
+        preview.setPreview(buildPreview(chapter.getContent()));
+        return preview;
+    }
+
+    private String buildPreview(String content) {
+        String normalized = content == null ? "" : content.replaceAll("\\s+", " ").strip();
+        if (normalized.length() <= PREVIEW_LIMIT) {
+            return normalized;
+        }
+        return normalized.substring(0, PREVIEW_LIMIT) + "……";
     }
 
     private int countWords(String text) {
