@@ -40,3 +40,16 @@ export interface NovelChaptersResult {
   totalWordCount: number
   chapters: ChapterPreview[]
 }
+
+export interface NovelListItem {
+  novelId: string
+  title: string
+  totalChapters: number
+  totalWordCount: number
+  createdAt: string | null
+}
+
+export interface NovelListResult {
+  novels: NovelListItem[]
+  total: number
+}

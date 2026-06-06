@@ -1,6 +1,7 @@
 import type {
   ApiResponse,
   NovelChaptersResult,
+  NovelListResult,
   NovelParseResult,
   NovelUploadResult,
 } from '../types/novel'
@@ -46,4 +47,9 @@ export async function uploadNovel(title: string, file: File) {
 export async function getNovelChapters(novelId: string) {
   const response = await fetch(`/api/novel/${novelId}/chapters`)
   return unwrapResponse<NovelChaptersResult>(response)
+}
+
+export async function getNovelList() {
+  const response = await fetch('/api/novel')
+  return unwrapResponse<NovelListResult>(response)
 }

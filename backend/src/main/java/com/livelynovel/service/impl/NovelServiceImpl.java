@@ -4,6 +4,8 @@ import com.livelynovel.model.entity.NovelEntity;
 import com.livelynovel.model.dto.ChapterDTO;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
+import com.livelynovel.model.dto.NovelListItemDTO;
+import com.livelynovel.model.dto.NovelListResultDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
 import com.livelynovel.repository.NovelRepository;
 import com.livelynovel.service.ChapterSplitter;
@@ -94,6 +96,19 @@ public class NovelServiceImpl implements NovelService {
         return result;
     }
 
+    @Override
+    public NovelListResultDTO listNovels() {
+        List<NovelListItemDTO> novels = novelRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(NovelEntity::getCreatedAt).reversed())
+                .map(this::toListItem)
+                .toList();
+
+        NovelListResultDTO result = new NovelListResultDTO();
+        result.setNovels(novels);
+        result.setTotal(novels.size());
+        return result;
+    }
+
     private void validateTxtFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new NovelValidationException(40001, "文件不能为空");
@@ -144,6 +159,16 @@ public class NovelServiceImpl implements NovelService {
         preview.setWordCount(chapter.getWordCount());
         preview.setPreview(buildPreview(chapter.getContent()));
         return preview;
+    }
+
+    private NovelListItemDTO toListItem(NovelEntity novel) {
+        NovelListItemDTO item = new NovelListItemDTO();
+        item.setNovelId(novel.getId());
+        item.setTitle(novel.getTitle());
+        item.setTotalChapters(novel.getTotalChapters());
+        item.setTotalWordCount(novel.getTotalWordCount());
+        item.setCreatedAt(novel.getCreatedAt() == null ? null : novel.getCreatedAt().toString());
+        return item;
     }
 
     private String buildPreview(String content) {

@@ -91,6 +91,57 @@
   margin-bottom: 20px;
 }
 
+.history-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.history-card.ant-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(241, 230, 213, 0.88));
+  border-radius: 22px;
+  margin-bottom: 20px;
+}
+
+.history-card .ant-card-body {
+  padding: 20px 22px;
+}
+
+.history-list {
+  display: grid;
+  gap: 12px;
+}
+
+.history-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(120, 82, 49, 0.1);
+  border-radius: 18px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.history-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.history-copy h5.ant-typography {
+  margin: 0;
+}
+
+.history-copy .ant-typography {
+  color: #7a6656;
+}
+
+.history-empty {
+  color: #7a6656;
+  display: block;
+}
+
 .field-label {
   color: #6a5645;
   display: block;

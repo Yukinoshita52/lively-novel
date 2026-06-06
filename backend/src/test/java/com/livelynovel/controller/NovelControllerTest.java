@@ -3,6 +3,8 @@ package com.livelynovel.controller;
 import com.livelynovel.common.Result;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
+import com.livelynovel.model.dto.NovelListItemDTO;
+import com.livelynovel.model.dto.NovelListResultDTO;
 import com.livelynovel.model.dto.NovelParseRequestDTO;
 import com.livelynovel.model.dto.NovelParseResultDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
@@ -166,5 +168,43 @@ class NovelControllerTest {
         Result<NovelChaptersResultDTO> result = controller.getChapters("nv-missing");
 
         assertThat(result.getCode()).isEqualTo(40401);
+    }
+
+    @Test
+    void returnsStoredNovelList() {
+        NovelListItemDTO item = new NovelListItemDTO();
+        item.setNovelId("nv-1234abcd");
+        item.setTitle("已存小说");
+        item.setTotalChapters(3);
+        item.setTotalWordCount(12);
+        item.setCreatedAt("2026-06-06T08:00:00Z");
+
+        NovelListResultDTO resultData = new NovelListResultDTO();
+        resultData.setNovels(java.util.List.of(item));
+        resultData.setTotal(1);
+
+        when(novelService.listNovels()).thenReturn(resultData);
+
+        Result<NovelListResultDTO> result = controller.listNovels();
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData().getTotal()).isEqualTo(1);
+        assertThat(result.getData().getNovels()).hasSize(1);
+        assertThat(result.getData().getNovels().get(0).getTitle()).isEqualTo("已存小说");
+    }
+
+    @Test
+    void returnsEmptyNovelList() {
+        NovelListResultDTO resultData = new NovelListResultDTO();
+        resultData.setNovels(java.util.List.of());
+        resultData.setTotal(0);
+
+        when(novelService.listNovels()).thenReturn(resultData);
+
+        Result<NovelListResultDTO> result = controller.listNovels();
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData().getTotal()).isEqualTo(0);
+        assertThat(result.getData().getNovels()).isEmpty();
     }
 }
