@@ -19,12 +19,15 @@ import com.livelynovel.model.entity.ScreenplaySceneEntity;
 import com.livelynovel.model.entity.ScreenplaySceneUnitEntity;
 import com.livelynovel.service.ChapterSegmentationService;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.common.exception.SceneLanguageDriftException;
 import com.livelynovel.repository.ScreenplayConversionRepository;
 import com.livelynovel.repository.ScreenplaySceneRepository;
 import com.livelynovel.repository.ScreenplaySceneUnitRepository;
 import com.livelynovel.service.LlmService;
 import com.livelynovel.service.NovelService;
 import com.livelynovel.service.ScreenplayService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -42,9 +45,12 @@ import java.util.UUID;
 @Service
 public class ScreenplayServiceImpl implements ScreenplayService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ScreenplayServiceImpl.class);
     private static final int MAX_SCENE_SPLIT_ATTEMPTS = 2;
+    private static final int MAX_SCENE_CONVERT_ATTEMPTS = 3;
     private static final int MULTI_SCENE_SEGMENT_THRESHOLD = 6;
-    private static final String CONVERT_FAILED_MESSAGE = "转换未完成，请调整文本后重试。";
+    private static final String CONVERT_FAILED_MESSAGE = "转换中断，可继续转换；系统会跳过已完成部分。";
+    private static final String LANGUAGE_DRIFT_ACCEPTED_MESSAGE = "该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final ObjectMapper YAML_MAPPER = new ObjectMapper(
             YAMLFactory.builder()
@@ -226,7 +232,14 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                         continue;
                     }
 
-                    SceneDTO scene = llmService.convertSingleScene(sceneText, screenplayType);
+                    SceneConversionResult sceneResult = convertSingleSceneWithRetry(
+                            sceneText,
+                            screenplayType,
+                            conversion.getId(),
+                            chapterIndex,
+                            sceneUnit
+                    );
+                    SceneDTO scene = sceneResult.scene();
                     scene.setSourceChapter(chapterIndex);
                     scene.setSourceText(sceneText);
                     persistGeneratedScene(conversion.getId(), chapterIndex, sceneUnit, scene);
@@ -237,7 +250,8 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                             sceneUnit,
                             scene,
                             sceneUnits.size(),
-                            false
+                            false,
+                            sceneResult.warningMessage()
                     );
                 }
             }
@@ -252,6 +266,13 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             ));
             emitter.complete();
         } catch (Exception e) {
+            LOGGER.error(
+                    "Screenplay conversion failed: conversionId={}, novelId={}, screenplayType={}",
+                    conversion.getId(),
+                    novelId,
+                    screenplayType,
+                    e
+            );
             markConversionFailed(conversion, e.getMessage());
             completeWithFailedEvent(emitter, conversion.getId(), e.getMessage());
         }
@@ -265,6 +286,54 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         conversion.setStatus("RUNNING");
         return conversionRepository.save(conversion);
     }
+
+    private SceneConversionResult convertSingleSceneWithRetry(
+            String sceneText,
+            ScreenplayTypeEnum screenplayType,
+            String conversionId,
+            int chapterIndex,
+            SceneUnitDTO sceneUnit
+    ) {
+        SceneLanguageDriftException lastError = null;
+        SceneDTO lastScene = null;
+        for (int attempt = 1; attempt <= MAX_SCENE_CONVERT_ATTEMPTS; attempt++) {
+            try {
+                return new SceneConversionResult(llmService.convertSingleScene(sceneText, screenplayType), null);
+            } catch (SceneLanguageDriftException e) {
+                lastError = e;
+                if (e.getScene() != null) {
+                    lastScene = e.getScene();
+                }
+                LOGGER.warn(
+                        "Scene language drift detected: conversionId={}, chapterIndex={}, sceneIndexInChapter={}, title={}, attempt={}/{}, fieldPath={}, textPreview={}",
+                        conversionId,
+                        chapterIndex,
+                        sceneUnit.getSceneIndexInChapter(),
+                        sceneUnit.getTitle(),
+                        attempt,
+                        MAX_SCENE_CONVERT_ATTEMPTS,
+                        e.getFieldPath(),
+                        e.getTextPreview()
+                );
+            }
+        }
+        if (lastScene != null) {
+            LOGGER.warn(
+                    "Accepting scene with language drift after retries: conversionId={}, chapterIndex={}, sceneIndexInChapter={}, title={}, attempts={}, fieldPath={}, textPreview={}",
+                    conversionId,
+                    chapterIndex,
+                    sceneUnit.getSceneIndexInChapter(),
+                    sceneUnit.getTitle(),
+                    MAX_SCENE_CONVERT_ATTEMPTS,
+                    lastError.getFieldPath(),
+                    lastError.getTextPreview()
+            );
+            return new SceneConversionResult(lastScene, LANGUAGE_DRIFT_ACCEPTED_MESSAGE);
+        }
+        throw lastError;
+    }
+
+    private record SceneConversionResult(SceneDTO scene, String warningMessage) {}
 
     private void markConversionCompleted(ScreenplayConversionEntity conversion) {
         conversion.setStatus("COMPLETED");
@@ -343,6 +412,19 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             int sceneCount,
             boolean replayed
     ) throws IOException {
+        sendSceneCompletedEvent(emitter, conversionId, chapterIndex, sceneUnit, scene, sceneCount, replayed, null);
+    }
+
+    private void sendSceneCompletedEvent(
+            SseEmitter emitter,
+            String conversionId,
+            int chapterIndex,
+            SceneUnitDTO sceneUnit,
+            SceneDTO scene,
+            int sceneCount,
+            boolean replayed,
+            String warningMessage
+    ) throws IOException {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("conversionId", conversionId);
         payload.put("chapterIndex", chapterIndex);
@@ -353,6 +435,10 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         if (replayed) {
             payload.put("replayed", true);
             payload.put("message", "已载入历史场景");
+        }
+        if (!replayed && warningMessage != null && !warningMessage.isBlank()) {
+            payload.put("message", warningMessage);
+            payload.put("warning", true);
         }
         sendEvent(emitter, "scene_completed", payload);
     }

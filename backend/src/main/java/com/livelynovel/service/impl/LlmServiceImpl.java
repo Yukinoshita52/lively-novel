@@ -7,6 +7,7 @@ import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.ScriptBlockDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.common.exception.SceneLanguageDriftException;
 import com.livelynovel.service.ChapterSegmentationService;
 import com.livelynovel.service.LlmService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -53,7 +54,11 @@ public class LlmServiceImpl implements LlmService {
 
         SceneDTO scene = toSceneDTO(llmScene);
         SceneDTO resolvedScene = fillSceneSourceMetadata(scene, text, 1);
-        validateSceneLanguage(resolvedScene);
+        try {
+            validateSceneLanguage(resolvedScene);
+        } catch (SceneLanguageDriftException e) {
+            throw new SceneLanguageDriftException(e.getFieldPath(), e.getTextPreview(), resolvedScene);
+        }
         return resolvedScene;
     }
 
@@ -107,6 +112,7 @@ public class LlmServiceImpl implements LlmService {
                    转换后的内容必须落入 scriptBlocks。
                 5. "讲述"变"呈现"：如"她很绝望"→ 转为垂下眼帘、紧握双拳等可画面表现的动作。
                 6. 转场：在场景末尾以 TRANSITION 块标注切至/淡出等。
+                7. 所有场景标题、动作、对白、括号提示、转场正文都使用简体中文表达。
 
                 ## 输出要求
                 sceneId 使用 "s1" 格式。
@@ -179,51 +185,68 @@ public class LlmServiceImpl implements LlmService {
             return;
         }
 
-        List<String> generatedTexts = new ArrayList<>();
+        List<GeneratedTextField> generatedTexts = new ArrayList<>();
         if (scene.getHeading() != null) {
-            generatedTexts.add(scene.getHeading().getLocation());
-            generatedTexts.add(scene.getHeading().getTimeOfDay());
+            generatedTexts.add(new GeneratedTextField("heading.location", scene.getHeading().getLocation()));
+            generatedTexts.add(new GeneratedTextField("heading.timeOfDay", scene.getHeading().getTimeOfDay()));
         }
         if (scene.getScriptBlocks() != null) {
-            for (ScriptBlockDTO block : scene.getScriptBlocks()) {
+            for (int i = 0; i < scene.getScriptBlocks().size(); i++) {
+                ScriptBlockDTO block = scene.getScriptBlocks().get(i);
                 if (block == null) {
                     continue;
                 }
-                generatedTexts.add(block.getText());
-                generatedTexts.add(block.getCharacter());
-                generatedTexts.add(block.getParenthetical());
-                generatedTexts.add(block.getLine());
+                generatedTexts.add(new GeneratedTextField("scriptBlocks[" + i + "].text", block.getText()));
+                generatedTexts.add(new GeneratedTextField("scriptBlocks[" + i + "].character", block.getCharacter()));
+                generatedTexts.add(new GeneratedTextField("scriptBlocks[" + i + "].parenthetical", block.getParenthetical()));
+                generatedTexts.add(new GeneratedTextField("scriptBlocks[" + i + "].line", block.getLine()));
             }
         }
-        addAll(generatedTexts, scene.getActionLines());
+        addAll(generatedTexts, "actionLines", scene.getActionLines());
         if (scene.getDialogueBlocks() != null) {
-            for (DialogueBlockDTO dialogueBlock : scene.getDialogueBlocks()) {
+            for (int i = 0; i < scene.getDialogueBlocks().size(); i++) {
+                DialogueBlockDTO dialogueBlock = scene.getDialogueBlocks().get(i);
                 if (dialogueBlock == null) {
                     continue;
                 }
-                generatedTexts.add(dialogueBlock.getCharacter());
-                generatedTexts.add(dialogueBlock.getParenthetical());
-                generatedTexts.add(dialogueBlock.getLine());
+                generatedTexts.add(new GeneratedTextField("dialogueBlocks[" + i + "].character", dialogueBlock.getCharacter()));
+                generatedTexts.add(new GeneratedTextField("dialogueBlocks[" + i + "].parenthetical", dialogueBlock.getParenthetical()));
+                generatedTexts.add(new GeneratedTextField("dialogueBlocks[" + i + "].line", dialogueBlock.getLine()));
             }
         }
-        addAll(generatedTexts, scene.getTransitions());
+        addAll(generatedTexts, "transitions", scene.getTransitions());
 
-        for (String text : generatedTexts) {
-            if (containsJapaneseKana(text)) {
-                throw new IllegalStateException("单场剧本生成出现语言漂移");
+        for (GeneratedTextField field : generatedTexts) {
+            if (containsJapaneseKana(field.text())) {
+                throw new SceneLanguageDriftException(field.path(), previewText(field.text()));
             }
         }
     }
 
-    private static void addAll(List<String> target, List<String> values) {
+    private record GeneratedTextField(String path, String text) {}
+
+    private static void addAll(List<GeneratedTextField> target, String fieldName, List<String> values) {
         if (values == null) {
             return;
         }
-        target.addAll(values);
+        for (int i = 0; i < values.size(); i++) {
+            target.add(new GeneratedTextField(fieldName + "[" + i + "]", values.get(i)));
+        }
     }
 
     private static boolean containsJapaneseKana(String text) {
         return text != null && JAPANESE_KANA_PATTERN.matcher(text).find();
+    }
+
+    private static String previewText(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 80) {
+            return normalized;
+        }
+        return normalized.substring(0, 80) + "...";
     }
 
     static List<SceneUnitDTO> parseSplitChapterScenesResult(String responseText) {
