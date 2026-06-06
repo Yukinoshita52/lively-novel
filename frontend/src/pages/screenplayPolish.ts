@@ -2,6 +2,7 @@ import type { DialogueBlock, SceneResult } from '../types/novel'
 
 export interface PolishDraft {
   scene: SceneResult
+  savedScene: SceneResult
   actionLinesText: string
   dialogueText: string
   transitionsText: string
@@ -49,10 +50,15 @@ export function createPolishDraft(scene: SceneResult): PolishDraft {
 
   return {
     scene: clonedScene,
+    savedScene: cloneScene(scene),
     actionLinesText: clonedScene.actionLines.join('\n'),
     dialogueText: clonedScene.dialogueBlocks.map(serializeDialogue).join('\n'),
     transitionsText: clonedScene.transitions.join('\n'),
   }
+}
+
+export function resetPolishDraft(draft: PolishDraft): PolishDraft {
+  return createPolishDraft(draft.savedScene)
 }
 
 export function updateActionLinesText(draft: PolishDraft, actionLinesText: string): PolishDraft {

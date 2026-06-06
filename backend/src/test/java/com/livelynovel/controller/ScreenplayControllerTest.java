@@ -2,6 +2,7 @@ package com.livelynovel.controller;
 
 import com.livelynovel.controller.ScreenplayController;
 import com.livelynovel.common.Result;
+import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.dto.ScreenplayConvertRequestDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
@@ -117,5 +118,30 @@ class ScreenplayControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(404);
         assertThat(response.getBody()).contains("转换任务不存在");
+    }
+
+    @Test
+    void updatesPersistedScene() {
+        SceneDTO scene = new SceneDTO();
+        scene.setSceneId("s1");
+        scene.setSourceChapter(1);
+        scene.setSourceText("第一段原文。");
+        when(screenplayService.updatePersistedScene("cv-1234abcd", 1, 1, scene)).thenReturn(scene);
+
+        Result<SceneDTO> response = controller.updatePersistedScene("cv-1234abcd", 1, 1, scene);
+
+        assertThat(response.getCode()).isEqualTo(0);
+        assertThat(response.getData().getSceneId()).isEqualTo("s1");
+    }
+
+    @Test
+    void returnsNotFoundWhenUpdatingMissingScene() {
+        SceneDTO scene = new SceneDTO();
+        when(screenplayService.updatePersistedScene("cv-missing", 1, 1, scene)).thenReturn(null);
+
+        Result<SceneDTO> response = controller.updatePersistedScene("cv-missing", 1, 1, scene);
+
+        assertThat(response.getCode()).isEqualTo(40401);
+        assertThat(response.getData()).isNull();
     }
 }

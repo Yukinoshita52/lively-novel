@@ -7,6 +7,7 @@ import ScreenplayPreviewPage from './pages/ScreenplayPreviewPage'
 import SingleSceneConvertPage from './pages/SingleSceneConvertPage'
 import type { AppPageKey } from './pages/appNavigation'
 import { useScreenplayConversionSession } from './pages/conversionSession'
+import type { PolishDraft } from './pages/screenplayPolish'
 import type { ImportFlowContext, ScreenplayConvertContext } from './types/novel'
 import './App.css'
 
@@ -15,12 +16,21 @@ function App() {
   const [singleSceneContext, setSingleSceneContext] = useState<ImportFlowContext | null>(null)
   const [convertContext, setConvertContext] = useState<ScreenplayConvertContext | null>(null)
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
+  const [polishDraftsBySceneKey, setPolishDraftsBySceneKey] = useState<Record<string, PolishDraft>>({})
   const conversionSession = useScreenplayConversionSession(convertContext)
 
   function backToImport() {
     setPage('import')
     setConvertContext(null)
     setSelectedSceneKey(undefined)
+    setPolishDraftsBySceneKey({})
+  }
+
+  function updatePolishDraft(sceneKey: string, draft: PolishDraft) {
+    setPolishDraftsBySceneKey((current) => ({
+      ...current,
+      [sceneKey]: draft,
+    }))
   }
 
   if (page === 'single-scene' && singleSceneContext) {
@@ -60,6 +70,8 @@ function App() {
       <ScreenplayPolishPage
         session={conversionSession}
         selectedSceneKey={selectedSceneKey}
+        draftsBySceneKey={polishDraftsBySceneKey}
+        onUpdateDraft={updatePolishDraft}
         onSelectScene={setSelectedSceneKey}
         onBackToPreview={() => setPage('preview')}
         onExport={() => setPage('export')}

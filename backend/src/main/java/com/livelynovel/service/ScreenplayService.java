@@ -1,5 +1,6 @@
 package com.livelynovel.service;
 
+import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -14,6 +15,8 @@ public interface ScreenplayService {
     ScreenplayConversionDetailDTO getLatestCompletedConversion(String novelId, ScreenplayTypeEnum screenplayType);
 
     ScreenplayConversionDetailDTO getConversionDetail(String conversionId);
+
+    SceneDTO updatePersistedScene(String conversionId, int chapterIndex, int sceneIndexInChapter, SceneDTO scene);
 
     String exportConversionYaml(String conversionId);
 }

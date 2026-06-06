@@ -91,6 +91,31 @@ export async function getLatestCompletedConversion(novelId: string, screenplayTy
   return unwrapResponse<ScreenplayConversionDetail>(response)
 }
 
+export function buildScreenplaySceneUpdateUrl(
+  conversionId: string,
+  chapterIndex: number,
+  sceneIndexInChapter: number,
+) {
+  return `/api/screenplay/conversions/${encodeURIComponent(conversionId)}/chapters/${chapterIndex}/scenes/${sceneIndexInChapter}`
+}
+
+export async function updateScreenplayScene(
+  conversionId: string,
+  chapterIndex: number,
+  sceneIndexInChapter: number,
+  scene: SceneResult,
+) {
+  const response = await fetch(buildScreenplaySceneUpdateUrl(conversionId, chapterIndex, sceneIndexInChapter), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(scene),
+  })
+
+  return unwrapResponse<SceneResult>(response)
+}
+
 export function buildScreenplayYamlUrl(conversionId: string) {
   return `/api/screenplay/conversions/${encodeURIComponent(conversionId)}/yaml`
 }

@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,6 +59,26 @@ public class ScreenplayController {
             return Result.fail(40401, "转换任务不存在");
         }
         return Result.ok(detail);
+    }
+
+    @Operation(summary = "更新单场剧本", description = "保存打磨后的单场结构化剧本")
+    @PutMapping("/conversions/{conversionId}/chapters/{chapterIndex}/scenes/{sceneIndexInChapter}")
+    public Result<SceneDTO> updatePersistedScene(
+            @PathVariable String conversionId,
+            @PathVariable int chapterIndex,
+            @PathVariable int sceneIndexInChapter,
+            @RequestBody SceneDTO scene
+    ) {
+        SceneDTO updatedScene = screenplayService.updatePersistedScene(
+                conversionId,
+                chapterIndex,
+                sceneIndexInChapter,
+                scene
+        );
+        if (updatedScene == null) {
+            return Result.fail(40401, "场景不存在");
+        }
+        return Result.ok(updatedScene);
     }
 
     @Operation(summary = "获取最近完成转换", description = "根据 novelId 和 screenplayType 返回最近已完成的持久化转换")
