@@ -2,6 +2,7 @@ import {
   createInitialConversionSessionState,
   reduceConversionSessionEvent,
   resolvePreviewEntryState,
+  resolveResumeEntryState,
 } from './conversionSession.ts'
 import type { ScreenplayConvertContext, SceneResult } from '../types/novel.ts'
 
@@ -61,3 +62,24 @@ state = reduceConversionSessionEvent(state, 'completed', {
 assert(state.completed, 'completed 事件应标记转换完成')
 assert(!state.running, 'completed 后后台转换才结束')
 assert(resolvePreviewEntryState(state).label === '进入预览', '转换完成后应显示正式进入预览文案')
+
+let failedState = createInitialConversionSessionState(context)
+failedState = reduceConversionSessionEvent(failedState, 'started', {
+  conversionId: 'cv-resume',
+})
+failedState = reduceConversionSessionEvent(failedState, 'scene_completed', {
+  conversionId: 'cv-resume',
+  chapterIndex: 4,
+  sceneIndexInChapter: 10,
+  title: '结业式后的逃生楼梯',
+  scene,
+})
+failedState = reduceConversionSessionEvent(failedState, 'failed', {
+  conversionId: 'cv-resume',
+  message: '转换未完成，请继续转换。',
+  reason: '第 4 章第 11 场生成失败',
+})
+
+assert(resolveResumeEntryState(failedState).enabled, '失败且后台已停止时应允许继续转换')
+assert(resolveResumeEntryState(failedState).label === '继续转换', '继续入口文案应明确不是重新上传')
+assert(failedState.convertError?.includes('第 4 章第 11 场生成失败') === true, '失败原因应进入可见错误详情')

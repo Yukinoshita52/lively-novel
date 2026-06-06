@@ -143,6 +143,25 @@ const completedUpdate = resolveConvertEventUpdate(
 
 assert(completedUpdate?.conversionId === 'cv-1234abcd', 'completed 事件应保留 conversionId 供完成后下载')
 
+const warningSceneUpdate = resolveConvertEventUpdate(
+  'scene_completed',
+  {
+    conversionId: 'cv-1234abcd',
+    chapterIndex: 4,
+    sceneIndexInChapter: 11,
+    title: '后记',
+    message: '该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。',
+    scene: scenes[0].scene,
+  },
+  { totalChapters: 3 },
+)
+
+assert(
+  warningSceneUpdate?.event?.message ===
+    '已生成第 4 章第 11 场：后记\n该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。',
+  '带提示的 scene_completed 应展示生成场次并追加后端提示',
+)
+
 const replayedSplitUpdate = resolveConvertEventUpdate(
   'chapter_split',
   {
@@ -183,7 +202,7 @@ assert(
 const failedUpdate = resolveConvertEventUpdate(
   'failed',
   {
-    message: '转换未完成，请调整文本后重试。',
+    message: '转换中断，可继续转换；系统会跳过已完成部分。',
     reason: '章节切场退化为整章单场',
   },
   { totalChapters: 3 },
@@ -191,5 +210,29 @@ const failedUpdate = resolveConvertEventUpdate(
 
 assert(failedUpdate?.event !== undefined, 'failed 事件应生成事件流记录')
 assert(failedUpdate.event.type === 'failed', 'failed 事件应进入事件流')
-assert(failedUpdate?.event.message === '转换未完成，请调整文本后重试。', 'failed 事件应使用后端用户提示')
-assert(failedUpdate?.convertError === '转换未完成，请调整文本后重试。', 'failed 事件应设置转换错误')
+assert(failedUpdate?.event.message === '转换中断，可继续转换；系统会跳过已完成部分。', 'failed 事件应使用后端用户提示')
+assert(failedUpdate?.convertError?.includes('转换中断，可继续转换；系统会跳过已完成部分。') === true, 'failed 事件应设置转换错误')
+assert(failedUpdate?.convertError?.includes('章节切场退化为整章单场') === true, 'failed 事件应展示后端失败原因')
+
+const languageDriftFailedUpdate = resolveConvertEventUpdate(
+  'failed',
+  {
+    message: '转换中断，可继续转换；系统会跳过已完成部分。',
+    reason:
+      '单场剧本生成出现语言漂移：fieldPath=scriptBlocks[0].text, textPreview=书桌上摊开一本轻小说，台灯暖光下，作者雨森たきび的手指轻轻摩挲着书页边缘。',
+  },
+  { totalChapters: 3 },
+)
+
+assert(
+  languageDriftFailedUpdate?.convertError?.includes('生成结果混入非中文表达') === true,
+  '语言漂移失败应展示面向用户的原因',
+)
+assert(
+  !languageDriftFailedUpdate?.convertError?.includes('fieldPath'),
+  '语言漂移失败不应展示内部字段路径',
+)
+assert(
+  !languageDriftFailedUpdate?.convertError?.includes('雨森たきび'),
+  '语言漂移失败不应展示生成文本片段',
+)

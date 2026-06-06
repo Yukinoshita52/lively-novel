@@ -10,6 +10,7 @@ import com.livelynovel.model.entity.ScreenplayConversionEntity;
 import com.livelynovel.model.entity.ScreenplaySceneEntity;
 import com.livelynovel.model.entity.ScreenplaySceneUnitEntity;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.common.exception.SceneLanguageDriftException;
 import com.livelynovel.repository.ScreenplayConversionRepository;
 import com.livelynovel.repository.ScreenplaySceneRepository;
 import com.livelynovel.repository.ScreenplaySceneUnitRepository;
@@ -500,6 +501,71 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
+    void retriesSingleSceneWhenLanguageDriftIsDetected() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "第一段。\n第二段。";
+        SceneUnitDTO sceneUnit = sceneUnit(1, 1, 1, 2);
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+                .thenReturn(List.of(sceneUnit));
+        when(llmService.convertSingleScene(chapterContent, ScreenplayTypeEnum.ANIME))
+                .thenThrow(new SceneLanguageDriftException("scriptBlocks[0].line", "もう大丈夫。"))
+                .thenReturn(scene("scene-after-retry"));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, new AtomicReference<>());
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        verify(llmService, times(2)).convertSingleScene(chapterContent, ScreenplayTypeEnum.ANIME);
+        assertThat(containsEvent(sentPayloads, "failed")).isFalse();
+        assertThat(containsEvent(sentPayloads, "completed")).isTrue();
+        assertThat(containsFreshScene(sentPayloads, 1)).isTrue();
+    }
+
+    @Test
+    void acceptsLastSceneWhenLanguageDriftRetriesAreExhausted() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "第一段。\n第二段。";
+        SceneUnitDTO sceneUnit = sceneUnit(1, 1, 1, 2);
+        SceneDTO driftScene = scene("scene-with-drift");
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+                .thenReturn(List.of(sceneUnit));
+        when(llmService.convertSingleScene(chapterContent, ScreenplayTypeEnum.ANIME))
+                .thenThrow(new SceneLanguageDriftException("scriptBlocks[0].text", "雨森たきび", driftScene))
+                .thenThrow(new SceneLanguageDriftException("scriptBlocks[0].text", "雨森たきび", driftScene))
+                .thenThrow(new SceneLanguageDriftException("scriptBlocks[0].text", "雨森たきび", driftScene));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, new AtomicReference<>());
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        verify(llmService, times(3)).convertSingleScene(chapterContent, ScreenplayTypeEnum.ANIME);
+        verify(sceneRepository, times(1)).save(org.mockito.ArgumentMatchers.any(ScreenplaySceneEntity.class));
+        assertThat(containsEvent(sentPayloads, "failed")).isFalse();
+        assertThat(containsEvent(sentPayloads, "completed")).isTrue();
+        assertThat(containsMessage(sentPayloads, "该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。")).isTrue();
+    }
+
+    @Test
     void emitsFailedEventWhenSceneAnchorsCannotBeMatched() throws Exception {
         String novelId = "nv-1234abcd";
         String chapterContent = "第一段原文。\n第二段原文。\n第三段原文。";
@@ -590,7 +656,7 @@ class ScreenplayServiceImplTest {
 
         assertThat(completionError.get()).isNull();
         assertThat(containsEvent(sentPayloads, "failed")).isTrue();
-        assertThat(containsMessage(sentPayloads, "转换未完成，请调整文本后重试。")).isTrue();
+        assertThat(containsMessage(sentPayloads, "转换中断，可继续转换；系统会跳过已完成部分。")).isTrue();
         verify(llmService, never()).convertSingleScene(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)

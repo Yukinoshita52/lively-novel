@@ -6,6 +6,7 @@ import com.livelynovel.model.dto.SceneHeadingDTO;
 import com.livelynovel.model.dto.ScriptBlockDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.common.exception.SceneLanguageDriftException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 
@@ -74,15 +75,35 @@ class LlmServiceImplUnitTest {
     @Test
     void rejectSceneWhenGeneratedTextContainsJapaneseKana() {
         SceneDTO scene = new SceneDTO();
-        scene.setHeading(new SceneHeadingDTO(true, "教室", "放課後"));
+        scene.setHeading(new SceneHeadingDTO(true, "教室", "ほうかご"));
         scene.setScriptBlocks(List.of(
                 ScriptBlockDTO.action("林秋把书包放在桌上。"),
                 ScriptBlockDTO.dialogue("林秋", null, "もう大丈夫。")
         ));
 
         assertThatThrownBy(() -> LlmServiceImpl.validateSceneLanguage(scene))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("语言漂移");
+                .isInstanceOf(SceneLanguageDriftException.class)
+                .hasMessageContaining("语言漂移")
+                .extracting(error -> ((SceneLanguageDriftException) error).getFieldPath())
+                .isEqualTo("heading.timeOfDay");
+    }
+
+    @Test
+    void languageDriftExceptionIncludesMatchedFieldAndPreview() {
+        SceneDTO scene = new SceneDTO();
+        scene.setHeading(new SceneHeadingDTO(true, "教室", "放学后"));
+        scene.setScriptBlocks(List.of(
+                ScriptBlockDTO.action("林秋把书包放在桌上。"),
+                ScriptBlockDTO.dialogue("林秋", null, "もう大丈夫。")
+        ));
+
+        assertThatThrownBy(() -> LlmServiceImpl.validateSceneLanguage(scene))
+                .isInstanceOf(SceneLanguageDriftException.class)
+                .extracting(error -> {
+                    SceneLanguageDriftException drift = (SceneLanguageDriftException) error;
+                    return List.of(drift.getFieldPath(), drift.getTextPreview());
+                })
+                .isEqualTo(List.of("scriptBlocks[1].line", "もう大丈夫。"));
     }
 
     @Test
