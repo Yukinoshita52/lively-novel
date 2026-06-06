@@ -11,11 +11,12 @@ import {
   LoadingOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import { getNovelChapters, parseNovel, uploadNovel } from '../services/novel'
+import { getNovelChapters, getNovelList, parseNovel, uploadNovel } from '../services/novel'
 import type {
   ChapterPreview,
   ChapterSummary,
   NovelChaptersResult,
+  NovelListItem,
   NovelParseResult,
 } from '../types/novel'
 
@@ -71,6 +72,24 @@ function formatWordCount(wordCount: number) {
   return `${wordCount} 字`
 }
 
+function formatTime(isoTime: string | null) {
+  if (!isoTime) {
+    return '时间未知'
+  }
+
+  const date = new Date(isoTime)
+  if (Number.isNaN(date.getTime())) {
+    return '时间未知'
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 function toDisplayResult(result: NovelParseResult | NovelChaptersResult): DisplayResult {
   return {
     novelId: 'novelId' in result ? result.novelId : undefined,
@@ -96,6 +115,10 @@ function ImportPage() {
   const [uploadLoading, setUploadLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [chapterResult, setChapterResult] = useState<DisplayResult | null>(null)
+  const [historyVisible, setHistoryVisible] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [historyItems, setHistoryItems] = useState<NovelListItem[]>([])
 
   async function handleParse() {
     setParseLoading(true)
@@ -126,6 +149,44 @@ function ImportPage() {
       setErrorMessage(error instanceof Error ? error.message : '上传失败')
     } finally {
       setUploadLoading(false)
+    }
+  }
+
+  async function loadHistory(force = false) {
+    if (historyLoading) {
+      return
+    }
+    if (historyLoaded && !force) {
+      setHistoryVisible(true)
+      return
+    }
+
+    setHistoryLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const result = await getNovelList()
+      setHistoryItems(result.novels)
+      setHistoryLoaded(true)
+      setHistoryVisible(true)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '历史加载失败')
+      setHistoryVisible(true)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  async function handleUseHistory(novelId: string, novelTitle: string) {
+    setErrorMessage(null)
+
+    try {
+      const chaptersResult = await getNovelChapters(novelId)
+      setTitle(novelTitle)
+      setSelectedFile(null)
+      setChapterResult(toDisplayResult(chaptersResult))
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '加载历史小说失败')
     }
   }
 
@@ -164,6 +225,48 @@ function ImportPage() {
             </div>
             <Text className="panel-meta">需 ≥ 3 章 · ≤ 20 万字</Text>
           </div>
+
+          <div className="history-toolbar">
+            <Button
+              size="large"
+              onClick={() => (historyVisible ? setHistoryVisible(false) : void loadHistory())}
+              loading={historyLoading}
+            >
+              从历史中选择
+            </Button>
+            {historyVisible ? (
+              <Button
+                type="link"
+                onClick={() => void loadHistory(true)}
+                loading={historyLoading}
+              >
+                刷新历史
+              </Button>
+            ) : null}
+          </div>
+
+          {historyVisible ? (
+            <Card className="history-card" bordered={false}>
+              {historyItems.length === 0 && !historyLoading ? (
+                <Text className="history-empty">还没有已导入的小说</Text>
+              ) : (
+                <div className="history-list">
+                  {historyItems.map((item) => (
+                    <div className="history-row" key={item.novelId}>
+                      <div className="history-copy">
+                        <Title level={5}>{item.title}</Title>
+                        <Text>{item.totalChapters} 章 · {formatWordCount(item.totalWordCount)}</Text>
+                        <Text>{formatTime(item.createdAt)}</Text>
+                      </div>
+                      <Button onClick={() => void handleUseHistory(item.novelId, item.title)}>
+                        使用这本
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ) : null}
 
           <div className="field-stack">
             <label className="field-label" htmlFor="novel-title">作品标题</label>
