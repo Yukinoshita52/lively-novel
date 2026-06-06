@@ -76,6 +76,7 @@
 ### 5.2 写法要求
 
 - 使用语义化前缀：`feat:` `fix:` `docs:` `chore:` `refactor:` `test:`
+- commit 标题、commit message、PR 标题、PR 正文默认使用中文；仅语义化前缀保留英文
 - 标题必须直接说明动作与对象，不能只写 `feat`、`docs`、`test`
 - 无关改动不要混入当前 commit
 - 不加 `Co-Authored-By: ...`
