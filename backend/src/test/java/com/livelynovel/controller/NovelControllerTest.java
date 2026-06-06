@@ -2,6 +2,7 @@ package com.livelynovel.controller;
 
 import com.livelynovel.common.Result;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
+import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.NovelListItemDTO;
 import com.livelynovel.model.dto.NovelListResultDTO;
@@ -206,5 +207,32 @@ class NovelControllerTest {
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData().getTotal()).isEqualTo(0);
         assertThat(result.getData().getNovels()).isEmpty();
+    }
+
+    @Test
+    void returnsStoredNovelChapterDetail() {
+        NovelChapterDetailDTO detail = new NovelChapterDetailDTO();
+        detail.setNovelId("nv-1234abcd");
+        detail.setChapterIndex(2);
+        detail.setTitle("第二章 天台");
+        detail.setContent("黄昏，城市在脚下铺开。");
+        detail.setWordCount(12);
+
+        when(novelService.getChapterDetail("nv-1234abcd", 2)).thenReturn(detail);
+
+        Result<NovelChapterDetailDTO> result = controller.getChapterDetail("nv-1234abcd", 2);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData().getChapterIndex()).isEqualTo(2);
+        assertThat(result.getData().getContent()).contains("黄昏");
+    }
+
+    @Test
+    void returns40401WhenChapterDetailDoesNotExist() {
+        when(novelService.getChapterDetail("nv-missing", 1)).thenReturn(null);
+
+        Result<NovelChapterDetailDTO> result = controller.getChapterDetail("nv-missing", 1);
+
+        assertThat(result.getCode()).isEqualTo(40401);
     }
 }

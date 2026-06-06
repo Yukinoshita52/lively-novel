@@ -1,9 +1,11 @@
 import type {
   ApiResponse,
+  NovelChapterDetail,
   NovelChaptersResult,
   NovelListResult,
   NovelParseResult,
   NovelUploadResult,
+  SceneResult,
 } from '../types/novel'
 
 async function unwrapResponse<T>(response: Response): Promise<T> {
@@ -52,4 +54,24 @@ export async function getNovelChapters(novelId: string) {
 export async function getNovelList() {
   const response = await fetch('/api/novel')
   return unwrapResponse<NovelListResult>(response)
+}
+
+export async function getNovelChapterDetail(novelId: string, chapterIndex: number) {
+  const response = await fetch(`/api/novel/${novelId}/chapters/${chapterIndex}`)
+  return unwrapResponse<NovelChapterDetail>(response)
+}
+
+export async function convertSingleScene(text: string) {
+  const response = await fetch('/api/screenplay/convert-single', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text,
+      screenplayType: 'ANIME',
+    }),
+  })
+
+  return unwrapResponse<SceneResult>(response)
 }
