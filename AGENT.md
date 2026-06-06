@@ -103,7 +103,10 @@
 
 - 不加 `Generated with ...` 等署名行
 - `实现思路` 涉及字段或接口时，引用对应文档章节
-- `测试方式` 写清命令、手动验证步骤与预期
+- `测试方式` 写清命令、手动验证步骤与预期观察点
+- 自动测试要写到具体测试类/测试方法或覆盖的行为，例如 `ScreenplayServiceImplTest#persistsConversionSceneUnitsAndGeneratedScenes` 验证转换任务、切场结果和单场剧本落库
+- 手动验证要写可观察现象，例如 SSE `started/chapter_split/scene_completed` 事件包含同一个 `conversionId`，或 `GET /api/screenplay/conversions/{conversionId}` 能回读已生成场景
+- 不要把“结果：xx tests, 0 failures”“构建成功，仅有 warning”当作测试方式；这些只可作为本地执行备注，不替代验证方法和预期现象
 
 ## 7. 当前约束提醒
 
