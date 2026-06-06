@@ -1,6 +1,7 @@
 package com.livelynovel.service;
 
 import com.livelynovel.model.dto.ChapterDTO;
+import com.livelynovel.service.impl.ChapterSplitterImpl;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -23,7 +24,7 @@ class ChapterSplitterRealFileTest {
     /** 相对 backend 模块目录（Maven 测试工作目录）→ 项目根的 temp。 */
     private static final Path NOVEL_PATH = Path.of("..", "temp", "败犬女主太多了.txt");
 
-    private final ChapterSplitter splitter = new ChapterSplitter();
+    private final ChapterSplitter splitter = new ChapterSplitterImpl();
 
     @Test
     void splitsRealLightNovelIntoFourMainChapters() throws IOException {
