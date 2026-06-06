@@ -1,6 +1,7 @@
 package com.livelynovel.service;
 
 import com.livelynovel.model.dto.ChapterDTO;
+import com.livelynovel.service.impl.ChapterSplitterImpl;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -65,7 +66,7 @@ class ChapterSplitterTest {
             第三章正文。
             """;
 
-    private final ChapterSplitter splitter = new ChapterSplitter();
+    private final ChapterSplitter splitter = new ChapterSplitterImpl();
 
     @Test
     void splitsOnlyTildeFencedMainChapters() {
