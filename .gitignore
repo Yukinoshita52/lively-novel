@@ -91,3 +91,6 @@ desktop.ini
 
 # ===== Project temp =====
 temp/
+
+# ===== Brainstorming / 设计草稿工作区（不追踪）=====
+docs/superpowers/
