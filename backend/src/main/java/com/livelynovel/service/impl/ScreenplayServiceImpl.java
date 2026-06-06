@@ -29,6 +29,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
 
     private static final int MAX_SCENE_SPLIT_ATTEMPTS = 2;
     private static final int MULTI_SCENE_SEGMENT_THRESHOLD = 6;
+    private static final String CONVERT_FAILED_MESSAGE = "转换未完成，请调整文本后重试。";
 
     private final NovelService novelService;
     private final LlmService llmService;
@@ -57,7 +58,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         try {
             NovelChaptersResultDTO chaptersResult = novelService.getChapters(novelId);
             if (chaptersResult == null) {
-                emitter.completeWithError(new IllegalArgumentException("小说不存在"));
+                completeWithFailedEvent(emitter, "小说不存在");
                 return;
             }
 
@@ -127,7 +128,19 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             ));
             emitter.complete();
         } catch (Exception e) {
-            emitter.completeWithError(e);
+            completeWithFailedEvent(emitter, e.getMessage());
+        }
+    }
+
+    private void completeWithFailedEvent(SseEmitter emitter, String reason) {
+        try {
+            sendEvent(emitter, "failed", Map.of(
+                    "message", CONVERT_FAILED_MESSAGE,
+                    "reason", reason == null || reason.isBlank() ? "未知错误" : reason
+            ));
+            emitter.complete();
+        } catch (IOException sendError) {
+            emitter.completeWithError(sendError);
         }
     }
 

@@ -3,10 +3,11 @@ import {
   buildSceneHeadingText,
   buildSceneOutlineItems,
   getSourcePreview,
+  resolveConvertEventUpdate,
   resolveSelectedScene,
 } from './screenplayPreview.ts'
 
-function assert(condition: boolean, message: string) {
+function assert(condition: boolean, message: string): asserts condition {
   if (!condition) {
     throw new Error(message)
   }
@@ -79,3 +80,17 @@ assert(
 )
 assert(getSourcePreview('一二三四五六', false, 4) === '一二三四…', '折叠原文应截断并加省略号')
 assert(getSourcePreview('一二三四五六', true, 4) === '一二三四五六', '展开原文应显示全文')
+
+const failedUpdate = resolveConvertEventUpdate(
+  'failed',
+  {
+    message: '转换未完成，请调整文本后重试。',
+    reason: '章节切场退化为整章单场',
+  },
+  { totalChapters: 3 },
+)
+
+assert(failedUpdate?.event !== undefined, 'failed 事件应生成事件流记录')
+assert(failedUpdate.event.type === 'failed', 'failed 事件应进入事件流')
+assert(failedUpdate?.event.message === '转换未完成，请调整文本后重试。', 'failed 事件应使用后端用户提示')
+assert(failedUpdate?.convertError === '转换未完成，请调整文本后重试。', 'failed 事件应设置转换错误')

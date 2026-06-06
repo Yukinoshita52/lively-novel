@@ -78,7 +78,7 @@ export interface ScreenplayConvertContext {
 }
 
 export interface ConvertEventItem {
-  type: 'started' | 'chapter_loaded' | 'chapter_split' | 'scene_completed' | 'completed' | 'error'
+  type: 'started' | 'chapter_loaded' | 'chapter_split' | 'scene_completed' | 'completed' | 'failed' | 'error'
   message: string
 }
 
