@@ -1,8 +1,11 @@
 import type { GeneratedSceneSummary } from '../types/novel'
 import {
   buildYamlDownloadFileName,
+  buildPreviewTabs,
   buildSceneHeadingText,
   buildSceneOutlineItems,
+  buildSceneTableRows,
+  buildThoughtAuditRows,
   getSourcePreview,
   resolveConvertEventUpdate,
   resolveSelectedScene,
@@ -83,6 +86,30 @@ assert(getSourcePreview('一二三四五六', false, 4) === '一二三四…', '
 assert(getSourcePreview('一二三四五六', true, 4) === '一二三四五六', '展开原文应显示全文')
 assert(buildYamlDownloadFileName(' 她比烟花寂寞 ') === '她比烟花寂寞-screenplay.yaml', 'YAML 文件名应使用作品标题')
 assert(buildYamlDownloadFileName('') === 'screenplay.yaml', '标题为空时应使用默认 YAML 文件名')
+assert(buildPreviewTabs('script')[0].active, '预览页默认应高亮剧本 tab')
+assert(buildPreviewTabs('scene-table')[1].label === '场景表', '预览页应提供场景表 tab')
+assert(buildSceneTableRows(scenes)[0].sceneNumber === 'S1', '场景表应沿用场景大纲排序编号')
+assert(buildSceneTableRows(scenes)[0].interiorText === '内景', '场景表应展示内景/外景')
+assert(buildSceneTableRows(scenes)[0].location === '教室', '场景表应展示地点')
+assert(buildSceneTableRows(scenes)[0].sourceChapterText === 'CH1', '场景表应展示源章节')
+assert(
+  buildThoughtAuditRows([
+    {
+      ...scenes[1],
+      scene: {
+        ...scenes[1].scene,
+        visualizedInnerThoughts: [
+          {
+            original: '她松了口气',
+            method: 'ACTION',
+            result: '她把书包放在桌上。',
+          },
+        ],
+      },
+    },
+  ])[0].sceneNumber === 'S1',
+  '内心戏留痕应带上场景编号',
+)
 
 const startedUpdate = resolveConvertEventUpdate(
   'started',

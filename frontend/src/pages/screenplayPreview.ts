@@ -33,6 +33,44 @@ export interface SceneOutlineItem extends GeneratedSceneSummary {
   headingText: string
 }
 
+export type PreviewTabKey = 'script' | 'scene-table' | 'thought-audit'
+
+export interface PreviewTab {
+  key: PreviewTabKey
+  label: string
+  active: boolean
+}
+
+export interface SceneTableRow {
+  key: string
+  sceneNumber: string
+  interiorText: string
+  location: string
+  timeOfDay: string
+  sourceChapterText: string
+}
+
+export interface ThoughtAuditRow {
+  key: string
+  sceneNumber: string
+  original: string
+  method: string
+  result: string
+}
+
+const PREVIEW_TABS: Array<Omit<PreviewTab, 'active'>> = [
+  { key: 'script', label: '剧本' },
+  { key: 'scene-table', label: '场景表' },
+  { key: 'thought-audit', label: '内心戏留痕' },
+]
+
+export function buildPreviewTabs(activeTab: PreviewTabKey): PreviewTab[] {
+  return PREVIEW_TABS.map((tab) => ({
+    ...tab,
+    active: tab.key === activeTab,
+  }))
+}
+
 export function buildSceneHeadingText(heading?: SceneHeading) {
   if (!heading) {
     return '场景信息待生成'
@@ -61,6 +99,29 @@ export function buildSceneOutlineItems(scenes: GeneratedSceneSummary[]): SceneOu
       sceneNumber: `S${index + 1}`,
       headingText: buildSceneHeadingText(scene.scene.heading),
     }))
+}
+
+export function buildSceneTableRows(scenes: GeneratedSceneSummary[]): SceneTableRow[] {
+  return buildSceneOutlineItems(scenes).map((scene) => ({
+    key: scene.key,
+    sceneNumber: scene.sceneNumber,
+    interiorText: scene.scene.heading.interior ? '内景' : '外景',
+    location: scene.scene.heading.location || '未知地点',
+    timeOfDay: scene.scene.heading.timeOfDay || '未知时间',
+    sourceChapterText: `CH${scene.scene.sourceChapter || scene.chapterIndex}`,
+  }))
+}
+
+export function buildThoughtAuditRows(scenes: GeneratedSceneSummary[]): ThoughtAuditRow[] {
+  return buildSceneOutlineItems(scenes).flatMap((scene) =>
+    scene.scene.visualizedInnerThoughts.map((thought, index) => ({
+      key: `${scene.key}-thought-${index}`,
+      sceneNumber: scene.sceneNumber,
+      original: thought.original,
+      method: thought.method,
+      result: thought.result,
+    })),
+  )
 }
 
 export function resolveSelectedScene(
