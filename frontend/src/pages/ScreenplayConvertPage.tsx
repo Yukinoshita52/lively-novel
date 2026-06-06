@@ -7,6 +7,8 @@ import type {
   ScreenplayConvertContext,
 } from '../types/novel'
 import { getScreenplayConversionYaml } from '../services/novel'
+import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
+import { buildPipelinePhases, formatStreamEvent } from './prototypeFlow'
 import {
   buildYamlDownloadFileName,
   buildSceneOutlineItems,
@@ -197,6 +199,15 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
     }
     return Math.min(100, Math.round((finishedSceneCount / totalSceneCount) * 100))
   }, [finishedSceneCount, totalSceneCount])
+  const pipelinePhases = useMemo(
+    () => buildPipelinePhases({
+      completed,
+      convertError,
+      finishedSceneCount,
+      totalSceneCount,
+    }),
+    [completed, convertError, finishedSceneCount, totalSceneCount],
+  )
 
   async function handleDownloadYaml() {
     if (!conversionId) {
@@ -224,34 +235,47 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
   }
 
   return (
-    <div className="convert-shell">
-      <header className="convert-topbar">
-        <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
-          返回导入
-        </Button>
-        <div>
-          <Title level={1}>{context.title}</Title>
-        </div>
-      </header>
+    <PrototypeFrame currentStep="convert" maxWidth={1280}>
+      <PrototypeHero
+        eyebrow={`03 · ${completed ? '转换完成' : convertError ? '转换中断' : '转换中'} · SSE`}
+        title={`《${context.title}》`}
+        meta="→ 动画剧本"
+        action={
+          <Button className="prototype-ghost-button" icon={<ArrowLeftOutlined />} onClick={onBack}>
+            返回导入
+          </Button>
+        }
+      />
 
       <main className="convert-grid convert-progress-grid">
-        <Card className="panel" bordered={false}>
-          <div className="panel-header compact">
-            <div>
-              <Text className="panel-kicker">PROGRESS</Text>
-              <Title level={3}>转换进度</Title>
-            </div>
+        <Card
+          className="prototype-panel"
+          title={<PrototypePanelTitle code="PIPE" title="两阶段转换" />}
+          bordered={false}
+        >
+          <div className="prototype-phase-list">
+            {pipelinePhases.map((phase) => (
+              <div className={`prototype-phase ${phase.status}`} key={phase.key}>
+                <div className="prototype-phase-row">
+                  <span className="prototype-phase-dot">{phase.mark}</span>
+                  <div>
+                    <div className="prototype-phase-name">{phase.title}</div>
+                    <div className="prototype-phase-desc">{phase.description}</div>
+                  </div>
+                </div>
+                <div className="prototype-phase-bar">
+                  <i style={{ width: `${phase.progress}%` }} />
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="progress-summary">
-            <div className="progress-status">
-              <Title level={4}>{convertError ? '未完成' : completed ? '已完成' : connecting ? '连接中' : '转换中'}</Title>
-              <Text className="progress-ratio">
-                {finishedSceneCount} / {totalSceneCount || '?'} 场
-              </Text>
-            </div>
-            <Progress percent={progressPercent} strokeColor="#9c4b2e" />
-            <Text>{context.chapters.length} 章已进入待转换列表</Text>
+          <div className="prototype-progress-note">
+            <span>本篇 {context.chapters.length} 章已进入转换队列</span>
+            <span>{finishedSceneCount} / {totalSceneCount || '?'} 场</span>
+          </div>
+          <Progress className="prototype-progress" percent={progressPercent} strokeColor="#be3a2e" showInfo={false} />
+          <div className="prototype-export-row">
             <Button
               disabled={!completed || !conversionId}
               icon={<DownloadOutlined />}
@@ -283,37 +307,30 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
           ) : null}
         </Card>
 
-        <Card className="panel event-panel" bordered={false}>
-          <div className="panel-header compact">
-            <div>
-              <Text className="panel-kicker">EVENTS</Text>
-              <Title level={3}>事件流</Title>
-            </div>
-          </div>
-
-          <div className="event-list">
+        <Card
+          className="prototype-panel event-panel"
+          title={<PrototypePanelTitle code="SSE" title="实时事件流" meta={connecting && !completed ? '● LIVE' : 'STREAM'} />}
+          bordered={false}
+        >
+          <div className="prototype-stream">
             {events.length === 0 ? (
-              <div className="event-row">
-                <Text>等待服务端返回事件…</Text>
-              </div>
+              <div className="prototype-stream-line muted">event: waiting 等待服务端返回事件…</div>
             ) : (
               events.map((event, index) => (
-                <div className="event-row" key={`${event.type}-${index}`}>
-                  <Text className="panel-kicker">{event.type}</Text>
-                  <Text>{event.message}</Text>
+                <div className="prototype-stream-line" key={`${event.type}-${index}`}>
+                  {formatStreamEvent(event)}
                 </div>
               ))
             )}
+            {!completed && !convertError ? <span className="prototype-caret" /> : null}
           </div>
         </Card>
 
-        <Card className="panel scene-preview-panel" bordered={false}>
-          <div className="panel-header compact">
-            <div>
-              <Text className="panel-kicker">SCENES</Text>
-              <Title level={3}>逐场预览</Title>
-            </div>
-          </div>
+        <Card
+          className="prototype-panel scene-preview-panel"
+          title={<PrototypePanelTitle code="PREVIEW" title="逐场预览" meta="YAML → 渲染视图" />}
+          bordered={false}
+        >
 
           <div className="scene-preview-grid">
             <aside className="scene-outline">
@@ -419,7 +436,7 @@ function ScreenplayConvertPage({ context, onBack }: ScreenplayConvertPageProps) 
           </div>
         </Card>
       </main>
-    </div>
+    </PrototypeFrame>
   )
 }
 

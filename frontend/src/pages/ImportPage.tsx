@@ -12,6 +12,7 @@ import {
   UploadOutlined,
 } from '@ant-design/icons'
 import { getNovelChapters, getNovelList, parseNovel, uploadNovel } from '../services/novel'
+import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
 import type {
   ChapterPreview,
   ChapterSummary,
@@ -241,23 +242,18 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
   )
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="topbar-eyebrow">Lively Novel · 活字成剧</p>
-          <Title level={1}>导入小说，识别章节</Title>
-        </div>
-      </header>
+    <PrototypeFrame currentStep="import">
+      <PrototypeHero
+        eyebrow="02 · 导入"
+        title="把小说交给它"
+      />
 
       <main className="page-grid">
-        <Card className="panel manuscript-panel" bordered={false}>
-          <div className="panel-header">
-            <div>
-              <Text className="panel-kicker">TEXT</Text>
-              <Title level={3}>小说正文</Title>
-            </div>
-            <Text className="panel-meta">需 ≥ 3 章 · ≤ 20 万字</Text>
-          </div>
+        <Card
+          className="prototype-panel manuscript-panel"
+          title={<PrototypePanelTitle code="TEXT" title="小说正文" meta="需 ≥ 3 章 · ≤ 20 万字" />}
+          bordered={false}
+        >
 
           <div className="history-toolbar">
             <Button
@@ -265,7 +261,7 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
               onClick={() => (historyVisible ? setHistoryVisible(false) : void loadHistory())}
               loading={historyLoading}
             >
-              从历史中选择
+              从历史中选择已导入小说
             </Button>
             {historyVisible ? (
               <Button
@@ -373,7 +369,7 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
           ) : null}
 
           {chapterResult ? (
-            <Card className="chapter-card" bordered={false}>
+            <Card className="chapter-card prototype-inner-panel" bordered={false}>
               <div className="chapter-card-head">
                 <div>
                   <Text className="panel-kicker">RESULT</Text>
@@ -404,13 +400,11 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
         </Card>
 
         <div className="side-column">
-          <Card className="panel" bordered={false}>
-            <div className="panel-header compact">
-              <div>
-                <Text className="panel-kicker">TYPE</Text>
-                <Title level={3}>剧本类型</Title>
-              </div>
-            </div>
+          <Card
+            className="prototype-panel"
+            title={<PrototypePanelTitle code="TYPE" title="剧本类型" />}
+            bordered={false}
+          >
 
             <div className="type-grid">
               {SCREENPLAY_TYPES.map((type) => (
@@ -450,7 +444,7 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
           </Button>
         </div>
       </main>
-    </div>
+    </PrototypeFrame>
   )
 }
 
