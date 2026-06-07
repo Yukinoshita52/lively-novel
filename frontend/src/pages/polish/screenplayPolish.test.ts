@@ -25,7 +25,11 @@ const scene: SceneResult = {
     timeOfDay: '午后',
   },
   scriptBlocks: [
+    { type: 'SHOT', text: '教室后排。午后的光落在桌面。' },
     { type: 'ACTION', text: '林秋把书包放在桌上。' },
+    { type: 'INSERT', text: '桌角的旧钥匙。' },
+    { type: 'SFX', text: '远处传来下课铃。' },
+    { type: 'VO', character: '林秋', parenthetical: '画外音', line: '我还不能停在这里。' },
     { type: 'DIALOGUE', character: '林秋', parenthetical: '低声', line: '今天先到这里。' },
     { type: 'TRANSITION', text: '切至：' },
   ],
@@ -42,7 +46,11 @@ assert(
 const polishYaml = buildPolishSceneYaml(draft.scene)
 assert(polishYaml.includes('sceneId: s1'), '本场结构预览应保留场景 ID')
 assert(polishYaml.includes('scriptBlocks:'), '本场结构预览应保留可编辑剧本块')
+assert(polishYaml.includes('  - type: SHOT'), '本场结构 YAML 应保留镜头块')
 assert(polishYaml.includes('  - type: ACTION'), '本场结构 YAML 应使用与导出页一致的列表对象格式')
+assert(polishYaml.includes('  - type: INSERT'), '本场结构 YAML 应保留插入特写块')
+assert(polishYaml.includes('  - type: SFX'), '本场结构 YAML 应保留音效块')
+assert(polishYaml.includes('  - type: VO'), '本场结构 YAML 应保留画外音块')
 assert(!polishYaml.includes('  -\n    type: ACTION'), '本场结构 YAML 不应把列表横杠和 type 拆成两行')
 assert(!polishYaml.includes('visualizedInnerThoughts'), '本场结构预览不应展示内心戏审计字段')
 assert(!polishYaml.includes('sourceText'), '本场结构预览不应展示原文溯源字段')
@@ -57,8 +65,18 @@ const scriptDraft = updatePolishSceneYaml(
     '  location: 走廊',
     '  timeOfDay: 午后',
     'scriptBlocks:',
+    '  - type: SHOT',
+    '    text: 走廊尽头。午后的光把地面拉成长条。',
     '  - type: ACTION',
     '    text: 她抬头看向窗外。',
+    '  - type: INSERT',
+    '    text: 桌角的旧钥匙。',
+    '  - type: SFX',
+    '    text: 下课铃响起。',
+    '  - type: VO',
+    '    character: 旁白',
+    '    parenthetical: 画外音',
+    '    line: 午后的风穿过走廊。',
     '  - type: DIALOGUE',
     '    character: 旁白',
     '    line: 午后的风穿过走廊。',
@@ -71,13 +89,20 @@ const editedBlocks = scriptDraft.scene.scriptBlocks ?? []
 const savedBlocks = scriptDraft.savedScene.scriptBlocks ?? []
 assert(scriptDraft.scene.heading.location === '走廊', 'YAML heading 修改应同步到草稿场景')
 assert(scriptDraft.scene.sourceChapter === 2, 'YAML sourceChapter 修改应同步到草稿场景')
-assert(editedBlocks.length === 3, 'YAML 剧本块应同步到草稿场景')
-assert(editedBlocks[0].text === '她抬头看向窗外。', 'YAML 动作文本变更应同步到草稿场景')
-assert(editedBlocks[1].character === '旁白', 'YAML 对白角色名应同步到草稿场景')
-assert(editedBlocks[1].parenthetical === undefined, 'YAML 未填写 parenthetical 时不应生成字段')
-assert(editedBlocks[1].line === '午后的风穿过走廊。', 'YAML 对白台词应同步到草稿场景')
-assert(editedBlocks[2].type === 'TRANSITION', 'YAML 转场文本应同步为转场块')
-assert(savedBlocks[0].text === '林秋把书包放在桌上。', '编辑草稿不应改写最近保存的场景基线')
+assert(editedBlocks.length === 7, 'YAML 剧本块应同步到草稿场景')
+assert(editedBlocks[0].type === 'SHOT', 'YAML 镜头文本应同步为镜头块')
+assert(editedBlocks[1].text === '她抬头看向窗外。', 'YAML 动作文本变更应同步到草稿场景')
+assert(editedBlocks[2].type === 'INSERT', 'YAML 插入特写文本应同步为插入特写块')
+assert(editedBlocks[3].type === 'SFX', 'YAML 音效文本应同步为音效块')
+assert(editedBlocks[4].type === 'VO', 'YAML 画外音文本应同步为画外音块')
+assert(editedBlocks[4].character === '旁白', 'YAML 画外音角色名应同步到草稿场景')
+assert(editedBlocks[4].parenthetical === '画外音', 'YAML 画外音括号提示应同步到草稿场景')
+assert(editedBlocks[4].line === '午后的风穿过走廊。', 'YAML 画外音台词应同步到草稿场景')
+assert(editedBlocks[5].character === '旁白', 'YAML 对白角色名应同步到草稿场景')
+assert(editedBlocks[5].parenthetical === undefined, 'YAML 未填写 parenthetical 时不应生成字段')
+assert(editedBlocks[5].line === '午后的风穿过走廊。', 'YAML 对白台词应同步到草稿场景')
+assert(editedBlocks[6].type === 'TRANSITION', 'YAML 转场文本应同步为转场块')
+assert(savedBlocks[1].text === '林秋把书包放在桌上。', '编辑草稿不应改写最近保存的场景基线')
 
 const savedScene: SceneResult = {
   ...scene,

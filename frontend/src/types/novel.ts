@@ -102,7 +102,7 @@ export interface DialogueBlock {
   line: string
 }
 
-export type ScriptBlockType = 'ACTION' | 'DIALOGUE' | 'TRANSITION'
+export type ScriptBlockType = 'SHOT' | 'ACTION' | 'INSERT' | 'SFX' | 'DIALOGUE' | 'VO' | 'TRANSITION'
 
 export interface ScriptBlock {
   type: ScriptBlockType

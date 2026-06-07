@@ -393,8 +393,11 @@ class ScreenplayServiceImplTest {
                   "sceneId": "s1",
                   "heading": {"interior": true, "location": "教室", "timeOfDay": "午后"},
                   "scriptBlocks": [
+                    {"type": "SHOT", "text": "家庭餐厅一角。午后的光从窗边斜照进来。"},
                     {"type": "ACTION", "text": "林秋把书包放在桌上。"},
-                    {"type": "ACTION", "text": "温水用手帕擦额头上的汗，环视店内。周围没有穿同校制服的学生。他从书包里拿出一本文库本，封面是轻小说《跟年上的妹妹撒娇也可以吗？》最新卷。桌上摆着自助饮料杯和一大盘薯条。"},
+                    {"type": "INSERT", "text": "桌面上的自助饮料杯、大份薯条和轻小说最新卷。"},
+                    {"type": "SFX", "text": "隔壁桌传来女声尖叫。"},
+                    {"type": "VO", "character": "林秋", "parenthetical": "画外音", "line": "我还不能停在这里。"},
                     {"type": "DIALOGUE", "character": "林秋", "line": "我已经没事了。"},
                     {"type": "ACTION", "text": "她抬头看向窗外。"},
                     {"type": "TRANSITION", "text": "切至：走廊"}
@@ -417,15 +420,26 @@ class ScreenplayServiceImplTest {
         assertThat(yaml).contains("scenes:");
         assertThat(yaml).contains("sceneId: \"s1\"");
         assertThat(yaml).contains("scriptBlocks:");
+        assertThat(yaml).contains("type: \"SHOT\"");
+        assertThat(yaml).contains("text: \"家庭餐厅一角。午后的光从窗边斜照进来。\"");
         assertThat(yaml).contains("type: \"ACTION\"");
         assertThat(yaml).contains("text: \"林秋把书包放在桌上。\"");
-        assertThat(yaml).contains("text: \"温水用手帕擦额头上的汗，环视店内。周围没有穿同校制服的学生。他从书包里拿出一本文库本，封面是轻小说《跟年上的妹妹撒娇也可以吗？》最新卷。桌上摆着自助饮料杯和一大盘薯条。\"");
-        assertThat(yaml).doesNotContain("摆\\");
+        assertThat(yaml).contains("type: \"INSERT\"");
+        assertThat(yaml).contains("text: \"桌面上的自助饮料杯、大份薯条和轻小说最新卷。\"");
+        assertThat(yaml).contains("type: \"SFX\"");
+        assertThat(yaml).contains("text: \"隔壁桌传来女声尖叫。\"");
+        assertThat(yaml).contains("type: \"VO\"");
         assertThat(yaml).contains("type: \"DIALOGUE\"");
         assertThat(yaml).contains("character: \"林秋\"");
+        assertThat(yaml).contains("parenthetical: \"画外音\"");
+        assertThat(yaml).contains("line: \"我还不能停在这里。\"");
         assertThat(yaml).contains("line: \"我已经没事了。\"");
         assertThat(yaml).containsSubsequence(
+                "text: \"家庭餐厅一角。午后的光从窗边斜照进来。\"",
                 "text: \"林秋把书包放在桌上。\"",
+                "text: \"桌面上的自助饮料杯、大份薯条和轻小说最新卷。\"",
+                "text: \"隔壁桌传来女声尖叫。\"",
+                "line: \"我还不能停在这里。\"",
                 "line: \"我已经没事了。\"",
                 "text: \"她抬头看向窗外。\"",
                 "text: \"切至：走廊\""

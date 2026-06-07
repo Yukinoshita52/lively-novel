@@ -47,12 +47,12 @@ public class LlmServiceImpl implements LlmService {
     public SceneDTO convertSingleScene(String text, ScreenplayTypeEnum screenplayType) {
         String prompt = buildPrompt(normalizeSceneText(text), screenplayType);
 
-        LlmSceneOutputDTO llmScene = chatClient.prompt()
+        String responseText = chatClient.prompt()
                 .user(prompt)
                 .call()
-                .entity(LlmSceneOutputDTO.class);
+                .content();
 
-        SceneDTO scene = toSceneDTO(llmScene);
+        SceneDTO scene = parseSingleSceneResult(responseText);
         SceneDTO resolvedScene = fillSceneSourceMetadata(scene, text, 1);
         try {
             validateSceneLanguage(resolvedScene);
@@ -100,38 +100,44 @@ public class LlmServiceImpl implements LlmService {
                 ## 转换规则
                 1. 场景标题：内景/外景 - 地点 - 时间（如：内景 - 出租屋 - 夜）
                 2. 剧本正文必须写入 scriptBlocks 数组，并按实际阅读/演出顺序排列。
-                3. scriptBlocks 支持三类：
-                   - ACTION：使用 text 描述【可见】的动作与视觉细节。
+                3. scriptBlocks 支持七类：
+                   - SHOT：使用 text 描述镜头/构图/视线焦点，例如"家庭餐厅一角。午后的光从窗边斜照进来。"
+                   - ACTION：使用 text 描述【一个】可拍摄动作节拍；ACTION 只写一个可拍摄动作节拍。
+                   - INSERT：使用 text 描述插入特写，例如书封、钥匙、账单、玻璃杯。
+                   - SFX：使用 text 描述音效，例如门铃、咳嗽、脚步声。
                    - DIALOGUE：使用 character、parenthetical、line 表达对白；parenthetical 可省略。
+                   - VO：使用 character、parenthetical、line 表达画外音/内心独白；parenthetical 通常为"画外音"。
                    - TRANSITION：使用 text 表达切至/淡出等转场。
                 4. 内心戏视觉化：把心理描写/独白转为——
-                   - 画外音(V.O.)
+                   - VO 画外音
                    - 可见动作（表情/肢体）
-                   - 镜头特写（眼神/手部等细节）
+                   - SHOT 或 INSERT 镜头特写（眼神/手部/道具等细节）
                    - 说出口的对白
                    转换后的内容必须落入 scriptBlocks。
                 5. "讲述"变"呈现"：如"她很绝望"→ 转为垂下眼帘、紧握双拳等可画面表现的动作。
-                6. 转场：在场景末尾以 TRANSITION 块标注切至/淡出等。
-                7. 所有场景标题、动作、对白、括号提示、转场正文都使用简体中文表达。
+                6. 不要把环境、道具、镜头、音效、内心独白硬塞进 ACTION；分别使用 SHOT、INSERT、SFX、VO。
+                7. 转场：在场景末尾以 TRANSITION 块标注切至/淡出等。
+                8. 所有场景标题、动作、对白、括号提示、转场正文都使用简体中文表达。
 
-                ## 输出要求
-                sceneId 使用 "s1" 格式。
-                只输出 sceneId、heading、scriptBlocks。
-                输出 JSON 结构必须类似：
+                ## few-shot 示例
                 {
                   "sceneId": "s1",
                   "heading": {
                     "interior": true,
-                    "location": "出租屋",
-                    "timeOfDay": "夜"
+                    "location": "家庭餐厅",
+                    "timeOfDay": "午后"
                   },
                   "scriptBlocks": [
-                    { "type": "ACTION", "text": "林晚把简历放在桌上，窗外雨声压过房间里的沉默。" },
-                    { "type": "DIALOGUE", "character": "林晚", "parenthetical": "画外音", "line": "我还不能停在这里。" },
-                    { "type": "TRANSITION", "text": "切至：便利店门口" }
+                    { "type": "SHOT", "text": "家庭餐厅一角。午后的光从窗边斜照进来，店内客人稀疏。" },
+                    { "type": "ACTION", "text": "温水坐在靠墙的位置，用手帕擦去额头的汗。" },
+                    { "type": "ACTION", "text": "他警惕地环视四周，确认附近没有同校学生。" },
+                    { "type": "INSERT", "text": "桌面上摆着自助饮料杯、大份薯条，以及一本轻小说最新卷。" },
+                    { "type": "SFX", "text": "隔壁桌传来女声尖叫。" },
+                    { "type": "VO", "character": "温水", "parenthetical": "画外音", "line": "我也想尝试这样的恋爱。" },
+                    { "type": "DIALOGUE", "character": "八奈见", "line": "这样不行啦草介！" },
+                    { "type": "TRANSITION", "text": "切至：收银台前" }
                   ]
                 }
-                只输出结构化场景 JSON，不附加解释、前后缀或 Markdown 代码块。
                 """.formatted(text);
     }
 
@@ -149,6 +155,19 @@ public class LlmServiceImpl implements LlmService {
         scene.setHeading(llmScene.getHeading());
         scene.setScriptBlocks(llmScene.getScriptBlocks());
         return scene;
+    }
+
+    static SceneDTO parseSingleSceneResult(String responseText) {
+        String json = extractJsonObject(responseText);
+        try {
+            return toSceneDTO(OBJECT_MAPPER.readValue(json, LlmSceneOutputDTO.class));
+        } catch (JsonProcessingException e) {
+            try {
+                return toSceneDTO(OBJECT_MAPPER.readValue(repairUnescapedQuotesInJsonStrings(json), LlmSceneOutputDTO.class));
+            } catch (JsonProcessingException repairedError) {
+                throw new RuntimeException("单场剧本结构化解析失败", repairedError);
+            }
+        }
     }
 
     static String normalizeSceneText(String text) {
@@ -338,6 +357,62 @@ public class LlmServiceImpl implements LlmService {
         }
 
         throw new IllegalStateException("章节切场响应中未找到 JSON 对象");
+    }
+
+    static String repairUnescapedQuotesInJsonStrings(String json) {
+        if (json == null || json.isBlank()) {
+            return json;
+        }
+
+        StringBuilder repaired = new StringBuilder(json.length());
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char current = json.charAt(i);
+
+            if (escaped) {
+                repaired.append(current);
+                escaped = false;
+                continue;
+            }
+
+            if (current == '\\') {
+                repaired.append(current);
+                escaped = inString;
+                continue;
+            }
+
+            if (current == '"') {
+                if (!inString) {
+                    inString = true;
+                    repaired.append(current);
+                    continue;
+                }
+
+                if (isLikelyJsonStringTerminator(json, i + 1)) {
+                    inString = false;
+                    repaired.append(current);
+                } else {
+                    repaired.append("\\\"");
+                }
+                continue;
+            }
+
+            repaired.append(current);
+        }
+
+        return repaired.toString();
+    }
+
+    private static boolean isLikelyJsonStringTerminator(String json, int nextIndex) {
+        for (int i = nextIndex; i < json.length(); i++) {
+            char next = json.charAt(i);
+            if (Character.isWhitespace(next)) {
+                continue;
+            }
+            return next == ',' || next == '}' || next == ']' || next == ':';
+        }
+        return true;
     }
 
     /**

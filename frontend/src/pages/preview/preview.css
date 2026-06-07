@@ -241,10 +241,29 @@
   max-width: 72ch;
 }
 
+.sp-labeled-line {
+  color: #3b2a1a;
+  margin: 0 0 14px;
+  max-width: 72ch;
+}
+
+.sp-labeled-line span {
+  color: #8c3f21;
+  display: inline-block;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin-right: 10px;
+  min-width: 6ch;
+}
+
 .sp-dialogue-block {
   margin: 18px auto;
   max-width: 42ch;
   text-align: center;
+}
+
+.sp-voice-over-block {
+  color: #4d3d2d;
 }
 
 .sp-character {

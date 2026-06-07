@@ -28,8 +28,14 @@ class LlmServiceImplUnitTest {
         assertThat(prompt).contains("scriptBlocks");
         assertThat(prompt).contains("\"sceneId\": \"s1\"");
         assertThat(prompt).contains("\"type\": \"ACTION\"");
+        assertThat(prompt).contains("\"type\": \"SHOT\"");
+        assertThat(prompt).contains("\"type\": \"INSERT\"");
+        assertThat(prompt).contains("\"type\": \"SFX\"");
         assertThat(prompt).contains("\"type\": \"DIALOGUE\"");
+        assertThat(prompt).contains("\"type\": \"VO\"");
         assertThat(prompt).contains("\"type\": \"TRANSITION\"");
+        assertThat(prompt).contains("ACTION 只写一个可拍摄动作节拍");
+        assertThat(prompt).contains("不要把环境、道具、镜头、音效、内心独白硬塞进 ACTION");
         assertThat(prompt).doesNotContain("actionLines");
         assertThat(prompt).doesNotContain("dialogueBlocks");
         assertThat(prompt).doesNotContain("visualizedInnerThoughts");
@@ -112,6 +118,10 @@ class LlmServiceImplUnitTest {
         scene.setHeading(new SceneHeadingDTO(true, "教室", "放学后"));
         scene.setScriptBlocks(List.of(
                 ScriptBlockDTO.action("林秋把书包放在桌上。"),
+                ScriptBlockDTO.textBlock("SHOT", "走廊尽头。夕阳把地面拉成长条。"),
+                ScriptBlockDTO.textBlock("INSERT", "桌面上的自行车钥匙。"),
+                ScriptBlockDTO.textBlock("SFX", "门铃急促响起。"),
+                ScriptBlockDTO.voiceOver("林秋", "画外音", "我已经不能停在这里。"),
                 ScriptBlockDTO.dialogue("林秋", null, "我已经没事了。"),
                 ScriptBlockDTO.transition("切至：走廊")
         ));
@@ -224,6 +234,33 @@ class LlmServiceImplUnitTest {
         assertThat(scenes.get(0).getStartSegmentIndex()).isEqualTo(954);
         assertThat(scenes.get(0).getEndSegmentIndex()).isEqualTo(1057);
         assertThat(scenes.get(0).getTitle()).isEqualTo("周三午餐");
+    }
+
+    @Test
+    void parseSingleSceneResultRepairsUnescapedQuotesInScriptBlockText() {
+        String responseText = """
+                {
+                  "sceneId": "s1",
+                  "heading": {
+                    "interior": true,
+                    "location": "家庭餐厅",
+                    "timeOfDay": "午后"
+                  },
+                  "scriptBlocks": [
+                    {
+                      "type": "SFX",
+                      "text": "服务员的声音："久等了，这是大份薯条！""
+                    }
+                  ]
+                }
+                """;
+
+        SceneDTO scene = LlmServiceImpl.parseSingleSceneResult(responseText);
+
+        assertThat(scene.getSceneId()).isEqualTo("s1");
+        assertThat(scene.getScriptBlocks()).hasSize(1);
+        assertThat(scene.getScriptBlocks().get(0).getType()).isEqualTo("SFX");
+        assertThat(scene.getScriptBlocks().get(0).getText()).isEqualTo("服务员的声音：\"久等了，这是大份薯条！\"");
     }
 
     private ChapterSegmentDTO segment(int segmentIndex, String text) {
