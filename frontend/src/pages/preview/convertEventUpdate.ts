@@ -131,6 +131,41 @@ export function resolveConvertEventUpdate(
     }
   }
 
+  if (eventName === 'analysis_updated') {
+    const plotSummary =
+      typeof payload.plotSummary === 'string' && payload.plotSummary.trim()
+        ? payload.plotSummary.trim()
+        : '已根据最新场景刷新人物、线索与剧情概要'
+
+    return {
+      conversionId,
+      event: {
+        type: 'analysis_updated',
+        message: `全局状态已更新：${plotSummary}`,
+      },
+    }
+  }
+
+  if (eventName === 'analysis_restored') {
+    const characterCount = Number(payload.characterCount ?? 0)
+    const storylineCount = Number(payload.storylineCount ?? 0)
+    const activeThreadCount = Number(payload.activeThreadCount ?? 0)
+    const motifCount = Number(payload.motifCount ?? 0)
+    const plotSummary =
+      typeof payload.plotSummary === 'string' && payload.plotSummary.trim()
+        ? payload.plotSummary.trim()
+        : undefined
+    const summaryLine = `已载入历史全局状态：已记录 ${characterCount} 名人物、${storylineCount} 条故事线、${activeThreadCount} 条活跃事件线、${motifCount} 个重复意象。`
+
+    return {
+      conversionId,
+      event: {
+        type: 'analysis_restored',
+        message: plotSummary ? `${summaryLine}\n当前剧情概要：${plotSummary}` : summaryLine,
+      },
+    }
+  }
+
   if (eventName === 'completed') {
     return {
       conversionId,
