@@ -1,5 +1,6 @@
 package com.livelynovel.model.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,6 +8,7 @@ import java.util.List;
  * 全局分析结果 DTO。
  * 用于 LLM 阶段A 输出，存入 ScreenplayContentDTO。
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AnalysisResultDTO {
     private String plotSummary;
     private List<CharacterDTO> characters = new ArrayList<>();

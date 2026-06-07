@@ -179,6 +179,42 @@ assert(
   '带提示的 scene_completed 应展示生成场次并追加后端提示',
 )
 
+const analysisUpdatedUpdate = resolveConvertEventUpdate(
+  'analysis_updated',
+  {
+    conversionId: 'cv-1234abcd',
+    sceneId: 's1',
+    plotSummary: '温水在家庭餐厅偶然撞见八奈见失恋。',
+  },
+  { totalChapters: 3 },
+)
+
+assert(analysisUpdatedUpdate?.event?.type === 'analysis_updated', 'analysis_updated 应进入事件流')
+assert(
+  analysisUpdatedUpdate?.event?.message === '全局状态已更新：温水在家庭餐厅偶然撞见八奈见失恋。',
+  'analysis_updated 应展示滚动全局状态摘要',
+)
+
+const analysisRestoredUpdate = resolveConvertEventUpdate(
+  'analysis_restored',
+  {
+    conversionId: 'cv-1234abcd',
+    characterCount: 8,
+    storylineCount: 2,
+    activeThreadCount: 3,
+    motifCount: 1,
+    plotSummary: '温水已经被卷入八奈见失恋后的关系变化。',
+  },
+  { totalChapters: 3 },
+)
+
+assert(analysisRestoredUpdate?.event?.type === 'analysis_restored', 'analysis_restored 应进入事件流')
+assert(
+  analysisRestoredUpdate?.event?.message ===
+    '已载入历史全局状态：已记录 8 名人物、2 条故事线、3 条活跃事件线、1 个重复意象。\n当前剧情概要：温水已经被卷入八奈见失恋后的关系变化。',
+  'analysis_restored 应展示历史状态数量和剧情概要',
+)
+
 const replayedSplitUpdate = resolveConvertEventUpdate(
   'chapter_split',
   {

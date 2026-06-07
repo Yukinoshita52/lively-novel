@@ -10,6 +10,7 @@
 > **v1.4 变更（§6/7/8/9 复审）**：§6 补注册/登录滥用、并发任务、上传体积、提示注入、CORS、SQL 注入等风险；§7 标注初版、补 README/resources/common/dto/exception/test/data 等关键目录；§8 补 40401/42901/40303/50004 错误码；§9 补 WAL 开启、multipart 与 SSE 超时、全局预算、模型名核对提示。
 > **v1.5 变更（§4 重写）**：结合原型逐屏，为全部 16 个接口补全请求/响应详细设计；接口列表增加「原型来源」列；新增 §4.2 通用约定（鉴权/JSON 包装/SSE 约定）；注册改为返回 token 自动登录；响应字段与 `yaml-schema.md` 全面对齐（ANIME 默认、schemaVersion、scriptBlocks 正文块）；补 ⑥⑨⑩⑪⑫⑬⑮⑯ 等此前缺失的接口示例。
 > **v1.6 变更（当前实现同步）**：补充 §4.0 当前实现基线，明确比赛 MVP 当前使用 `/api/screenplay/conversions/...` 转换详情、单场保存与 YAML 导出接口；标注 JWT、AI 单场重生、可读文本导出、完整人物/线索视图仍为后续扩展；同步失败后继续转换、语言漂移降级提示、`sourceText`/`visualizedInnerThoughts` 不进入导出 YAML 等已实现约束。
+> **v1.7 变更（滚动全局状态）**：当前实现放弃额外前置通读全文的阶段 A，改为在逐场生成后更新 conversion 级 `analysisStateJson`。最终 YAML 顶层 `plotSummary / characters / storylines` 从该滚动状态导出；内部 `contextSummary / activeCharacters / activeThreads / motifs / timeline / foreshadows` 只用于后续上下文，不进入导出 YAML。
 
 ---
 
@@ -135,6 +136,7 @@ Screenplay (剧本)  ── 归属 userId，关联 novelId
  ├── title: String
  ├── screenplayType: ENUM (ANIME|FILM|SHORT_DRAMA|RADIO|THEATER)
  ├── contentJson: TEXT  ← 完整剧本结构序列化为 JSON 存储（避免嵌套全 ORM 化）
+ ├── analysisStateJson: TEXT  ← 当前 MVP conversion 级滚动全局状态（导出字段 + 内部上下文字段）
  ├── cacheKey: String (novelContentHash + type，缓存命中键；有意反范式，与 Novel.contentHash 冗余以换取直接索引命中)
  └── updatedAt: Instant
 ```
@@ -213,6 +215,9 @@ Screenplay (持久化)
 - 打磨页当前支持直接编辑单场 YAML、保存、取消和右侧实时预览；AI 单场重生、视觉化手法选择、风格提示重写仍是后续扩展。
 - 导出 YAML 使用 `scriptBlocks` 作为剧本正文唯一主体；`sourceText` 与 `visualizedInnerThoughts` 属于内部生成/审计字段，不进入最终 YAML。
 - YAML 导出禁用长字符串自动反斜杠折行，保证长 `text` 字段在同一逻辑行展示。
+- 当前转换在每场剧本生成后更新滚动全局状态，持久化到 `ScreenplayConversion.analysisStateJson`。状态更新失败不阻断转换，只保留上一版状态并继续生成；导出 YAML 使用该状态填充 `plotSummary / characters / storylines`。
+- 滚动状态输入给 LLM 时使用压缩上下文，只带 `contextSummary`、近期活跃人物、近期事件线、少量近期故事线事件、未解决伏笔、重复意象和近期时间线，避免完整状态随场景增长导致 prompt 膨胀和 JSON 解析失败。
+- `plotSummary` 用于最终 YAML，要求概括性强、越久远越淡化、近期未解决事件更具体，不做确定性预测；`contextSummary` 用于下一场生成，承担承上启下作用。
 
 ### 4.1 接口列表（含原型映射）
 

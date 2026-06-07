@@ -3,6 +3,7 @@ package com.livelynovel.service;
 import com.livelynovel.model.dto.ChapterPreviewDTO;
 import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
+import com.livelynovel.model.dto.RollingAnalysisStateDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
@@ -209,9 +210,109 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
+    void updatesAndPersistsRollingAnalysisStateAfterGeneratedScene() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "温水在家庭餐厅听见八奈见和袴田争执。";
+        SceneUnitDTO sceneUnit = sceneUnit(1, 1, 1, 1);
+        SceneDTO generatedScene = scene("s1");
+        RollingAnalysisStateDTO updatedState = new RollingAnalysisStateDTO();
+        updatedState.setPlotSummary("温水在家庭餐厅偶然撞见八奈见失恋。");
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+                .thenReturn(List.of(sceneUnit));
+        when(llmService.convertSingleScene(chapterContent, ScreenplayTypeEnum.ANIME)).thenReturn(generatedScene);
+        when(llmService.updateRollingAnalysisState(
+                org.mockito.ArgumentMatchers.any(RollingAnalysisStateDTO.class),
+                org.mockito.ArgumentMatchers.eq(sceneUnit),
+                org.mockito.ArgumentMatchers.eq(generatedScene),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        )).thenReturn(updatedState);
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, new AtomicReference<>());
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        verify(llmService, times(1)).updateRollingAnalysisState(
+                org.mockito.ArgumentMatchers.any(RollingAnalysisStateDTO.class),
+                org.mockito.ArgumentMatchers.eq(sceneUnit),
+                org.mockito.ArgumentMatchers.eq(generatedScene),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        );
+        ArgumentCaptor<ScreenplayConversionEntity> conversionCaptor =
+                ArgumentCaptor.forClass(ScreenplayConversionEntity.class);
+        verify(conversionRepository, times(3)).save(conversionCaptor.capture());
+        assertThat(conversionCaptor.getAllValues().get(1).getAnalysisStateJson())
+                .contains("温水在家庭餐厅偶然撞见八奈见失恋。");
+        assertThat(containsEvent(sentPayloads, "analysis_updated")).isTrue();
+    }
+
+    @Test
+    void continuesConversionWhenRollingAnalysisUpdateFails() throws Exception {
+        String novelId = "nv-1234abcd";
+        String chapterContent = "温水在家庭餐厅听见八奈见和袴田争执。";
+        SceneUnitDTO sceneUnit = sceneUnit(1, 1, 1, 1);
+        SceneDTO generatedScene = scene("s1");
+        CountDownLatch releaseGetChapters = new CountDownLatch(1);
+        List<Object> sentPayloads = new CopyOnWriteArrayList<>();
+
+        when(novelService.getChapters(novelId)).thenAnswer(invocation -> {
+            releaseGetChapters.await(2, TimeUnit.SECONDS);
+            return chaptersResult(novelId);
+        });
+        when(novelService.getChapterDetail(novelId, 1)).thenReturn(chapterDetail(novelId, chapterContent));
+        when(llmService.splitChapterIntoScenes(chapterContent, 1, ScreenplayTypeEnum.ANIME))
+                .thenReturn(List.of(sceneUnit));
+        when(llmService.convertSingleScene(chapterContent, ScreenplayTypeEnum.ANIME)).thenReturn(generatedScene);
+        when(llmService.updateRollingAnalysisState(
+                org.mockito.ArgumentMatchers.any(RollingAnalysisStateDTO.class),
+                org.mockito.ArgumentMatchers.eq(sceneUnit),
+                org.mockito.ArgumentMatchers.eq(generatedScene),
+                org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
+        )).thenThrow(new RuntimeException("状态更新失败"));
+
+        CountDownLatch completion = new CountDownLatch(1);
+        SseEmitter emitter = screenplayService.convertNovel(novelId, ScreenplayTypeEnum.ANIME);
+        initializeEmitterHandler(emitter, sentPayloads, completion, new AtomicReference<>());
+        releaseGetChapters.countDown();
+        assertThat(completion.await(2, TimeUnit.SECONDS)).isTrue();
+
+        assertThat(containsEvent(sentPayloads, "failed")).isFalse();
+        assertThat(containsEvent(sentPayloads, "scene_completed")).isTrue();
+        assertThat(containsEvent(sentPayloads, "completed")).isTrue();
+    }
+
+    @Test
     void replaysCompletedConversionThroughSseWithoutCallingLlm() throws Exception {
         String novelId = "nv-1234abcd";
         ScreenplayConversionEntity conversion = conversion("cv-completed", novelId, "COMPLETED");
+        conversion.setAnalysisStateJson("""
+                {
+                  "plotSummary": "温水已经被卷入八奈见失恋后的关系变化。",
+                  "contextSummary": "温水与八奈见之间形成保密和债务联系。",
+                  "characters": [
+                    {"name": "温水和彦", "role": "PROTAGONIST", "description": "旁观型主角", "firstAppearance": "第1章"},
+                    {"name": "八奈见杏菜", "role": "PROTAGONIST", "description": "刚失恋的同班同学", "firstAppearance": "第1章"}
+                  ],
+                  "storylines": [
+                    {"name": "八奈见失恋线", "type": "MAIN", "events": [{"scene": "s1", "event": "八奈见失恋。"}]}
+                  ],
+                  "activeThreads": [
+                    {"name": "餐费债务", "status": "OPEN", "importance": "MEDIUM", "recentSummary": "八奈见欠温水餐费。"}
+                  ],
+                  "motifs": [
+                    {"name": "大份薯条", "meaning": "八奈见用食欲掩饰失恋情绪", "firstScene": "s1", "lastScene": "s1", "occurrenceCount": 1}
+                  ]
+                }
+                """);
         ScreenplaySceneUnitEntity sceneUnit = sceneUnitEntity("cv-completed", 1, 1, "第一场", "第一段原文。");
         ScreenplaySceneEntity sceneEntity = sceneEntity("cv-completed", 1, 1, "scene-1");
         List<Object> sentPayloads = new CopyOnWriteArrayList<>();
@@ -242,6 +343,7 @@ class ScreenplayServiceImplTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq(ScreenplayTypeEnum.ANIME)
         );
+        assertThat(containsAnalysisRestoredEvent(sentPayloads, 2, 1, 1, 1)).isTrue();
         assertThat(containsReplayedEvent(sentPayloads, "chapter_split")).isTrue();
         assertThat(containsReplayedEvent(sentPayloads, "scene_completed")).isTrue();
         assertThat(containsEvent(sentPayloads, "completed")).isTrue();
@@ -293,6 +395,61 @@ class ScreenplayServiceImplTest {
         conversion.setNovelId("nv-1234abcd");
         conversion.setScreenplayType(ScreenplayTypeEnum.ANIME);
         conversion.setStatus("COMPLETED");
+        conversion.setAnalysisStateJson("""
+                {
+                  "plotSummary": "温水在家庭餐厅偶然撞见八奈见失恋，由旁观者被卷入她的情绪与关系中。",
+                  "contextSummary": "温水已经被卷入八奈见失恋后的关系变化。",
+                  "activeThreads": [
+                    {
+                      "name": "八奈见失恋后的关系变化",
+                      "status": "OPEN",
+                      "importance": "HIGH",
+                      "recentSummary": "八奈见失恋后与温水产生秘密和债务联系。",
+                      "relatedCharacters": ["温水和彦", "八奈见杏菜"]
+                    }
+                  ],
+                  "motifs": [
+                    {
+                      "name": "大份薯条",
+                      "meaning": "八奈见失恋后用食欲掩饰情绪的意象",
+                      "firstScene": "s1",
+                      "lastScene": "s1",
+                      "occurrenceCount": 1
+                    }
+                  ],
+                  "characters": [
+                    {
+                      "name": "温水和彦",
+                      "role": "PROTAGONIST",
+                      "description": "偏内向的高中男生，习惯旁观他人关系。",
+                      "firstAppearance": "第1章",
+                      "relationships": [
+                        {"target": "八奈见杏菜", "relation": "同班同学；从家庭餐厅事件开始产生交集。"}
+                      ]
+                    },
+                    {
+                      "name": "八奈见杏菜",
+                      "role": "PROTAGONIST",
+                      "description": "温水的同班同学，刚经历青梅竹马失恋。",
+                      "firstAppearance": "第1章",
+                      "relationships": [
+                        {"target": "温水和彦", "relation": "被温水撞见失恋后的狼狈一面。"}
+                      ]
+                    }
+                  ],
+                  "storylines": [
+                    {
+                      "name": "温水被卷入败犬女主事件",
+                      "type": "MAIN",
+                      "events": [
+                        {"scene": "s1", "event": "温水在家庭餐厅偶然听见八奈见和袴田的争执。"}
+                      ]
+                    }
+                  ],
+                  "timeline": [],
+                  "foreshadows": []
+                }
+                """);
 
         ScreenplaySceneEntity sceneEntity = new ScreenplaySceneEntity();
         sceneEntity.setConversionId("cv-1234abcd");
@@ -341,6 +498,42 @@ class ScreenplayServiceImplTest {
         conversion.setNovelId("nv-1234abcd");
         conversion.setScreenplayType(ScreenplayTypeEnum.ANIME);
         conversion.setStatus("COMPLETED");
+        conversion.setAnalysisStateJson("""
+                {
+                  "plotSummary": "温水在家庭餐厅偶然撞见八奈见失恋，由旁观者被卷入她的情绪与关系中。",
+                  "characters": [
+                    {
+                      "name": "温水和彦",
+                      "role": "PROTAGONIST",
+                      "description": "偏内向的高中男生，习惯旁观他人关系。",
+                      "firstAppearance": "第1章",
+                      "relationships": [
+                        {"target": "八奈见杏菜", "relation": "同班同学；从家庭餐厅事件开始产生交集。"}
+                      ]
+                    },
+                    {
+                      "name": "八奈见杏菜",
+                      "role": "PROTAGONIST",
+                      "description": "温水的同班同学，刚经历青梅竹马失恋。",
+                      "firstAppearance": "第1章",
+                      "relationships": [
+                        {"target": "温水和彦", "relation": "被温水撞见失恋后的狼狈一面。"}
+                      ]
+                    }
+                  ],
+                  "storylines": [
+                    {
+                      "name": "温水被卷入败犬女主事件",
+                      "type": "MAIN",
+                      "events": [
+                        {"scene": "s1", "event": "温水在家庭餐厅偶然听见八奈见和袴田的争执。"}
+                      ]
+                    }
+                  ],
+                  "timeline": [],
+                  "foreshadows": []
+                }
+                """);
 
         ScreenplaySceneEntity sceneEntity = new ScreenplaySceneEntity();
         sceneEntity.setConversionId("cv-completed");
@@ -383,6 +576,42 @@ class ScreenplayServiceImplTest {
         conversion.setNovelId("nv-1234abcd");
         conversion.setScreenplayType(ScreenplayTypeEnum.ANIME);
         conversion.setStatus("COMPLETED");
+        conversion.setAnalysisStateJson("""
+                {
+                  "plotSummary": "温水在家庭餐厅偶然撞见八奈见失恋，由旁观者被卷入她的情绪与关系中。",
+                  "characters": [
+                    {
+                      "name": "温水和彦",
+                      "role": "PROTAGONIST",
+                      "description": "偏内向的高中男生，习惯旁观他人关系。",
+                      "firstAppearance": "第1章",
+                      "relationships": [
+                        {"target": "八奈见杏菜", "relation": "同班同学；从家庭餐厅事件开始产生交集。"}
+                      ]
+                    },
+                    {
+                      "name": "八奈见杏菜",
+                      "role": "PROTAGONIST",
+                      "description": "温水的同班同学，刚经历青梅竹马失恋。",
+                      "firstAppearance": "第1章",
+                      "relationships": [
+                        {"target": "温水和彦", "relation": "被温水撞见失恋后的狼狈一面。"}
+                      ]
+                    }
+                  ],
+                  "storylines": [
+                    {
+                      "name": "温水被卷入败犬女主事件",
+                      "type": "MAIN",
+                      "events": [
+                        {"scene": "s1", "event": "温水在家庭餐厅偶然听见八奈见和袴田的争执。"}
+                      ]
+                    }
+                  ],
+                  "timeline": [],
+                  "foreshadows": []
+                }
+                """);
 
         ScreenplaySceneEntity sceneEntity = new ScreenplaySceneEntity();
         sceneEntity.setConversionId("cv-1234abcd");
@@ -408,15 +637,28 @@ class ScreenplayServiceImplTest {
                 """);
 
         when(conversionRepository.findById("cv-1234abcd")).thenReturn(Optional.of(conversion));
+        when(novelService.getChapters("nv-1234abcd")).thenReturn(chaptersResultWithTitle("nv-1234abcd", "败犬女主太多了！"));
         when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-1234abcd"))
                 .thenReturn(List.of(sceneEntity));
 
         String yaml = screenplayService.exportConversionYaml("cv-1234abcd");
 
         assertThat(yaml).contains("schemaVersion: \"1.0\"");
+        assertThat(yaml).contains("title: \"败犬女主太多了！\"");
         assertThat(yaml).contains("screenplayType: \"ANIME\"");
-        assertThat(yaml).contains("characters: []");
-        assertThat(yaml).contains("storylines: []");
+        assertThat(yaml).contains("plotSummary: \"温水在家庭餐厅偶然撞见八奈见失恋，由旁观者被卷入她的情绪与关系中。\"");
+        assertThat(yaml).contains("characters:");
+        assertThat(yaml).contains("name: \"温水和彦\"");
+        assertThat(yaml).contains("role: \"PROTAGONIST\"");
+        assertThat(yaml).contains("target: \"八奈见杏菜\"");
+        assertThat(yaml).contains("storylines:");
+        assertThat(yaml).contains("name: \"温水被卷入败犬女主事件\"");
+        assertThat(yaml).contains("scene: \"s1\"");
+        assertThat(yaml).doesNotContain("timeline:");
+        assertThat(yaml).doesNotContain("foreshadows:");
+        assertThat(yaml).doesNotContain("contextSummary:");
+        assertThat(yaml).doesNotContain("activeThreads:");
+        assertThat(yaml).doesNotContain("motifs:");
         assertThat(yaml).contains("scenes:");
         assertThat(yaml).contains("sceneId: \"s1\"");
         assertThat(yaml).contains("scriptBlocks:");
@@ -756,6 +998,29 @@ class ScreenplayServiceImplTest {
             .anyMatch(data -> expectedMessage.equals(data.get("message")));
     }
 
+    private boolean containsAnalysisRestoredEvent(
+        List<Object> sentPayloads,
+        int characterCount,
+        int storylineCount,
+        int activeThreadCount,
+        int motifCount
+    ) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .anyMatch(data -> "analysis_restored".equals(data.get("eventName"))
+                && data.get("characterCount") instanceof Integer characters
+                && characters == characterCount
+                && data.get("storylineCount") instanceof Integer storylines
+                && storylines == storylineCount
+                && data.get("activeThreadCount") instanceof Integer threads
+                && threads == activeThreadCount
+                && data.get("motifCount") instanceof Integer motifs
+                && motifs == motifCount
+                && data.get("message") instanceof String message
+                && message.contains("已载入历史全局状态"));
+    }
+
     private boolean containsReason(List<Object> sentPayloads, String expectedReasonPart) {
         return flattenPayloadData(sentPayloads).stream()
             .filter(Map.class::isInstance)
@@ -798,13 +1063,17 @@ class ScreenplayServiceImplTest {
     }
 
     private NovelChaptersResultDTO chaptersResult(String novelId) {
+        return chaptersResultWithTitle(novelId, "测试小说");
+    }
+
+    private NovelChaptersResultDTO chaptersResultWithTitle(String novelId, String title) {
         ChapterPreviewDTO chapter = new ChapterPreviewDTO();
         chapter.setChapterIndex(1);
         chapter.setTitle("第一章");
 
         NovelChaptersResultDTO result = new NovelChaptersResultDTO();
         result.setNovelId(novelId);
-        result.setTitle("测试小说");
+        result.setTitle(title);
         result.setTotalChapters(1);
         result.setChapters(List.of(chapter));
         return result;

@@ -118,7 +118,7 @@ scenes:                    # 场景列表（有序）
 
 ## 4. Schema 总览
 
-> 当前实现说明：后端内部仍会保存 `sourceText`、`visualizedInnerThoughts` 等生成/审计字段，用于回读、调试、继续转换与未来重生；但最终导出的 YAML 只遵循本章结构。导出时以 `scriptBlocks` 作为剧本正文唯一主体，不输出内部原文片段或改编日志。
+> 当前实现说明：后端内部仍会保存 `sourceText`、`visualizedInnerThoughts` 等生成/审计字段，用于回读、调试、继续转换与未来重生；但最终导出的 YAML 只遵循本章结构。导出时以 `scriptBlocks` 作为剧本正文唯一主体，不输出内部原文片段或改编日志。顶层 `plotSummary / characters / storylines` 由转换过程中的滚动全局状态填充；内部 `contextSummary / activeCharacters / activeThreads / motifs / timeline / foreshadows` 只用于后续场景上下文，不进入导出 YAML。
 
 ### 4.1 顶层结构
 
@@ -131,7 +131,7 @@ screenplay (根)
 │   ├── title                 作品标题
 │   └── screenplayType        剧本类型（枚举）
 │
-├── 全局分析产物（阶段 A）
+├── 全局分析产物（滚动全局状态）
 │   ├── plotSummary           全局剧情概要
 │   ├── characters[]          全局人物表（规范命名，跨章一致）
 │   └── storylines[]          故事线索（主线/支线及事件）
@@ -256,7 +256,7 @@ characters:
 
 #### 5.3.1 `sceneId` — **必填**，string
 
-- 约束：全剧唯一，如 `s1`、`s2`。由全局分析阶段切分场景时顺序赋予。
+- 约束：全剧唯一，如 `s1`、`s2`。当前实现由逐场生成结果提供，并被滚动全局状态的 `storylines.events.scene` 引用。
 - **设计原因**：场景的稳定标识。**编辑/重生单场的 API（`PUT/POST .../scenes/{sceneId}`）依赖它定位**；`storylines.events.scene` 也引用它把事件挂到场景上。用 `s1` 这种短 id 而非数组下标，是因为下标在插入/删除场景后会变化，而 id 稳定——这对"可编辑"至关重要。
 
 #### 5.3.2 `heading` — **必填**，object：场景标题（结构化）
