@@ -1,28 +1,42 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { message as antdMessage } from 'antd'
 import ImportPage from './pages/ImportPage'
 import ScreenplayConvertPage from './pages/ScreenplayConvertPage'
 import ScreenplayExportPage from './pages/ScreenplayExportPage'
 import ScreenplayPolishPage from './pages/ScreenplayPolishPage'
 import ScreenplayPreviewPage from './pages/ScreenplayPreviewPage'
-import SingleSceneConvertPage from './pages/SingleSceneConvertPage'
 import type { AppPageKey } from './pages/appNavigation'
 import { useScreenplayConversionSession } from './pages/conversionSession'
-import { resumeConvertPage } from './pages/appNavigation'
+import { resolveFlowStepNavigation, resumeConvertPage } from './pages/appNavigation'
 import type { PolishDraft } from './pages/screenplayPolish'
-import type { ImportFlowContext, ScreenplayConvertContext } from './types/novel'
+import type { ScreenplayConvertContext } from './types/novel'
+import type { FlowStepKey } from './pages/prototypeFlow'
 import './App.css'
 
 function App() {
   const [page, setPage] = useState<AppPageKey>('import')
-  const [singleSceneContext, setSingleSceneContext] = useState<ImportFlowContext | null>(null)
   const [convertContext, setConvertContext] = useState<ScreenplayConvertContext | null>(null)
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const [polishDraftsBySceneKey, setPolishDraftsBySceneKey] = useState<Record<string, PolishDraft>>({})
   const conversionSession = useScreenplayConversionSession(convertContext)
+  const flowNavigation = useMemo(
+    () => resolveFlowStepNavigation(
+      {
+        page,
+        singleSceneContext: null,
+        convertContext,
+        selectedSceneKey,
+      },
+      {
+        hasGeneratedScenes: Boolean(conversionSession?.generatedScenes.length),
+        completed: Boolean(conversionSession?.completed),
+      },
+    ),
+    [conversionSession?.completed, conversionSession?.generatedScenes.length, convertContext, page, selectedSceneKey],
+  )
 
   function backToImport() {
     setPage('import')
-    setConvertContext(null)
     setSelectedSceneKey(undefined)
     setPolishDraftsBySceneKey({})
   }
@@ -37,7 +51,7 @@ function App() {
   function resumeConversion() {
     const nextState = resumeConvertPage({
       page,
-      singleSceneContext,
+      singleSceneContext: null,
       convertContext,
       selectedSceneKey,
     })
@@ -45,13 +59,26 @@ function App() {
     setPage(nextState.page)
   }
 
-  if (page === 'single-scene' && singleSceneContext) {
-    return (
-      <SingleSceneConvertPage
-        context={singleSceneContext}
-        onBack={() => setPage('import')}
-      />
-    )
+  function handleNavigateStep(step: FlowStepKey) {
+    const navigation = flowNavigation[step]
+    if (!navigation.enabled) {
+      if (navigation.message) {
+        void antdMessage.warning(navigation.message)
+      }
+      return
+    }
+
+    if (step === 'import') {
+      backToImport()
+      return
+    }
+
+    if (step === 'polish' && !selectedSceneKey && conversionSession?.generatedScenes[0]) {
+      const firstScene = conversionSession.generatedScenes[0]
+      setSelectedSceneKey(`${firstScene.chapterIndex}-${firstScene.sceneIndexInChapter ?? firstScene.title}`)
+    }
+
+    setPage(navigation.target)
   }
 
   if (page === 'convert' && conversionSession) {
@@ -61,6 +88,8 @@ function App() {
         onBack={backToImport}
         onPreview={() => setPage('preview')}
         onResume={resumeConversion}
+        flowNavigation={flowNavigation}
+        onNavigateStep={handleNavigateStep}
       />
     )
   }
@@ -74,6 +103,8 @@ function App() {
           setSelectedSceneKey(sceneKey)
           setPage('polish')
         }}
+        flowNavigation={flowNavigation}
+        onNavigateStep={handleNavigateStep}
       />
     )
   }
@@ -88,6 +119,8 @@ function App() {
         onSelectScene={setSelectedSceneKey}
         onBackToPreview={() => setPage('preview')}
         onExport={() => setPage('export')}
+        flowNavigation={flowNavigation}
+        onNavigateStep={handleNavigateStep}
       />
     )
   }
@@ -97,6 +130,8 @@ function App() {
       <ScreenplayExportPage
         session={conversionSession}
         onBackToPolish={() => setPage('polish')}
+        flowNavigation={flowNavigation}
+        onNavigateStep={handleNavigateStep}
       />
     )
   }
@@ -107,10 +142,14 @@ function App() {
         setConvertContext(nextContext)
         setPage('convert')
       }}
-      onStartSingleScene={(nextContext) => {
-        setSingleSceneContext(nextContext)
-        setPage('single-scene')
+      onTitleUpdated={(nextContext) => {
+        setConvertContext((current) => (
+          current?.novelId === nextContext.novelId ? { ...current, title: nextContext.title } : current
+        ))
       }}
+      restoreContext={convertContext}
+      flowNavigation={flowNavigation}
+      onNavigateStep={handleNavigateStep}
     />
   )
 }

@@ -4,6 +4,8 @@ import { ArrowLeftOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/i
 import type { ConversionSessionState } from './conversionSession'
 import { getScreenplayConversionYaml } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
+import type { FlowStepNavigation } from './appNavigation'
+import type { FlowStepKey } from './prototypeFlow'
 import { buildYamlDownloadFileName } from './screenplayPreview'
 
 const { Text } = Typography
@@ -11,9 +13,16 @@ const { Text } = Typography
 type ScreenplayExportPageProps = {
   session: ConversionSessionState
   onBackToPolish: () => void
+  flowNavigation?: FlowStepNavigation
+  onNavigateStep?: (step: FlowStepKey) => void
 }
 
-function ScreenplayExportPage({ session, onBackToPolish }: ScreenplayExportPageProps) {
+function ScreenplayExportPage({
+  session,
+  onBackToPolish,
+  flowNavigation,
+  onNavigateStep,
+}: ScreenplayExportPageProps) {
   const [persistedYamlText, setPersistedYamlText] = useState('')
   const [exportError, setExportError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -71,9 +80,14 @@ function ScreenplayExportPage({ session, onBackToPolish }: ScreenplayExportPageP
   }
 
   return (
-    <PrototypeFrame currentStep="export" maxWidth={1180}>
+    <PrototypeFrame
+      currentStep="export"
+      maxWidth={1180}
+      flowNavigation={flowNavigation}
+      onNavigateStep={onNavigateStep}
+    >
       <PrototypeHero
-        eyebrow="06 · 导出"
+        eyebrow="05 · 导出"
         title="带走你的剧本初稿"
         meta="结构化 YAML"
         action={

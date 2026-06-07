@@ -6,6 +6,7 @@ import {
   enterPreviewPage,
   returnToPreviewPage,
   returnToConvertPage,
+  resolveFlowStepNavigation,
   resumeConvertPage,
   selectPolishScene,
 } from './appNavigation.ts'
@@ -59,3 +60,37 @@ state = resumeConvertPage(state)
 assert(state.page === 'convert', '继续转换应回到转换页')
 assert(state.convertContext !== sessionBeforePreview, '继续转换应替换 context 对象以重新发起转换请求')
 assert(state.convertContext?.novelId === sessionBeforePreview?.novelId, '继续转换应保留原 novelId')
+
+const navigationWithoutContext = resolveFlowStepNavigation(createInitialAppFlowState(), {
+  hasGeneratedScenes: false,
+  completed: false,
+})
+assert(navigationWithoutContext.import.enabled, '导入步骤应始终可点击')
+assert(navigationWithoutContext.convert.clickable, '没有转换上下文时转换步骤仍应可点击以提示用户')
+assert(!navigationWithoutContext.convert.enabled, '没有转换上下文时不应跳转转换页')
+assert(!navigationWithoutContext.preview.enabled, '没有已生成场景时不应跳转预览页')
+assert(
+  navigationWithoutContext.convert.message === '请先导入小说并开始分析。',
+  '没有转换上下文时点击转换应提示先导入',
+)
+
+const navigationWithScenes = resolveFlowStepNavigation({
+  ...createInitialAppFlowState(),
+  convertContext: context,
+}, {
+  hasGeneratedScenes: true,
+  completed: false,
+})
+assert(navigationWithScenes.convert.enabled, '存在转换上下文时应可跳转转换页')
+assert(navigationWithScenes.preview.enabled, '已有生成场景时应可跳转预览页')
+assert(navigationWithScenes.polish.enabled, '已有生成场景时应可跳转打磨页')
+assert(!navigationWithScenes.export.enabled, '未完成转换时不应跳转导出页')
+
+const navigationCompleted = resolveFlowStepNavigation({
+  ...createInitialAppFlowState(),
+  convertContext: context,
+}, {
+  hasGeneratedScenes: true,
+  completed: true,
+})
+assert(navigationCompleted.export.enabled, '转换完成后应可跳转导出页')

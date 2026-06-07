@@ -14,49 +14,28 @@ import {
 import {
   getNovelChapters,
   getNovelList,
-  parseNovel,
+  updateNovelTitle,
   uploadNovel,
 } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
+import {
+  buildImportEntryActions,
+  buildImportResultFromConvertContext,
+  buildScreenplayTypeCards,
+  resolveEditableTitle,
+  selectHistoryNovel,
+  selectUploadedNovel,
+} from './importPageModel'
+import type { FlowStepNavigation } from './appNavigation'
+import type { FlowStepKey } from './prototypeFlow'
 import type {
   ChapterPreview,
-  ChapterSummary,
-  ImportFlowContext,
   NovelChaptersResult,
   NovelListItem,
-  NovelParseResult,
   ScreenplayConvertContext,
 } from '../types/novel'
 
 const { Text, Title } = Typography
-const { TextArea } = Input
-
-const SAMPLE_TITLE = '她比烟花寂寞'
-const SAMPLE_TEXT = `==========
-~第一章 出租屋的夜~
-==========
-
-雨敲在铁皮屋檐上。林晚把简历又看了一遍，心里像压了块石头。
-
-==========
-~第二章 天台~
-==========
-
-黄昏，城市在脚下铺开。她想，如果就这样跳下去，会不会比活着轻松。
-
-==========
-~第三章 转机~
-==========
-
-手机响了。是那家公司。“林晚小姐，恭喜你通过了。”`
-
-const SCREENPLAY_TYPES = [
-  { code: 'ANIME', name: '动画剧本', enabled: true },
-  { code: 'FILM', name: '影视剧本', enabled: false },
-  { code: 'SHORT_DRAMA', name: '短剧剧本', enabled: false },
-  { code: 'RADIO', name: '广播剧', enabled: false },
-  { code: 'THEATER', name: '话剧', enabled: false },
-]
 
 type DisplayChapter = ChapterPreview
 
@@ -70,7 +49,10 @@ type DisplayResult = {
 
 type ImportPageProps = {
   onStartConvert: (context: ScreenplayConvertContext) => void
-  onStartSingleScene: (context: ImportFlowContext) => void
+  onTitleUpdated?: (context: ScreenplayConvertContext) => void
+  restoreContext?: ScreenplayConvertContext | null
+  flowNavigation?: FlowStepNavigation
+  onNavigateStep?: (step: FlowStepKey) => void
 }
 
 function formatWordCount(wordCount: number) {
@@ -98,13 +80,13 @@ function formatTime(isoTime: string | null) {
   }).format(date)
 }
 
-function toDisplayResult(result: NovelParseResult | NovelChaptersResult): DisplayResult {
+function toDisplayResult(result: NovelChaptersResult): DisplayResult {
   return {
     novelId: 'novelId' in result ? result.novelId : undefined,
     title: result.title,
     totalChapters: result.totalChapters,
     totalWordCount: result.totalWordCount,
-    chapters: result.chapters.map((chapter: ChapterSummary | ChapterPreview) => ({
+    chapters: result.chapters.map((chapter: ChapterPreview) => ({
       chapterIndex: chapter.chapterIndex,
       title: chapter.title,
       wordCount: chapter.wordCount,
@@ -113,47 +95,45 @@ function toDisplayResult(result: NovelParseResult | NovelChaptersResult): Displa
   }
 }
 
-function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
+function ImportPage({
+  onStartConvert,
+  onTitleUpdated,
+  restoreContext,
+  flowNavigation,
+  onNavigateStep,
+}: ImportPageProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [title, setTitle] = useState(SAMPLE_TITLE)
-  const [text, setText] = useState(SAMPLE_TEXT)
   const [selectedType, setSelectedType] = useState('ANIME')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [parseLoading, setParseLoading] = useState(false)
   const [uploadLoading, setUploadLoading] = useState(false)
+  const [titleSaving, setTitleSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [chapterResult, setChapterResult] = useState<DisplayResult | null>(null)
+  const [chapterResult, setChapterResult] = useState<DisplayResult | null>(
+    () => buildImportResultFromConvertContext(restoreContext ?? null),
+  )
+  const [editableTitle, setEditableTitle] = useState(
+    () => buildImportResultFromConvertContext(restoreContext ?? null)?.title ?? '',
+  )
   const [historyVisible, setHistoryVisible] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [historyItems, setHistoryItems] = useState<NovelListItem[]>([])
-
-  async function handleParse() {
-    setParseLoading(true)
-    setErrorMessage(null)
-
-    try {
-      const result = await parseNovel(title, text)
-      setChapterResult(toDisplayResult(result))
-    } catch (error) {
-      setChapterResult(null)
-      setErrorMessage(error instanceof Error ? error.message : '章节识别失败')
-    } finally {
-      setParseLoading(false)
-    }
-  }
+  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(restoreContext?.novelId ?? null)
 
   async function handleFileSelected(file: File) {
     setSelectedFile(file)
+    setSelectedNovelId((current) => selectUploadedNovel({ selectedNovelId: current }).selectedNovelId)
     setUploadLoading(true)
     setErrorMessage(null)
 
     try {
-      const uploadResult = await uploadNovel(title, file)
+      const uploadResult = await uploadNovel('', file)
       const chaptersResult = await getNovelChapters(uploadResult.novelId)
       setChapterResult(toDisplayResult(chaptersResult))
+      setEditableTitle(chaptersResult.title)
     } catch (error) {
       setChapterResult(null)
+      setEditableTitle('')
       setErrorMessage(error instanceof Error ? error.message : '上传失败')
     } finally {
       setUploadLoading(false)
@@ -185,17 +165,62 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
     }
   }
 
-  async function handleUseHistory(novelId: string, novelTitle: string) {
+  async function handleUseHistory(novelId: string) {
     setErrorMessage(null)
+    setSelectedNovelId((current) => selectHistoryNovel({ selectedNovelId: current }, novelId).selectedNovelId)
 
     try {
       const chaptersResult = await getNovelChapters(novelId)
-      setTitle(novelTitle)
       setSelectedFile(null)
       setChapterResult(toDisplayResult(chaptersResult))
+      setEditableTitle(chaptersResult.title)
     } catch (error) {
+      setSelectedNovelId(null)
       setErrorMessage(error instanceof Error ? error.message : '加载历史小说失败')
     }
+  }
+
+  async function saveTitleIfNeeded(): Promise<DisplayResult | null> {
+    if (!chapterResult?.novelId) {
+      return chapterResult
+    }
+
+    const nextTitle = resolveEditableTitle(editableTitle, chapterResult.title)
+    if (nextTitle === chapterResult.title) {
+      setEditableTitle(nextTitle)
+      return chapterResult
+    }
+
+    setEditableTitle(nextTitle)
+    setTitleSaving(true)
+    setErrorMessage(null)
+
+    try {
+      const result = await updateNovelTitle(chapterResult.novelId, nextTitle)
+      const displayResult = toDisplayResult(result)
+      setChapterResult(displayResult)
+      setEditableTitle(displayResult.title)
+      onTitleUpdated?.({
+        novelId: displayResult.novelId ?? chapterResult.novelId,
+        title: displayResult.title,
+        totalChapters: displayResult.totalChapters,
+        chapters: displayResult.chapters,
+        screenplayType: selectedType,
+      })
+      setHistoryItems((items) => items.map((item) => (
+        item.novelId === displayResult.novelId ? { ...item, title: displayResult.title } : item
+      )))
+      return displayResult
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '保存标题失败')
+      return null
+    } finally {
+      setTitleSaving(false)
+    }
+  }
+
+  async function handleSaveTitle() {
+    await saveTitleIfNeeded()
   }
 
   function handleUploadClick() {
@@ -213,30 +238,22 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
     await handleFileSelected(file)
   }
 
-  function handleStartConvert() {
+  async function handleStartConvert() {
     if (!chapterResult?.novelId) {
+      return
+    }
+
+    const latestResult = await saveTitleIfNeeded()
+    if (!latestResult?.novelId) {
       return
     }
 
     onStartConvert({
-      novelId: chapterResult.novelId,
-      title: chapterResult.title,
-      totalChapters: chapterResult.totalChapters,
-      chapters: chapterResult.chapters,
+      novelId: latestResult.novelId,
+      title: latestResult.title,
+      totalChapters: latestResult.totalChapters,
+      chapters: latestResult.chapters,
       screenplayType: selectedType,
-    })
-  }
-
-  function handleStartSingleScene() {
-    if (!chapterResult?.novelId) {
-      return
-    }
-
-    onStartSingleScene({
-      novelId: chapterResult.novelId,
-      title: chapterResult.title,
-      chapters: chapterResult.chapters,
-      selectedChapterIndex: chapterResult.chapters[0]?.chapterIndex ?? 1,
     })
   }
 
@@ -245,11 +262,18 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
     chapterResult.totalChapters >= 3 &&
     chapterResult.novelId,
   )
+  const entryActions = buildImportEntryActions(canStartConvert)
+  const screenplayTypeCards = buildScreenplayTypeCards(selectedType)
 
   return (
-    <PrototypeFrame currentStep="import">
+    <PrototypeFrame
+      currentStep="import"
+      maxWidth={1400}
+      flowNavigation={flowNavigation}
+      onNavigateStep={onNavigateStep}
+    >
       <PrototypeHero
-        eyebrow="02 · 导入"
+        eyebrow="01 · 导入"
         title="把小说交给它"
       />
 
@@ -285,45 +309,50 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
                 <Text className="history-empty">还没有已导入的小说</Text>
               ) : (
                 <div className="history-list">
-                  {historyItems.map((item) => (
-                    <div className="history-row" key={item.novelId}>
+                  {historyItems.map((item) => {
+                    const selected = selectedNovelId === item.novelId
+
+                    return (
+                    <div className={`history-row${selected ? ' selected' : ''}`} key={item.novelId}>
                       <div className="history-copy">
                         <Title level={5}>{item.title}</Title>
                         <Text>{item.totalChapters} 章 · {formatWordCount(item.totalWordCount)}</Text>
                         <Text>{formatTime(item.createdAt)}</Text>
                       </div>
-                      <Button onClick={() => void handleUseHistory(item.novelId, item.title)}>
-                        使用这本
+                      <Button type={selected ? 'primary' : 'default'} onClick={() => void handleUseHistory(item.novelId)}>
+                        {selected ? '已选择' : '使用这本'}
                       </Button>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </Card>
           ) : null}
 
-          <div className="field-stack">
-            <label className="field-label" htmlFor="novel-title">作品标题</label>
-            <Input
-              id="novel-title"
-              size="large"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="输入作品标题"
-            />
-          </div>
-
-          <div className="field-stack">
-            <label className="field-label" htmlFor="novel-text">粘贴正文（自动识别章节）</label>
-            <TextArea
-              id="novel-text"
-              className="manuscript-input"
-              rows={14}
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="粘贴至少 3 章正文"
-            />
-          </div>
+          {chapterResult ? (
+            <div className="field-stack title-edit-stack">
+              <label className="field-label" htmlFor="novel-title">作品标题</label>
+              <div className="title-edit-row">
+                <Input
+                  id="novel-title"
+                  size="large"
+                  value={editableTitle}
+                  onChange={(event) => setEditableTitle(event.target.value)}
+                  onPressEnter={() => void handleSaveTitle()}
+                  placeholder="输入作品标题"
+                />
+                <Button
+                  size="large"
+                  onClick={() => void handleSaveTitle()}
+                  loading={titleSaving}
+                  disabled={!chapterResult.novelId}
+                >
+                  保存标题
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="action-row">
             <div>
@@ -335,15 +364,6 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
               {selectedFile ? <Text className="file-copy">已选择：{selectedFile.name}</Text> : null}
             </div>
             <div className="button-group">
-              <Button
-                size="large"
-                type="primary"
-                onClick={handleParse}
-                loading={parseLoading}
-                disabled={uploadLoading}
-              >
-                自动识别章节
-              </Button>
               <input
                 ref={fileInputRef}
                 className="file-input"
@@ -356,7 +376,6 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
                 icon={uploadLoading ? <LoadingOutlined spin /> : <UploadOutlined />}
                 onClick={handleUploadClick}
                 loading={uploadLoading}
-                disabled={parseLoading}
               >
                 上传 .txt
               </Button>
@@ -412,18 +431,21 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
           >
 
             <div className="type-grid">
-              {SCREENPLAY_TYPES.map((type) => (
+              {screenplayTypeCards.map((type) => (
                 <button
                   key={type.code}
-                  className={`type-card${selectedType === type.code ? ' active' : ''}${type.enabled ? '' : ' disabled'}`}
+                  className={`type-card${type.active ? ' active' : ''}${type.enabled ? '' : ' disabled'}`}
                   type="button"
                   onClick={() => type.enabled && setSelectedType(type.code)}
                   disabled={!type.enabled}
                 >
-                  <span className="type-name">{type.name}</span>
-                  <Tag bordered={false} color={type.enabled ? 'blue' : 'default'}>
-                    {type.code}
-                  </Tag>
+                  <span className="type-card-head">
+                    <span className="type-name">{type.name}</span>
+                    <Tag className="type-badge" bordered={false}>
+                      {type.badge}
+                    </Tag>
+                  </span>
+                  <span className="type-desc">{type.description}</span>
                 </button>
               ))}
             </div>
@@ -433,19 +455,10 @@ function ImportPage({ onStartConvert, onStartSingleScene }: ImportPageProps) {
             className="convert-button"
             size="large"
             type="primary"
-            disabled={!canStartConvert}
-            onClick={handleStartConvert}
+            disabled={!entryActions.primary.enabled}
+            onClick={() => void handleStartConvert()}
           >
-            开始分析
-          </Button>
-          <Button
-            block
-            className="secondary-button"
-            size="large"
-            disabled={!canStartConvert}
-            onClick={handleStartSingleScene}
-          >
-            单章打磨
+            {entryActions.primary.label}
           </Button>
         </div>
       </main>

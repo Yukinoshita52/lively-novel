@@ -5,6 +5,8 @@ import type { ConversionSessionState } from './conversionSession'
 import type { GeneratedSceneSummary, ScreenplayConversionDetail } from '../types/novel'
 import { getScreenplayConversionDetail } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
+import type { FlowStepNavigation } from './appNavigation'
+import type { FlowStepKey } from './prototypeFlow'
 import {
   buildPreviewActions,
   buildPreviewTabs,
@@ -23,9 +25,17 @@ type ScreenplayPreviewPageProps = {
   session: ConversionSessionState
   onBackToConvert: () => void
   onPolishScene: (sceneKey: string) => void
+  flowNavigation?: FlowStepNavigation
+  onNavigateStep?: (step: FlowStepKey) => void
 }
 
-function ScreenplayPreviewPage({ session, onBackToConvert, onPolishScene }: ScreenplayPreviewPageProps) {
+function ScreenplayPreviewPage({
+  session,
+  onBackToConvert,
+  onPolishScene,
+  flowNavigation,
+  onNavigateStep,
+}: ScreenplayPreviewPageProps) {
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const [sourceExpanded, setSourceExpanded] = useState(false)
   const [activePreviewTab, setActivePreviewTab] = useState<PreviewTabKey>('script')
@@ -74,9 +84,14 @@ function ScreenplayPreviewPage({ session, onBackToConvert, onPolishScene }: Scre
   const previewActions = buildPreviewActions(Boolean(selectedScene))
 
   return (
-    <PrototypeFrame currentStep="preview" maxWidth={1280}>
+    <PrototypeFrame
+      currentStep="preview"
+      maxWidth={1280}
+      flowNavigation={flowNavigation}
+      onNavigateStep={onNavigateStep}
+    >
       <PrototypeHero
-        eyebrow={`04 · ${session.completed ? '预览' : '实时预览'} · YAML`}
+        eyebrow={`03 · ${session.completed ? '预览' : '实时预览'} · YAML`}
         title={`《${session.context.title}》`}
         meta={session.completed ? '已生成逐场剧本' : '转换仍在后台继续'}
         action={
