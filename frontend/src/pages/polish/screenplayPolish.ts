@@ -146,7 +146,15 @@ function parseScriptBlockValue(block: Partial<ScriptBlock>, key: string, value: 
   const textValue = String(value)
   if (key === 'type') {
     const type = textValue.toUpperCase()
-    if (type === 'ACTION' || type === 'DIALOGUE' || type === 'TRANSITION') {
+    if (
+      type === 'SHOT' ||
+      type === 'ACTION' ||
+      type === 'INSERT' ||
+      type === 'SFX' ||
+      type === 'DIALOGUE' ||
+      type === 'VO' ||
+      type === 'TRANSITION'
+    ) {
       return { ...block, type }
     }
     return block
@@ -160,16 +168,22 @@ function parseScriptBlockValue(block: Partial<ScriptBlock>, key: string, value: 
 }
 
 function normalizeParsedScriptBlock(block: Partial<ScriptBlock>): ScriptBlock | undefined {
-  if (block.type === 'DIALOGUE') {
+  if (block.type === 'DIALOGUE' || block.type === 'VO') {
     const character = block.character?.trim()
     const line = block.line?.trim()
     const parenthetical = block.parenthetical?.trim()
     return character && line
-      ? { type: 'DIALOGUE', character, line, parenthetical: parenthetical || undefined }
+      ? { type: block.type, character, line, parenthetical: parenthetical || undefined }
       : undefined
   }
 
-  if (block.type === 'ACTION' || block.type === 'TRANSITION') {
+  if (
+    block.type === 'SHOT' ||
+    block.type === 'ACTION' ||
+    block.type === 'INSERT' ||
+    block.type === 'SFX' ||
+    block.type === 'TRANSITION'
+  ) {
     const text = block.text?.trim()
     return text ? { type: block.type, text } : undefined
   }

@@ -7,6 +7,7 @@ import {
   buildScriptBlockRows,
   type SceneOutlineItem,
 } from '../preview/screenplayPreview'
+import RenderedScriptBlock from '../preview/RenderedScriptBlock'
 
 const { Text, Title } = Typography
 
@@ -45,23 +46,9 @@ function PolishRenderedPreview({
             {buildSceneHeadingText(draftScene.heading)}
           </div>
 
-          {buildScriptBlockRows({ ...scene, scene: draftScene }).map((block) => {
-            if (block.type === 'DIALOGUE') {
-              return (
-                <div className="sp-dialogue-block" key={block.key}>
-                  <div className="sp-character">{block.character}</div>
-                  {block.parenthetical ? <div className="sp-parenthetical">{block.parenthetical}</div> : null}
-                  <div className="sp-line">{block.line}</div>
-                </div>
-              )
-            }
-
-            return (
-              <p className={block.type === 'TRANSITION' ? 'sp-transition' : 'sp-action-line'} key={block.key}>
-                {block.text}
-              </p>
-            )
-          })}
+          {buildScriptBlockRows({ ...scene, scene: draftScene }).map((block) => (
+            <RenderedScriptBlock block={block} key={block.key} />
+          ))}
         </div>
       </div>
     </Card>
