@@ -10,13 +10,6 @@ export interface ChapterSummary {
   wordCount: number
 }
 
-export interface NovelParseResult {
-  title: string
-  totalChapters: number
-  totalWordCount: number
-  chapters: ChapterSummary[]
-}
-
 export interface NovelUploadResult {
   novelId: string
   title: string
@@ -52,14 +45,6 @@ export interface NovelListItem {
 export interface NovelListResult {
   novels: NovelListItem[]
   total: number
-}
-
-export interface NovelChapterDetail {
-  novelId: string
-  chapterIndex: number
-  title: string
-  content: string
-  wordCount: number
 }
 
 export interface ImportFlowContext {

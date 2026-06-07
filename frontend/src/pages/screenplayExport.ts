@@ -13,10 +13,6 @@ export function resolveExportYamlDisplayText(context: ExportYamlDisplayContext) 
   return context.yamlText || '暂无可导出的 YAML。'
 }
 
-export function buildExportYamlLineNumbers(yamlText: string) {
-  return buildYamlLineNumbers(yamlText)
-}
-
 export function buildExportYamlRows(yamlText: string) {
   return buildYamlLineNumbers(yamlText)
 }
