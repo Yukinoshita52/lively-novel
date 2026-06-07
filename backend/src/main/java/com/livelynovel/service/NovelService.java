@@ -15,6 +15,8 @@ public interface NovelService {
 
     NovelChaptersResultDTO getChapters(String novelId);
 
+    NovelChaptersResultDTO updateTitle(String novelId, String title);
+
     NovelChapterDetailDTO getChapterDetail(String novelId, int chapterIndex);
 
     NovelListResultDTO listNovels();

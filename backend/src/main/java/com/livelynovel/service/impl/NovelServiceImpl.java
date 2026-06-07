@@ -84,6 +84,23 @@ public class NovelServiceImpl implements NovelService {
             return null;
         }
 
+        return toChaptersResult(novel);
+    }
+
+    @Override
+    public NovelChaptersResultDTO updateTitle(String novelId, String title) {
+        NovelEntity novel = novelRepository.findById(novelId).orElse(null);
+        if (novel == null) {
+            return null;
+        }
+
+        String resolvedTitle = title == null || title.isBlank() ? novel.getTitle() : title.strip();
+        novel.setTitle(resolvedTitle);
+        NovelEntity saved = novelRepository.save(novel);
+        return toChaptersResult(saved);
+    }
+
+    private NovelChaptersResultDTO toChaptersResult(NovelEntity novel) {
         List<ChapterPreviewDTO> chapterPreviews = chapterSplitter.split(novel.getRawContent()).stream()
                 .map(this::toPreview)
                 .toList();

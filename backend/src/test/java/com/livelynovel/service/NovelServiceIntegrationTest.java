@@ -77,4 +77,25 @@ class NovelServiceIntegrationTest {
         assertThat(chaptersResult.getChapters()).hasSize(3);
         assertThat(chaptersResult.getChapters().get(0).getPreview()).contains("第一章正文");
     }
+
+    @Test
+    void uploadUsesFilenameAsDefaultTitleAndCanUpdateTitle() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "默认标题.txt",
+                "text/plain",
+                SAMPLE.getBytes(StandardCharsets.UTF_8)
+        );
+
+        NovelUploadResultDTO uploadResult = novelService.uploadTxt("", file);
+
+        assertThat(uploadResult.getTitle()).isEqualTo("默认标题");
+
+        NovelChaptersResultDTO updatedResult = novelService.updateTitle(uploadResult.getNovelId(), "新标题");
+
+        assertThat(updatedResult.getTitle()).isEqualTo("新标题");
+        assertThat(novelRepository.findById(uploadResult.getNovelId()).orElseThrow().getTitle()).isEqualTo("新标题");
+        assertThat(novelService.listNovels().getTotal()).isEqualTo(1);
+        assertThat(novelRepository.count()).isEqualTo(1);
+    }
 }

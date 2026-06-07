@@ -52,6 +52,22 @@ export async function getNovelChapters(novelId: string) {
   return unwrapResponse<NovelChaptersResult>(response)
 }
 
+export function buildNovelTitleUpdateUrl(novelId: string) {
+  return `/api/novel/${encodeURIComponent(novelId)}/title`
+}
+
+export async function updateNovelTitle(novelId: string, title: string) {
+  const response = await fetch(buildNovelTitleUpdateUrl(novelId), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title }),
+  })
+
+  return unwrapResponse<NovelChaptersResult>(response)
+}
+
 export async function getNovelList() {
   const response = await fetch('/api/novel')
   return unwrapResponse<NovelListResult>(response)

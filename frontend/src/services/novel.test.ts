@@ -1,5 +1,6 @@
 import {
   buildLatestCompletedConversionUrl,
+  buildNovelTitleUpdateUrl,
   buildScreenplaySceneUpdateUrl,
   buildScreenplayYamlUrl,
 } from './novel.ts'
@@ -27,6 +28,14 @@ assert(
   buildLatestCompletedConversionUrl('nv 1234/abcd', 'ANIME') ===
     '/api/screenplay/conversions/latest?novelId=nv%201234%2Fabcd&screenplayType=ANIME',
   '最近完成转换 URL 应编码 novelId',
+)
+assert(
+  buildNovelTitleUpdateUrl('nv-1234abcd') === '/api/novel/nv-1234abcd/title',
+  '小说标题更新 URL 应指向 novelId 对应接口',
+)
+assert(
+  buildNovelTitleUpdateUrl('nv 1234/abcd') === '/api/novel/nv%201234%2Fabcd/title',
+  '小说标题更新 URL 应编码 novelId',
 )
 assert(
   buildScreenplaySceneUpdateUrl('cv-1234abcd', 1, 2) ===
