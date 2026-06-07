@@ -7,6 +7,7 @@ import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeF
 import type { FlowStepNavigation } from './appNavigation'
 import type { FlowStepKey } from './prototypeFlow'
 import { buildYamlDownloadFileName } from './screenplayPreview'
+import { buildExportYamlRows, resolveExportYamlDisplayText } from './screenplayExport'
 
 const { Text } = Typography
 
@@ -53,6 +54,8 @@ function ScreenplayExportPage({
   }, [session.completed, session.conversionId])
   const yamlText = persistedYamlText
   const loadingYaml = Boolean(session.completed && session.conversionId && !yamlText && !exportError)
+  const yamlDisplayText = resolveExportYamlDisplayText({ loading: loadingYaml, yamlText })
+  const yamlRows = buildExportYamlRows(yamlDisplayText)
 
   function handleDownloadYaml() {
     if (!yamlText) {
@@ -114,9 +117,14 @@ function ScreenplayExportPage({
         {exportError ? (
           <Alert className="feedback-block" message="导出失败" description={exportError} type="error" showIcon />
         ) : null}
-        <pre className="yaml-preview export-yaml">
-          {loadingYaml ? '正在读取 YAML...' : yamlText || '暂无可导出的 YAML。'}
-        </pre>
+        <div className="yaml-preview export-yaml-viewer">
+          {yamlRows.map((line) => (
+            <div className="export-yaml-line-row" key={`export-yaml-${line.lineNumber}`}>
+              <span className="export-yaml-line-number" aria-hidden="true">{line.lineNumber}</span>
+              <span className="export-yaml-line-text">{line.text || ' '}</span>
+            </div>
+          ))}
+        </div>
 
         <div className="prototype-export-row">
           <Button disabled={!yamlText} icon={<DownloadOutlined />} onClick={handleDownloadYaml} type="primary">

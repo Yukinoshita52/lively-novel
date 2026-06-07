@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.yaml.snakeyaml.DumperOptions;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -55,6 +56,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     private static final ObjectMapper YAML_MAPPER = new ObjectMapper(
             YAMLFactory.builder()
                     .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                    .dumperOptions(createYamlDumperOptions())
                     .build()
     );
 
@@ -64,6 +66,12 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     private final ScreenplayConversionRepository conversionRepository;
     private final ScreenplaySceneUnitRepository sceneUnitRepository;
     private final ScreenplaySceneRepository sceneRepository;
+
+    private static DumperOptions createYamlDumperOptions() {
+        DumperOptions options = new DumperOptions();
+        options.setSplitLines(false);
+        return options;
+    }
 
     public ScreenplayServiceImpl(
             NovelService novelService,
