@@ -83,7 +83,7 @@ function ScreenplayConvertPage({
       <main className="convert-grid convert-progress-grid">
         <Card
           className="prototype-panel"
-          title={<PrototypePanelTitle code="PIPE" title="两阶段转换" />}
+          title={<PrototypePanelTitle code="PIPE" title="转换流水线" />}
           variant="borderless"
         >
           <div className="prototype-phase-list">
