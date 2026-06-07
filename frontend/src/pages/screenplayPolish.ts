@@ -1,9 +1,31 @@
 import type { SceneResult, ScriptBlock } from '../types/novel'
 
+export const POLISH_YAML_SCROLLBAR_GUTTER_PX = 18
+export const POLISH_YAML_SPELL_CHECK = false
+
 export interface PolishDraft {
   scene: SceneResult
   savedScene: SceneResult
-  scriptBlocksText: string
+  sceneYamlText: string
+}
+
+export interface PolishWorkspaceLayout {
+  left: {
+    code: string
+    title: string
+    actions: Array<'cancel' | 'save'>
+  }
+  right: {
+    code: string
+    title: string
+  }
+  syncScroll: boolean
+  showExportEntry: boolean
+}
+
+export interface YamlLineNumber {
+  lineNumber: number
+  text: string
 }
 
 function cloneScene(scene: SceneResult): SceneResult {
@@ -16,21 +38,6 @@ function cloneScene(scene: SceneResult): SceneResult {
     visualizedInnerThoughts: scene.visualizedInnerThoughts?.map((thought) => ({ ...thought })),
     transitions: scene.transitions ? [...scene.transitions] : undefined,
   }
-}
-
-function toNonEmptyLines(text: string) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-}
-
-function serializeScriptBlock(block: ScriptBlock) {
-  if (block.type === 'DIALOGUE') {
-    return ['DIALOGUE', block.character ?? '', block.parenthetical ?? '', block.line ?? ''].join('|')
-  }
-
-  return [block.type, block.text ?? ''].join('|')
 }
 
 function normalizeScriptBlocks(scene: SceneResult): ScriptBlock[] {
@@ -56,32 +63,13 @@ function normalizeScriptBlocks(scene: SceneResult): ScriptBlock[] {
   ]
 }
 
-function parseScriptBlockLine(line: string): ScriptBlock | undefined {
-  const [rawType = '', first = '', second = '', ...rest] = line.split('|')
-  const type = rawType.trim().toUpperCase()
-  if (type === 'ACTION' || type === 'TRANSITION') {
-    const text = [first, second, ...rest].filter(Boolean).join('|').trim()
-    return text ? { type, text } : undefined
-  }
-  if (type === 'DIALOGUE') {
-    const character = first.trim()
-    const parenthetical = second.trim()
-    const dialogueLine = rest.join('|').trim()
-    return character && dialogueLine
-      ? { type, character, parenthetical: parenthetical || undefined, line: dialogueLine }
-      : undefined
-  }
-
-  return undefined
-}
-
 export function createPolishDraft(scene: SceneResult): PolishDraft {
   const clonedScene = cloneScene(scene)
 
   return {
     scene: clonedScene,
     savedScene: cloneScene(scene),
-    scriptBlocksText: normalizeScriptBlocks(clonedScene).map(serializeScriptBlock).join('\n'),
+    sceneYamlText: buildPolishSceneYaml(clonedScene),
   }
 }
 
@@ -89,16 +77,13 @@ export function resetPolishDraft(draft: PolishDraft): PolishDraft {
   return createPolishDraft(draft.savedScene)
 }
 
-export function updateScriptBlocksText(draft: PolishDraft, scriptBlocksText: string): PolishDraft {
+export function updatePolishSceneYaml(draft: PolishDraft, sceneYamlText: string): PolishDraft {
+  const parsedScene = parsePolishSceneYaml(sceneYamlText, draft.scene)
+
   return {
     ...draft,
-    scriptBlocksText,
-    scene: {
-      ...draft.scene,
-      scriptBlocks: toNonEmptyLines(scriptBlocksText)
-        .map(parseScriptBlockLine)
-        .filter((block): block is ScriptBlock => Boolean(block)),
-    },
+    sceneYamlText,
+    scene: parsedScene,
   }
 }
 
@@ -107,7 +92,12 @@ function toYamlLines(value: unknown, indent = 0): string[] {
   if (Array.isArray(value)) {
     return value.flatMap((item) => {
       if (typeof item === 'object' && item !== null) {
-        return [`${prefix}-`, ...toYamlLines(item, indent + 2)]
+        const itemLines = toYamlLines(item, indent + 2)
+        if (itemLines.length === 0) {
+          return [`${prefix}-`]
+        }
+
+        return [`${prefix}- ${itemLines[0].trim()}`, ...itemLines.slice(1)]
       }
 
       return [`${prefix}- ${String(item)}`]
@@ -136,4 +126,173 @@ export function buildPolishSceneYaml(scene: SceneResult) {
   }
 
   return toYamlLines(editableScene).join('\n')
+}
+
+function readScalar(line: string) {
+  const value = line.slice(line.indexOf(':') + 1).trim()
+  if (value === 'true') {
+    return true
+  }
+  if (value === 'false') {
+    return false
+  }
+  if (/^\d+$/.test(value)) {
+    return Number(value)
+  }
+  return value
+}
+
+function parseScriptBlockValue(block: Partial<ScriptBlock>, key: string, value: unknown): Partial<ScriptBlock> {
+  const textValue = String(value)
+  if (key === 'type') {
+    const type = textValue.toUpperCase()
+    if (type === 'ACTION' || type === 'DIALOGUE' || type === 'TRANSITION') {
+      return { ...block, type }
+    }
+    return block
+  }
+
+  if (key === 'text' || key === 'character' || key === 'parenthetical' || key === 'line') {
+    return { ...block, [key]: textValue }
+  }
+
+  return block
+}
+
+function normalizeParsedScriptBlock(block: Partial<ScriptBlock>): ScriptBlock | undefined {
+  if (block.type === 'DIALOGUE') {
+    const character = block.character?.trim()
+    const line = block.line?.trim()
+    const parenthetical = block.parenthetical?.trim()
+    return character && line
+      ? { type: 'DIALOGUE', character, line, parenthetical: parenthetical || undefined }
+      : undefined
+  }
+
+  if (block.type === 'ACTION' || block.type === 'TRANSITION') {
+    const text = block.text?.trim()
+    return text ? { type: block.type, text } : undefined
+  }
+
+  return undefined
+}
+
+function parsePolishSceneYaml(sceneYamlText: string, fallbackScene: SceneResult): SceneResult {
+  const nextScene = cloneScene(fallbackScene)
+  const lines = sceneYamlText.split(/\r?\n/)
+  const scriptBlocks: ScriptBlock[] = []
+  let section: 'root' | 'heading' | 'scriptBlocks' = 'root'
+  let currentBlock: Partial<ScriptBlock> | undefined
+
+  function pushCurrentBlock() {
+    if (!currentBlock) {
+      return
+    }
+    const block = normalizeParsedScriptBlock(currentBlock)
+    if (block) {
+      scriptBlocks.push(block)
+    }
+    currentBlock = undefined
+  }
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim()
+    if (!line) {
+      return
+    }
+    const rootLevel = !rawLine.startsWith(' ')
+
+    if (line === 'heading:') {
+      pushCurrentBlock()
+      section = 'heading'
+      return
+    }
+    if (line === 'scriptBlocks:') {
+      section = 'scriptBlocks'
+      return
+    }
+    if (line.startsWith('-')) {
+      pushCurrentBlock()
+      currentBlock = {}
+      const inlineValue = line.slice(1).trim()
+      if (inlineValue.includes(':')) {
+        const key = inlineValue.slice(0, inlineValue.indexOf(':')).trim()
+        const value = readScalar(inlineValue)
+        currentBlock = parseScriptBlockValue(currentBlock, key, value)
+      }
+      return
+    }
+    if (!line.includes(':')) {
+      return
+    }
+
+    const key = line.slice(0, line.indexOf(':')).trim()
+    const value = readScalar(line)
+
+    if (rootLevel && key !== 'type' && key !== 'text' && key !== 'character' && key !== 'parenthetical' && key !== 'line') {
+      pushCurrentBlock()
+      section = 'root'
+    }
+
+    if (section === 'heading') {
+      if (key === 'interior' && typeof value === 'boolean') {
+        nextScene.heading.interior = value
+      }
+      if (key === 'location') {
+        nextScene.heading.location = String(value)
+      }
+      if (key === 'timeOfDay') {
+        nextScene.heading.timeOfDay = String(value)
+      }
+      return
+    }
+
+    if (section === 'scriptBlocks') {
+      currentBlock = parseScriptBlockValue(currentBlock ?? {}, key, value)
+      return
+    }
+
+    if (key === 'sceneId') {
+      nextScene.sceneId = String(value)
+    }
+    if (key === 'sourceChapter' && typeof value === 'number') {
+      nextScene.sourceChapter = value
+    }
+  })
+
+  pushCurrentBlock()
+
+  return {
+    ...nextScene,
+    scriptBlocks,
+  }
+}
+
+export function buildPolishWorkspaceLayout(): PolishWorkspaceLayout {
+  return {
+    left: {
+      code: 'YAML',
+      title: 'YAML 本场结构',
+      actions: ['cancel', 'save'],
+    },
+    right: {
+      code: 'PREVIEW',
+      title: '渲染预览',
+    },
+    syncScroll: true,
+    showExportEntry: false,
+  }
+}
+
+export function buildYamlLineNumbers(yamlText: string): YamlLineNumber[] {
+  const lines = yamlText.split(/\r?\n/)
+  return lines.map((line, index) => ({
+    lineNumber: index + 1,
+    text: line,
+  }))
+}
+
+export function buildPolishYamlLineNumberTransform(scrollTop: number) {
+  const offset = Math.max(0, scrollTop)
+  return `translateY(${offset === 0 ? 0 : -offset}px)`
 }

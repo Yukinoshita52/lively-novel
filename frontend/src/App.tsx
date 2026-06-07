@@ -118,7 +118,6 @@ function App() {
         onUpdateDraft={updatePolishDraft}
         onSelectScene={setSelectedSceneKey}
         onBackToPreview={() => setPage('preview')}
-        onExport={() => setPage('export')}
         flowNavigation={flowNavigation}
         onNavigateStep={handleNavigateStep}
       />

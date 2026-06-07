@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type UIEvent } from 'react'
 import { Alert, Button, Card, Input, message as antdMessage, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined, DownOutlined, ExportOutlined, LeftOutlined, RightOutlined, SaveOutlined, StopOutlined, UpOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, DownOutlined, LeftOutlined, RightOutlined, SaveOutlined, StopOutlined, UpOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from './conversionSession'
 import { updateScreenplayScene } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
@@ -14,10 +14,14 @@ import {
   resolveSelectedScene,
 } from './screenplayPreview'
 import {
-  buildPolishSceneYaml,
+  POLISH_YAML_SCROLLBAR_GUTTER_PX,
+  POLISH_YAML_SPELL_CHECK,
+  buildYamlLineNumbers,
+  buildPolishYamlLineNumberTransform,
+  buildPolishWorkspaceLayout,
   createPolishDraft,
   resetPolishDraft,
-  updateScriptBlocksText,
+  updatePolishSceneYaml,
   type PolishDraft,
 } from './screenplayPolish'
 
@@ -31,7 +35,6 @@ type ScreenplayPolishPageProps = {
   onUpdateDraft: (sceneKey: string, draft: PolishDraft) => void
   onSelectScene: (sceneKey: string) => void
   onBackToPreview: () => void
-  onExport: () => void
   flowNavigation?: FlowStepNavigation
   onNavigateStep?: (step: FlowStepKey) => void
 }
@@ -43,13 +46,14 @@ function ScreenplayPolishPage({
   onUpdateDraft,
   onSelectScene,
   onBackToPreview,
-  onExport,
   flowNavigation,
   onNavigateStep,
 }: ScreenplayPolishPageProps) {
   const [scenePickerExpanded, setScenePickerExpanded] = useState(false)
   const [savingScene, setSavingScene] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const yamlLineLayerRef = useRef<HTMLDivElement | null>(null)
+  const previewScrollRef = useRef<HTMLDivElement | null>(null)
   const scene = useMemo(
     () => resolveSelectedScene(session.generatedScenes, selectedSceneKey),
     [selectedSceneKey, session.generatedScenes],
@@ -63,11 +67,21 @@ function ScreenplayPolishPage({
     return draftsBySceneKey[scene.key] ?? createPolishDraft(scene.scene)
   }, [draftsBySceneKey, scene])
   const draftScene = draft?.scene
-  const sceneYaml = useMemo(() => (draftScene ? buildPolishSceneYaml(draftScene) : ''), [draftScene])
   const adjacentSceneKeys = useMemo(
     () => resolveAdjacentSceneKeys(session.generatedScenes, scene?.key),
     [scene?.key, session.generatedScenes],
   )
+  const workspaceLayout = useMemo(() => buildPolishWorkspaceLayout(), [])
+  const yamlLineNumbers = useMemo(
+    () => buildYamlLineNumbers(draft?.sceneYamlText ?? ''),
+    [draft?.sceneYamlText],
+  )
+
+  useEffect(() => {
+    if (yamlLineLayerRef.current) {
+      yamlLineLayerRef.current.style.transform = buildPolishYamlLineNumberTransform(0)
+    }
+  }, [scene?.key])
 
   function updateDraft(nextDraft: PolishDraft) {
     if (!scene) {
@@ -113,6 +127,26 @@ function ScreenplayPolishPage({
 
     onUpdateDraft(scene.key, resetPolishDraft(draft))
     setSaveError(null)
+  }
+
+  function handleYamlScroll(event: UIEvent<HTMLTextAreaElement>) {
+    const editorElement = event.currentTarget
+    if (yamlLineLayerRef.current) {
+      yamlLineLayerRef.current.style.transform = buildPolishYamlLineNumberTransform(editorElement.scrollTop)
+    }
+
+    const previewElement = previewScrollRef.current
+    if (!workspaceLayout.syncScroll || !previewElement) {
+      return
+    }
+
+    const editorScrollableHeight = editorElement.scrollHeight - editorElement.clientHeight
+    const previewScrollableHeight = previewElement.scrollHeight - previewElement.clientHeight
+    if (editorScrollableHeight <= 0 || previewScrollableHeight <= 0) {
+      return
+    }
+
+    previewElement.scrollTop = (editorElement.scrollTop / editorScrollableHeight) * previewScrollableHeight
   }
 
   return (
@@ -207,8 +241,29 @@ function ScreenplayPolishPage({
           </Card>
 
           <Card
-            className="prototype-panel"
-            title={<PrototypePanelTitle code="EDIT" title="本地打磨草稿" meta="即时预览" />}
+            className="prototype-panel polish-work-panel polish-yaml-panel"
+            title={
+              <div className="polish-panel-heading">
+                <PrototypePanelTitle
+                  code={workspaceLayout.left.code}
+                  title={workspaceLayout.left.title}
+                />
+                <div className="polish-heading-actions">
+                  <Button icon={<StopOutlined />} onClick={handleCancelDraft}>
+                    取消
+                  </Button>
+                  <Button
+                    disabled={!session.conversionId || !scene.sceneIndexInChapter}
+                    icon={<SaveOutlined />}
+                    loading={savingScene}
+                    onClick={handleSaveDraft}
+                    type="primary"
+                  >
+                    保存
+                  </Button>
+                </div>
+              </div>
+            }
             bordered={false}
           >
             {saveError ? (
@@ -216,45 +271,43 @@ function ScreenplayPolishPage({
             ) : null}
             <div className="polish-editor">
               <label>
-                <Text className="thought-label">剧本正文块</Text>
-                <Text className="polish-editor-hint">每行格式：ACTION|画面描述、DIALOGUE|角色|括号提示|台词、TRANSITION|转场</Text>
-                <TextArea
-                  autoSize={{ minRows: 8, maxRows: 14 }}
-                  value={draft.scriptBlocksText}
-                  onChange={(event) => updateDraft(updateScriptBlocksText(draft, event.target.value))}
-                />
+                <Text className="polish-editor-hint">直接修改本场结构；右侧预览会根据 YAML 内容即时更新。</Text>
+                <div className="polish-yaml-editor-frame">
+                  <div
+                    className="polish-yaml-line-layer"
+                    aria-hidden="true"
+                    ref={yamlLineLayerRef}
+                    style={{
+                      '--polish-yaml-scrollbar-gutter': `${POLISH_YAML_SCROLLBAR_GUTTER_PX}px`,
+                    } as CSSProperties}
+                  >
+                    {yamlLineNumbers.map((line) => (
+                      <div className="polish-yaml-line-row" key={`line-${line.lineNumber}`}>
+                        <span className="polish-yaml-line-number">{line.lineNumber}</span>
+                        <span className="polish-yaml-line-mirror">{line.text || ' '}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <TextArea
+                    autoSize={false}
+                    className="polish-yaml-editor"
+                    value={draft.sceneYamlText}
+                    onChange={(event) => updateDraft(updatePolishSceneYaml(draft, event.target.value))}
+                    onScroll={handleYamlScroll}
+                    spellCheck={POLISH_YAML_SPELL_CHECK}
+                    wrap="soft"
+                  />
+                </div>
               </label>
             </div>
-            <div className="prototype-export-row">
-              <Button icon={<StopOutlined />} onClick={handleCancelDraft}>
-                取消
-              </Button>
-              <Button
-                disabled={!session.conversionId || !scene.sceneIndexInChapter}
-                icon={<SaveOutlined />}
-                loading={savingScene}
-                onClick={handleSaveDraft}
-                type="primary"
-              >
-                保存
-              </Button>
-            </div>
           </Card>
 
           <Card
-            className="prototype-panel"
-            title={<PrototypePanelTitle code="YAML" title="本场结构" meta="本地草稿" />}
+            className="prototype-panel polish-work-panel polish-preview-panel"
+            title={<PrototypePanelTitle code={workspaceLayout.right.code} title={workspaceLayout.right.title} />}
             bordered={false}
           >
-            <pre className="yaml-preview polish-yaml">{sceneYaml}</pre>
-          </Card>
-
-          <Card
-            className="prototype-panel scene-preview-panel"
-            title={<PrototypePanelTitle code="PREVIEW" title="渲染预览" />}
-            bordered={false}
-          >
-            <div className="screenplay-preview">
+            <div className="screenplay-preview polish-preview-scroll" ref={previewScrollRef}>
               <div className="screenplay-scene-meta">
                 <Tag bordered={false}>{scene.sceneNumber}</Tag>
                 <Text>第 {scene.chapterIndex} 章</Text>
@@ -286,15 +339,6 @@ function ScreenplayPolishPage({
                   )
                 })}
               </div>
-            </div>
-          </Card>
-
-          <Card className="prototype-panel polish-action-panel" bordered={false}>
-            <div className="prototype-export-row">
-              <Text>完成检查后进入最终导出页。</Text>
-              <Button icon={<ExportOutlined />} onClick={onExport} type="primary">
-                进入导出
-              </Button>
             </div>
           </Card>
         </main>
