@@ -385,6 +385,7 @@ class ScreenplayServiceImplTest {
                   "heading": {"interior": true, "location": "教室", "timeOfDay": "午后"},
                   "scriptBlocks": [
                     {"type": "ACTION", "text": "林秋把书包放在桌上。"},
+                    {"type": "ACTION", "text": "温水用手帕擦额头上的汗，环视店内。周围没有穿同校制服的学生。他从书包里拿出一本文库本，封面是轻小说《跟年上的妹妹撒娇也可以吗？》最新卷。桌上摆着自助饮料杯和一大盘薯条。"},
                     {"type": "DIALOGUE", "character": "林秋", "line": "我已经没事了。"},
                     {"type": "ACTION", "text": "她抬头看向窗外。"},
                     {"type": "TRANSITION", "text": "切至：走廊"}
@@ -409,6 +410,8 @@ class ScreenplayServiceImplTest {
         assertThat(yaml).contains("scriptBlocks:");
         assertThat(yaml).contains("type: \"ACTION\"");
         assertThat(yaml).contains("text: \"林秋把书包放在桌上。\"");
+        assertThat(yaml).contains("text: \"温水用手帕擦额头上的汗，环视店内。周围没有穿同校制服的学生。他从书包里拿出一本文库本，封面是轻小说《跟年上的妹妹撒娇也可以吗？》最新卷。桌上摆着自助饮料杯和一大盘薯条。\"");
+        assertThat(yaml).doesNotContain("摆\\");
         assertThat(yaml).contains("type: \"DIALOGUE\"");
         assertThat(yaml).contains("character: \"林秋\"");
         assertThat(yaml).contains("line: \"我已经没事了。\"");
