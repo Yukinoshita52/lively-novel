@@ -76,30 +76,32 @@ export function buildPipelinePhases(context: {
 
   if (context.completed) {
     return [
-      createPhase('analysis', 'A', '全局分析', '通读全文 · 抽人物/场景/线索', 100, 'done'),
-      createPhase('generation', 'B', '逐场生成', '带全局+前场上下文 · 逐场流式', 100, 'done'),
-      createPhase('persist', '✓', '组装落库', '生成剧本 · 持久化', 100, 'done'),
+      createPhase('analysis', 'A', '章节切场', '读取章节 · 拆分场景单元', 100, 'done'),
+      createPhase('generation', 'B', '剧本生成', '逐场生成 YAML · 更新全局状态', 100, 'done'),
+      createPhase('persist', '✓', '结果整理', '持久化场景 · 准备预览导出', 100, 'done'),
     ]
   }
 
   return [
-    createPhase('analysis', 'A', '全局分析', '通读全文 · 抽人物/场景/线索', hasScenePlan ? 100 : 35, hasScenePlan ? 'done' : 'active'),
+    createPhase('analysis', 'A', '章节切场', '读取章节 · 拆分场景单元', hasScenePlan ? 100 : 35, hasScenePlan ? 'done' : 'active'),
     createPhase(
       'generation',
       'B',
-      '逐场生成',
-      '带全局+前场上下文 · 逐场流式',
+      '剧本生成',
+      '逐场生成 YAML · 更新全局状态',
       generationProgress,
       context.convertError ? 'failed' : hasScenePlan ? 'active' : 'idle',
     ),
-    createPhase('persist', '✓', '组装落库', '生成剧本 · 持久化', 0, 'idle'),
+    createPhase('persist', '✓', '结果整理', '持久化场景 · 准备预览导出', 0, 'idle'),
   ]
 }
 
 export function buildConvertProgressNote(context: ConvertProgressNoteContext) {
+  if (context.totalSceneCount <= 0) {
+    return '正在读取章节并拆分场景'
+  }
   const chapterText = context.currentChapterIndex ? String(context.currentChapterIndex) : '?'
-  const totalSceneText = context.totalSceneCount || '?'
-  return `第 ${chapterText} 章正在生成中  ${context.finishedSceneCount} / ${totalSceneText} 场`
+  return `第 ${chapterText} 章正在生成中  ${context.finishedSceneCount} / ${context.totalSceneCount} 场`
 }
 
 export function resolveCurrentConvertChapterIndex(context: CurrentConvertChapterContext) {

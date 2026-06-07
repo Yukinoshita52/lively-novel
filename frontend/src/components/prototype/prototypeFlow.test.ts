@@ -30,9 +30,15 @@ const runningPhases = buildPipelinePhases({
   totalSceneCount: 5,
 })
 assert(runningPhases[0].status === 'done', '已有切场总数时全局分析应显示完成')
+assert(runningPhases[0].title === '章节切场', '第一阶段应展示当前真实流程：章节切场')
+assert(runningPhases[0].description === '读取章节 · 拆分场景单元', '切场阶段描述应匹配当前后端流程')
 assert(runningPhases[1].status === 'active', '逐场生成中应显示 active')
+assert(runningPhases[1].title === '剧本生成', '第二阶段应展示当前真实流程：剧本生成')
+assert(runningPhases[1].description === '逐场生成 YAML · 更新全局状态', '生成阶段描述应包含 YAML 与滚动全局状态')
 assert(runningPhases[1].progress === 40, '逐场生成进度应按已完成场数计算')
 assert(runningPhases[2].status === 'idle', '未完成前组装落库应保持等待')
+assert(runningPhases[2].title === '结果整理', '第三阶段应展示结果整理')
+assert(runningPhases[2].description === '持久化场景 · 准备预览导出', '结果整理描述应贴合当前功能')
 
 const completedPhases = buildPipelinePhases({
   completed: true,
@@ -57,6 +63,15 @@ assert(
     totalSceneCount: 13,
   }) === '第 4 章正在生成中  3 / 13 场',
   '转换页进度提示应聚焦当前章节生成进度',
+)
+
+assert(
+  buildConvertProgressNote({
+    currentChapterIndex: undefined,
+    finishedSceneCount: 0,
+    totalSceneCount: 0,
+  }) === '正在读取章节并拆分场景',
+  '尚未完成切场时应展示真实的准备状态',
 )
 
 assert(
