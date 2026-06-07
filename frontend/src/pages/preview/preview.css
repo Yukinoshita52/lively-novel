@@ -57,6 +57,17 @@
   padding: 22px;
 }
 
+.preview-reading-scroll {
+  max-height: 560px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.preview-table-wrap {
+  max-height: 560px;
+  overflow-y: auto;
+}
+
 .preview-table {
   border-collapse: collapse;
   width: 100%;
@@ -295,6 +306,20 @@
   max-height: 360px;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+.source-reading-paper {
+  min-height: 420px;
+}
+
+.source-reading-text {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  line-height: 2;
+  margin: 0;
+  max-width: 76ch;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .content-toggle.ant-btn {

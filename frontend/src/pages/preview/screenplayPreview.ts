@@ -12,7 +12,7 @@ export interface SceneOutlineItem extends GeneratedSceneSummary {
   headingText: string
 }
 
-export type PreviewTabKey = 'script' | 'scene-table'
+export type PreviewTabKey = 'script' | 'source' | 'scene-table'
 
 export interface PreviewTab {
   key: PreviewTabKey
@@ -45,6 +45,7 @@ export interface ScriptBlockRow extends ScriptBlock {
 
 const PREVIEW_TABS: Array<Omit<PreviewTab, 'active'>> = [
   { key: 'script', label: '剧本' },
+  { key: 'source', label: '原文' },
   { key: 'scene-table', label: '场景表' },
 ]
 
@@ -104,7 +105,7 @@ export function mapPersistedScenesToGeneratedScenes(scenes: ScreenplayPersistedS
   return scenes.map((scene) => ({
     chapterIndex: scene.chapterIndex,
     sceneIndexInChapter: scene.sceneIndexInChapter,
-    title: buildSceneHeadingText(scene.scene.heading),
+    title: scene.title?.trim() || buildSceneHeadingText(scene.scene.heading),
     scene: scene.scene,
   }))
 }
@@ -187,6 +188,10 @@ export function getSourcePreview(sourceText: string, expanded: boolean, maxLengt
   }
 
   return `${sourceText.slice(0, maxLength)}…`
+}
+
+export function getSourceDisplayText(sourceText: string) {
+  return sourceText.trim() || '暂无原文内容。'
 }
 
 export function buildYamlDownloadFileName(title: string) {

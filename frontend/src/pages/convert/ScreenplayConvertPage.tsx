@@ -1,10 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Alert, Button, Card, Progress } from 'antd'
-import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
 import { resolvePreviewEntryState, resolveResumeEntryState } from '../conversionSession'
-import { getScreenplayConversionYaml } from '../../services/novel'
-import { downloadBlob } from '../../utils/download'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import {
   buildConvertProgressNote,
@@ -13,7 +11,6 @@ import {
   type FlowStepKey,
   resolveCurrentConvertChapterIndex,
 } from '../../components/prototype/prototypeFlow'
-import { buildYamlDownloadFileName } from '../preview/screenplayPreview'
 import type { FlowStepNavigation } from '../appNavigation'
 
 type ScreenplayConvertPageProps = {
@@ -33,9 +30,6 @@ function ScreenplayConvertPage({
   flowNavigation,
   onNavigateStep,
 }: ScreenplayConvertPageProps) {
-  const [downloadingYaml, setDownloadingYaml] = useState(false)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
-
   const finishedSceneCount = session.generatedScenes.length
   const totalSceneCount = useMemo(
     () => Object.values(session.chapterSceneCounts).reduce((sum, count) => sum + count, 0),
@@ -67,24 +61,6 @@ function ScreenplayConvertPage({
   )
   const previewEntry = resolvePreviewEntryState(session)
   const resumeEntry = resolveResumeEntryState(session)
-
-  async function handleDownloadYaml() {
-    if (!session.conversionId) {
-      return
-    }
-
-    setDownloadingYaml(true)
-    setDownloadError(null)
-
-    try {
-      const yamlBlob = await getScreenplayConversionYaml(session.conversionId)
-      downloadBlob(yamlBlob, buildYamlDownloadFileName(session.context.title))
-    } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : '导出 YAML 失败')
-    } finally {
-      setDownloadingYaml(false)
-    }
-  }
 
   return (
     <PrototypeFrame
@@ -146,14 +122,6 @@ function ScreenplayConvertPage({
                 {resumeEntry.label}
               </Button>
             ) : null}
-            <Button
-              disabled={!session.completed || !session.conversionId}
-              icon={<DownloadOutlined />}
-              loading={downloadingYaml}
-              onClick={handleDownloadYaml}
-            >
-              导出 YAML
-            </Button>
           </div>
 
           {session.convertError ? (
@@ -161,15 +129,6 @@ function ScreenplayConvertPage({
               className="feedback-block"
               message="转换失败"
               description={<span style={{ whiteSpace: 'pre-line' }}>{session.convertError}</span>}
-              type="error"
-              showIcon
-            />
-          ) : null}
-          {downloadError ? (
-            <Alert
-              className="feedback-block"
-              message="导出失败"
-              description={downloadError}
               type="error"
               showIcon
             />

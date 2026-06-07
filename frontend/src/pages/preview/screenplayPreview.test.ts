@@ -9,6 +9,7 @@ import {
   buildPreviewActions,
   resolveAdjacentSceneKeys,
   mapPersistedScenesToGeneratedScenes,
+  getSourceDisplayText,
   getSourcePreview,
   resolveSelectedScene,
 } from './screenplayPreview.ts'
@@ -92,10 +93,19 @@ assert(
 )
 assert(getSourcePreview('一二三四五六', false, 4) === '一二三四…', '折叠原文应截断并加省略号')
 assert(getSourcePreview('一二三四五六', true, 4) === '一二三四五六', '展开原文应显示全文')
+assert(getSourceDisplayText('第一段原文') === '第一段原文', '原文 tab 应展示完整原文')
+assert(getSourceDisplayText('') === '暂无原文内容。', '原文为空时应展示空状态文本')
 assert(buildYamlDownloadFileName(' 她比烟花寂寞 ') === '她比烟花寂寞-screenplay.yaml', 'YAML 文件名应使用作品标题')
 assert(buildYamlDownloadFileName('') === 'screenplay.yaml', '标题为空时应使用默认 YAML 文件名')
 assert(buildPreviewTabs('script')[0].active, '预览页默认应高亮剧本 tab')
-assert(buildPreviewTabs('scene-table')[1].label === '场景表', '预览页应提供场景表 tab')
+assert(
+  buildPreviewTabs('script')
+    .map((tab) => tab.label)
+    .join('/') === '剧本/原文/场景表',
+  '预览页 tab 应按剧本、原文、场景表排序',
+)
+assert(buildPreviewTabs('source')[1].active, '预览页应支持独立原文 tab')
+assert(buildPreviewTabs('scene-table')[2].label === '场景表', '预览页应提供场景表 tab')
 const previewActions = buildPreviewActions(true)
 assert(previewActions.primary.label === '打磨本场', '预览页主动作应进入单场打磨')
 assert(!previewActions.secondary.some((action) => action.label.includes('导出')), '预览页不应提供导出 YAML 动作')
@@ -113,10 +123,11 @@ const persistedScenes = mapPersistedScenesToGeneratedScenes([
   {
     chapterIndex: 1,
     sceneIndexInChapter: 1,
+    title: '特典：比食欲更加重要的东西',
     scene: scenes[1].scene,
   },
 ])
-assert(persistedScenes[0].title === '内景 — 教室 — 午后', '持久化场景应使用 heading 生成预览标题')
+assert(persistedScenes[0].title === '特典：比食欲更加重要的东西', '持久化场景应使用切场标题生成预览标题')
 assert(persistedScenes[0].scene.sceneId === 's1', '持久化场景应保留 SceneDTO')
 
 const startedUpdate = resolveConvertEventUpdate(

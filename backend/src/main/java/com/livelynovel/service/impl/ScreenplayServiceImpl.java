@@ -591,21 +591,58 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         detail.setStatus(conversion.getStatus());
         detail.setErrorMessage(conversion.getErrorMessage());
 
+        List<ScreenplaySceneUnitEntity> sceneUnits = sceneUnitRepository
+                .findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc(conversion.getId());
+        if (sceneUnits == null) {
+            sceneUnits = Collections.emptyList();
+        }
+        Map<String, String> sceneTitlesByKey = new LinkedHashMap<>();
+        sceneUnits.forEach(sceneUnit -> sceneTitlesByKey.put(
+                persistedSceneKey(sceneUnit.getChapterIndex(), sceneUnit.getSceneIndexInChapter()),
+                sceneUnit.getTitle()
+        ));
         List<ScreenplayPersistedSceneDTO> scenes = sceneRepository
                 .findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc(conversion.getId())
                 .stream()
-                .map(this::toPersistedScene)
+                .map(scene -> toPersistedScene(scene, sceneTitlesByKey.get(
+                        persistedSceneKey(scene.getChapterIndex(), scene.getSceneIndexInChapter())
+                )))
                 .toList();
         detail.setScenes(scenes);
         return detail;
     }
 
-    private ScreenplayPersistedSceneDTO toPersistedScene(ScreenplaySceneEntity entity) {
+    private ScreenplayPersistedSceneDTO toPersistedScene(ScreenplaySceneEntity entity, String title) {
+        SceneDTO scene = fromJson(entity.getSceneJson());
         ScreenplayPersistedSceneDTO persistedScene = new ScreenplayPersistedSceneDTO();
         persistedScene.setChapterIndex(entity.getChapterIndex());
         persistedScene.setSceneIndexInChapter(entity.getSceneIndexInChapter());
-        persistedScene.setScene(fromJson(entity.getSceneJson()));
+        persistedScene.setTitle(defaultIfBlank(title, buildSceneHeadingText(scene)));
+        persistedScene.setScene(scene);
         return persistedScene;
+    }
+
+    private String persistedSceneKey(int chapterIndex, int sceneIndexInChapter) {
+        return chapterIndex + "-" + sceneIndexInChapter;
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value;
+    }
+
+    private String buildSceneHeadingText(SceneDTO scene) {
+        if (scene == null || scene.getHeading() == null) {
+            return "场景信息待生成";
+        }
+
+        String prefix = scene.getHeading().isInterior() ? "内景" : "外景";
+        return prefix + " — "
+                + defaultIfBlank(scene.getHeading().getLocation(), "未知地点")
+                + " — "
+                + defaultIfBlank(scene.getHeading().getTimeOfDay(), "未知时间");
     }
 
     private SceneDTO fromJson(String sceneJson) {
