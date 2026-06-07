@@ -4,6 +4,7 @@ import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined } from
 import type { ConversionSessionState } from './conversionSession'
 import { resolvePreviewEntryState, resolveResumeEntryState } from './conversionSession'
 import { getScreenplayConversionYaml } from '../services/novel'
+import { downloadBlob } from '../utils/download'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
 import {
   buildConvertProgressNote,
@@ -77,14 +78,7 @@ function ScreenplayConvertPage({
 
     try {
       const yamlBlob = await getScreenplayConversionYaml(session.conversionId)
-      const url = URL.createObjectURL(yamlBlob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = buildYamlDownloadFileName(session.context.title)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      downloadBlob(yamlBlob, buildYamlDownloadFileName(session.context.title))
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : '导出 YAML 失败')
     } finally {
