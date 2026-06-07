@@ -20,12 +20,30 @@ export interface PipelinePhase {
   status: PipelinePhaseStatus
 }
 
+export interface ConvertProgressNoteContext {
+  currentChapterIndex?: number
+  finishedSceneCount: number
+  totalSceneCount: number
+}
+
+export interface CurrentConvertChapterContext {
+  generatedChapterIndexes: number[]
+  plannedChapterIndexes: number[]
+}
+
+export type StreamEventPartKind = 'prefix' | 'type' | 'message' | 'warning'
+
+export interface StreamEventPart {
+  kind: StreamEventPartKind
+  text: string
+}
+
 const FLOW_STEPS: Array<Omit<FlowStep, 'active' | 'done'>> = [
-  { key: 'import', number: '②', label: '导入' },
-  { key: 'convert', number: '③', label: '转换' },
-  { key: 'preview', number: '④', label: '预览' },
-  { key: 'polish', number: '⑤', label: '打磨' },
-  { key: 'export', number: '⑥', label: '导出' },
+  { key: 'import', number: '', label: '导入' },
+  { key: 'convert', number: '', label: '转换' },
+  { key: 'preview', number: '', label: '预览' },
+  { key: 'polish', number: '', label: '打磨' },
+  { key: 'export', number: '', label: '导出' },
 ]
 
 export function buildFlowSteps(current: FlowStepKey): FlowStep[] {
@@ -78,6 +96,18 @@ export function buildPipelinePhases(context: {
   ]
 }
 
+export function buildConvertProgressNote(context: ConvertProgressNoteContext) {
+  const chapterText = context.currentChapterIndex ? String(context.currentChapterIndex) : '?'
+  const totalSceneText = context.totalSceneCount || '?'
+  return `第 ${chapterText} 章正在生成中  ${context.finishedSceneCount} / ${totalSceneText} 场`
+}
+
+export function resolveCurrentConvertChapterIndex(context: CurrentConvertChapterContext) {
+  const indexes = [...context.generatedChapterIndexes, ...context.plannedChapterIndexes]
+    .filter((chapterIndex) => Number.isFinite(chapterIndex) && chapterIndex > 0)
+  return indexes.length > 0 ? Math.max(...indexes) : 1
+}
+
 function createPhase(
   key: PipelinePhase['key'],
   mark: string,
@@ -98,4 +128,22 @@ function createPhase(
 
 export function formatStreamEvent(event: ConvertEventItem) {
   return `event: ${event.type} ${event.message}`
+}
+
+export function buildStreamEventParts(event: ConvertEventItem): StreamEventPart[] {
+  const lines = event.message.split('\n')
+  const parts: StreamEventPart[] = [
+    { kind: 'prefix', text: 'event' },
+    { kind: 'type', text: event.type },
+  ]
+
+  lines.forEach((line, index) => {
+    const kind: StreamEventPartKind = line.includes('非中文表达') ? 'warning' : 'message'
+    parts.push({
+      kind,
+      text: `${index > 0 ? '\n' : ''}${line}`,
+    })
+  })
+
+  return parts
 }
