@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react'
 import { buildFlowSteps, type FlowStepKey } from './prototypeFlow'
+import type { FlowStepNavigation } from './appNavigation'
 
 type PrototypeFrameProps = {
   currentStep: FlowStepKey
   children: ReactNode
   maxWidth?: number
+  flowNavigation?: FlowStepNavigation
+  onNavigateStep?: (step: FlowStepKey) => void
 }
 
 type PrototypeHeroProps = {
@@ -20,7 +23,13 @@ type PrototypePanelTitleProps = {
   meta?: ReactNode
 }
 
-export function PrototypeFrame({ currentStep, children, maxWidth = 1180 }: PrototypeFrameProps) {
+export function PrototypeFrame({
+  currentStep,
+  children,
+  maxWidth = 1180,
+  flowNavigation,
+  onNavigateStep,
+}: PrototypeFrameProps) {
   return (
     <div className="prototype-shell">
       <header className="prototype-topbar">
@@ -34,25 +43,48 @@ export function PrototypeFrame({ currentStep, children, maxWidth = 1180 }: Proto
       </header>
 
       <main className="prototype-page" style={{ maxWidth }}>
-        <FlowNav currentStep={currentStep} />
+        <FlowNav currentStep={currentStep} flowNavigation={flowNavigation} onNavigateStep={onNavigateStep} />
         {children}
       </main>
     </div>
   )
 }
 
-export function FlowNav({ currentStep }: { currentStep: FlowStepKey }) {
+export function FlowNav({
+  currentStep,
+  flowNavigation,
+  onNavigateStep,
+}: {
+  currentStep: FlowStepKey
+  flowNavigation?: FlowStepNavigation
+  onNavigateStep?: (step: FlowStepKey) => void
+}) {
   return (
     <nav className="prototype-flow" aria-label="转换流程">
-      {buildFlowSteps(currentStep).map((step, index, steps) => (
-        <span className="prototype-flow-item-wrap" key={step.key}>
-          <span className={`prototype-flow-item${step.active ? ' active' : ''}${step.done ? ' done' : ''}`}>
-            <span>{step.number}</span>
-            {step.label}
+      {buildFlowSteps(currentStep).map((step, index, steps) => {
+        const navigation = flowNavigation?.[step.key]
+        const clickable = Boolean(onNavigateStep && navigation?.clickable)
+        const itemClassName = `prototype-flow-item${step.active ? ' active' : ''}${step.done ? ' done' : ''}${clickable ? ' clickable' : ''}${navigation && !navigation.enabled ? ' blocked' : ''}`
+
+        const handleClick = clickable && onNavigateStep ? () => onNavigateStep(step.key) : undefined
+
+        return (
+          <span className="prototype-flow-item-wrap" key={step.key}>
+            {clickable ? (
+              <button className={itemClassName} type="button" onClick={handleClick}>
+                {step.number ? <span>{step.number}</span> : null}
+                {step.label}
+              </button>
+            ) : (
+              <span className={itemClassName}>
+                {step.number ? <span>{step.number}</span> : null}
+                {step.label}
+              </span>
+            )}
+            {index < steps.length - 1 ? <span className="prototype-flow-sep">→</span> : null}
           </span>
-          {index < steps.length - 1 ? <span className="prototype-flow-sep">→</span> : null}
-        </span>
-      ))}
+        )
+      })}
     </nav>
   )
 }

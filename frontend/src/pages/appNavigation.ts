@@ -2,6 +2,18 @@ import type { ImportFlowContext, ScreenplayConvertContext } from '../types/novel
 
 export type AppPageKey = 'import' | 'single-scene' | 'convert' | 'preview' | 'polish' | 'export'
 
+export interface FlowStepNavigationState {
+  hasGeneratedScenes: boolean
+  completed: boolean
+}
+
+export type FlowStepNavigation = Record<AppPageKey, {
+  clickable: boolean
+  enabled: boolean
+  target: AppPageKey
+  message?: string
+}>
+
 export interface AppFlowState {
   page: AppPageKey
   singleSceneContext: ImportFlowContext | null
@@ -74,5 +86,43 @@ export function enterExportPage(state: AppFlowState): AppFlowState {
   return {
     ...state,
     page: 'export',
+  }
+}
+
+export function resolveFlowStepNavigation(
+  state: AppFlowState,
+  navigationState: FlowStepNavigationState,
+): FlowStepNavigation {
+  const hasConvertContext = Boolean(state.convertContext)
+  const hasGeneratedScenes = hasConvertContext && navigationState.hasGeneratedScenes
+  const canExport = hasGeneratedScenes && navigationState.completed
+
+  return {
+    import: { clickable: true, enabled: true, target: 'import' },
+    'single-scene': { clickable: false, enabled: false, target: 'single-scene' },
+    convert: {
+      clickable: true,
+      enabled: hasConvertContext,
+      target: 'convert',
+      message: hasConvertContext ? undefined : '请先导入小说并开始分析。',
+    },
+    preview: {
+      clickable: true,
+      enabled: hasGeneratedScenes,
+      target: 'preview',
+      message: hasGeneratedScenes ? undefined : '请先开始分析，生成场景后再进入预览。',
+    },
+    polish: {
+      clickable: true,
+      enabled: hasGeneratedScenes,
+      target: 'polish',
+      message: hasGeneratedScenes ? undefined : '请先生成场景，再进入打磨。',
+    },
+    export: {
+      clickable: true,
+      enabled: canExport,
+      target: 'export',
+      message: canExport ? undefined : '请先完成转换，再进入导出。',
+    },
   }
 }

@@ -4,6 +4,8 @@ import { ArrowLeftOutlined, DownOutlined, ExportOutlined, LeftOutlined, RightOut
 import type { ConversionSessionState } from './conversionSession'
 import { updateScreenplayScene } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
+import type { FlowStepNavigation } from './appNavigation'
+import type { FlowStepKey } from './prototypeFlow'
 import {
   buildSceneHeadingText,
   buildSceneOutlineItems,
@@ -30,6 +32,8 @@ type ScreenplayPolishPageProps = {
   onSelectScene: (sceneKey: string) => void
   onBackToPreview: () => void
   onExport: () => void
+  flowNavigation?: FlowStepNavigation
+  onNavigateStep?: (step: FlowStepKey) => void
 }
 
 function ScreenplayPolishPage({
@@ -40,6 +44,8 @@ function ScreenplayPolishPage({
   onSelectScene,
   onBackToPreview,
   onExport,
+  flowNavigation,
+  onNavigateStep,
 }: ScreenplayPolishPageProps) {
   const [scenePickerExpanded, setScenePickerExpanded] = useState(false)
   const [savingScene, setSavingScene] = useState(false)
@@ -110,9 +116,14 @@ function ScreenplayPolishPage({
   }
 
   return (
-    <PrototypeFrame currentStep="polish" maxWidth={1280}>
+    <PrototypeFrame
+      currentStep="polish"
+      maxWidth={1280}
+      flowNavigation={flowNavigation}
+      onNavigateStep={onNavigateStep}
+    >
       <PrototypeHero
-        eyebrow="05 · 逐场打磨"
+        eyebrow="04 · 逐场打磨"
         title={scene ? `${scene.sceneNumber} · ${buildSceneHeadingText(scene.scene.heading)}` : '选择场景后打磨'}
         meta="编辑结构 · 检查渲染"
         action={

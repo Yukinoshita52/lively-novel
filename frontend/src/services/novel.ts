@@ -19,6 +19,8 @@ async function unwrapResponse<T>(response: Response): Promise<T> {
   return payload.data
 }
 
+const conversionDetailRequests = new Map<string, Promise<ScreenplayConversionDetail>>()
+
 export async function parseNovel(title: string, text: string) {
   const response = await fetch('/api/novel/parse', {
     method: 'POST',
@@ -52,6 +54,22 @@ export async function getNovelChapters(novelId: string) {
   return unwrapResponse<NovelChaptersResult>(response)
 }
 
+export function buildNovelTitleUpdateUrl(novelId: string) {
+  return `/api/novel/${encodeURIComponent(novelId)}/title`
+}
+
+export async function updateNovelTitle(novelId: string, title: string) {
+  const response = await fetch(buildNovelTitleUpdateUrl(novelId), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title }),
+  })
+
+  return unwrapResponse<NovelChaptersResult>(response)
+}
+
 export async function getNovelList() {
   const response = await fetch('/api/novel')
   return unwrapResponse<NovelListResult>(response)
@@ -78,8 +96,21 @@ export async function convertSingleScene(text: string) {
 }
 
 export async function getScreenplayConversionDetail(conversionId: string) {
-  const response = await fetch(`/api/screenplay/conversions/${encodeURIComponent(conversionId)}`)
-  return unwrapResponse<ScreenplayConversionDetail>(response)
+  const requestKey = conversionId.trim()
+  const inFlightRequest = conversionDetailRequests.get(requestKey)
+
+  if (inFlightRequest) {
+    return inFlightRequest
+  }
+
+  const request = fetch(`/api/screenplay/conversions/${encodeURIComponent(requestKey)}`)
+    .then((response) => unwrapResponse<ScreenplayConversionDetail>(response))
+    .finally(() => {
+      conversionDetailRequests.delete(requestKey)
+    })
+
+  conversionDetailRequests.set(requestKey, request)
+  return request
 }
 
 export function buildLatestCompletedConversionUrl(novelId: string, screenplayType: string) {

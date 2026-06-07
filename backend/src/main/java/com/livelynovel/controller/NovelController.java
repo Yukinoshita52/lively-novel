@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 小说接口。
@@ -110,6 +112,18 @@ public class NovelController {
     @GetMapping("/{id}/chapters")
     public Result<NovelChaptersResultDTO> getChapters(@PathVariable("id") String novelId) {
         NovelChaptersResultDTO result = novelService.getChapters(novelId);
+        if (result == null) {
+            return Result.fail(40401, "小说不存在");
+        }
+        return Result.ok(result);
+    }
+
+    @Operation(summary = "更新小说标题", description = "根据 novelId 更新已导入小说的作品标题")
+    @PutMapping("/{id}/title")
+    public Result<NovelChaptersResultDTO> updateTitle(@PathVariable("id") String novelId,
+                                                      @RequestBody Map<String, String> request) {
+        String title = request == null ? "" : request.get("title");
+        NovelChaptersResultDTO result = novelService.updateTitle(novelId, title);
         if (result == null) {
             return Result.fail(40401, "小说不存在");
         }

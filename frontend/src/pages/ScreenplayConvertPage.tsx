@@ -5,17 +5,33 @@ import type { ConversionSessionState } from './conversionSession'
 import { resolvePreviewEntryState, resolveResumeEntryState } from './conversionSession'
 import { getScreenplayConversionYaml } from '../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
-import { buildPipelinePhases, formatStreamEvent } from './prototypeFlow'
+import {
+  buildConvertProgressNote,
+  buildPipelinePhases,
+  buildStreamEventParts,
+  type FlowStepKey,
+  resolveCurrentConvertChapterIndex,
+} from './prototypeFlow'
 import { buildYamlDownloadFileName } from './screenplayPreview'
+import type { FlowStepNavigation } from './appNavigation'
 
 type ScreenplayConvertPageProps = {
   session: ConversionSessionState
   onBack: () => void
   onPreview: () => void
   onResume: () => void
+  flowNavigation?: FlowStepNavigation
+  onNavigateStep?: (step: FlowStepKey) => void
 }
 
-function ScreenplayConvertPage({ session, onBack, onPreview, onResume }: ScreenplayConvertPageProps) {
+function ScreenplayConvertPage({
+  session,
+  onBack,
+  onPreview,
+  onResume,
+  flowNavigation,
+  onNavigateStep,
+}: ScreenplayConvertPageProps) {
   const [downloadingYaml, setDownloadingYaml] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
@@ -24,6 +40,15 @@ function ScreenplayConvertPage({ session, onBack, onPreview, onResume }: Screenp
     () => Object.values(session.chapterSceneCounts).reduce((sum, count) => sum + count, 0),
     [session.chapterSceneCounts],
   )
+  const currentChapterIndex = useMemo(() => {
+    const plannedChapterIndexes = Object.keys(session.chapterSceneCounts)
+      .map((chapterIndex) => Number(chapterIndex))
+      .filter((chapterIndex) => Number.isFinite(chapterIndex))
+    return resolveCurrentConvertChapterIndex({
+      generatedChapterIndexes: session.generatedScenes.map((scene) => scene.chapterIndex),
+      plannedChapterIndexes,
+    })
+  }, [session.chapterSceneCounts, session.generatedScenes])
   const progressPercent = useMemo(() => {
     if (totalSceneCount <= 0) {
       return 0
@@ -68,9 +93,14 @@ function ScreenplayConvertPage({ session, onBack, onPreview, onResume }: Screenp
   }
 
   return (
-    <PrototypeFrame currentStep="convert" maxWidth={1280}>
+    <PrototypeFrame
+      currentStep="convert"
+      maxWidth={1280}
+      flowNavigation={flowNavigation}
+      onNavigateStep={onNavigateStep}
+    >
       <PrototypeHero
-        eyebrow={`03 · ${session.completed ? '转换完成' : session.convertError ? '转换中断' : '转换中'} · SSE`}
+        eyebrow="02 · 转换流程演示 · SSE"
         title={`《${session.context.title}》`}
         meta="→ 动画剧本"
         action={
@@ -104,9 +134,12 @@ function ScreenplayConvertPage({ session, onBack, onPreview, onResume }: Screenp
           </div>
 
           <div className="prototype-progress-note">
-            <span>本篇 {session.context.chapters.length} 章已进入转换队列</span>
             <span>
-              {finishedSceneCount} / {totalSceneCount || '?'} 场
+              {buildConvertProgressNote({
+                currentChapterIndex,
+                finishedSceneCount,
+                totalSceneCount,
+              })}
             </span>
           </div>
           <Progress className="prototype-progress" percent={progressPercent} strokeColor="#be3a2e" showInfo={false} />
@@ -166,7 +199,11 @@ function ScreenplayConvertPage({ session, onBack, onPreview, onResume }: Screenp
             ) : (
               session.events.map((event, index) => (
                 <div className="prototype-stream-line" key={`${event.type}-${index}`}>
-                  {formatStreamEvent(event)}
+                  {buildStreamEventParts(event).map((part, partIndex) => (
+                    <span className={`prototype-stream-${part.kind}`} key={`${part.kind}-${partIndex}`}>
+                      {part.text}
+                    </span>
+                  ))}
                 </div>
               ))
             )}

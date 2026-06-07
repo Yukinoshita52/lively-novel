@@ -163,6 +163,23 @@ class NovelControllerTest {
     }
 
     @Test
+    void updatesStoredNovelTitle() {
+        NovelChaptersResultDTO resultData = new NovelChaptersResultDTO();
+        resultData.setNovelId("nv-1234abcd");
+        resultData.setTitle("新标题");
+        resultData.setTotalChapters(3);
+        resultData.setTotalWordCount(12);
+        resultData.setChapters(java.util.List.of());
+
+        when(novelService.updateTitle("nv-1234abcd", "新标题")).thenReturn(resultData);
+
+        Result<NovelChaptersResultDTO> result = controller.updateTitle("nv-1234abcd", java.util.Map.of("title", "新标题"));
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData().getTitle()).isEqualTo("新标题");
+    }
+
+    @Test
     void returns40401WhenNovelDoesNotExist() {
         when(novelService.getChapters("nv-missing")).thenReturn(null);
 
