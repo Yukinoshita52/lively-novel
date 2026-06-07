@@ -1,9 +1,7 @@
 import type {
   ApiResponse,
-  NovelChapterDetail,
   NovelChaptersResult,
   NovelListResult,
-  NovelParseResult,
   NovelUploadResult,
   SceneResult,
   ScreenplayConversionDetail,
@@ -20,18 +18,6 @@ async function unwrapResponse<T>(response: Response): Promise<T> {
 }
 
 const conversionDetailRequests = new Map<string, Promise<ScreenplayConversionDetail>>()
-
-export async function parseNovel(title: string, text: string) {
-  const response = await fetch('/api/novel/parse', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ title, text }),
-  })
-
-  return unwrapResponse<NovelParseResult>(response)
-}
 
 export async function uploadNovel(title: string, file: File) {
   const formData = new FormData()
@@ -73,26 +59,6 @@ export async function updateNovelTitle(novelId: string, title: string) {
 export async function getNovelList() {
   const response = await fetch('/api/novel')
   return unwrapResponse<NovelListResult>(response)
-}
-
-export async function getNovelChapterDetail(novelId: string, chapterIndex: number) {
-  const response = await fetch(`/api/novel/${novelId}/chapters/${chapterIndex}`)
-  return unwrapResponse<NovelChapterDetail>(response)
-}
-
-export async function convertSingleScene(text: string) {
-  const response = await fetch('/api/screenplay/convert-single', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text,
-      screenplayType: 'ANIME',
-    }),
-  })
-
-  return unwrapResponse<SceneResult>(response)
 }
 
 export async function getScreenplayConversionDetail(conversionId: string) {

@@ -8,6 +8,7 @@ import type { FlowStepNavigation } from './appNavigation'
 import type { FlowStepKey } from './prototypeFlow'
 import { buildYamlDownloadFileName } from './screenplayPreview'
 import { buildExportYamlRows, resolveExportYamlDisplayText } from './screenplayExport'
+import { downloadBlob } from '../utils/download'
 
 const { Text } = Typography
 
@@ -63,14 +64,7 @@ function ScreenplayExportPage({
     }
 
     const yamlBlob = new Blob([yamlText], { type: 'text/yaml;charset=utf-8' })
-    const url = URL.createObjectURL(yamlBlob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = buildYamlDownloadFileName(session.context.title)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+    downloadBlob(yamlBlob, buildYamlDownloadFileName(session.context.title))
   }
 
   async function handleCopyYaml() {
