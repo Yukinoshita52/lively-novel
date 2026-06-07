@@ -1,0 +1,38 @@
+.export-yaml-viewer {
+  background: #1c1813;
+  border-radius: 4px;
+  color: #e7ddc8;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.86rem;
+  line-height: 1.75;
+  max-height: 560px;
+  overflow: auto;
+  padding: 18px 18px 18px 0;
+}
+
+.export-yaml-line-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.export-yaml-line-number {
+  background: rgba(255, 255, 255, 0.04);
+  border-right: 1px solid rgba(231, 221, 200, 0.12);
+  color: rgba(231, 221, 200, 0.46);
+  display: block;
+  font-size: 0.78rem;
+  min-height: 1.75em;
+  padding: 0 8px;
+  text-align: right;
+  user-select: none;
+}
+
+.export-yaml-line-text {
+  display: block;
+  min-height: 1.75em;
+  padding-left: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+

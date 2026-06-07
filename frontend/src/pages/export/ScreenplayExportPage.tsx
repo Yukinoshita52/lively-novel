@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Card, Typography } from 'antd'
 import { ArrowLeftOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons'
-import type { ConversionSessionState } from './conversionSession'
-import { getScreenplayConversionYaml } from '../services/novel'
-import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
-import type { FlowStepNavigation } from './appNavigation'
-import type { FlowStepKey } from './prototypeFlow'
-import { buildYamlDownloadFileName } from './screenplayPreview'
+import type { ConversionSessionState } from '../conversionSession'
+import { getScreenplayConversionYaml } from '../../services/novel'
+import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
+import type { FlowStepNavigation } from '../appNavigation'
+import type { FlowStepKey } from '../../components/prototype/prototypeFlow'
+import { buildYamlDownloadFileName } from '../preview/screenplayPreview'
 import { buildExportYamlRows, resolveExportYamlDisplayText } from './screenplayExport'
-import { downloadBlob } from '../utils/download'
+import { downloadBlob } from '../../utils/download'
 
 const { Text } = Typography
 
@@ -97,7 +97,7 @@ function ScreenplayExportPage({
       <Card
         className="prototype-panel scene-preview-panel"
         title={<PrototypePanelTitle code="YAML" title="结构化剧本" meta="核心交付" />}
-        bordered={false}
+        variant="borderless"
       >
         {!session.completed ? (
           <Alert

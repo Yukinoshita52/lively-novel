@@ -1,12 +1,12 @@
 import {
   buildImportEntryActions,
   buildImportResultFromConvertContext,
-  buildImportTextAreas,
   buildScreenplayTypeCards,
   resolveEditableTitle,
   selectHistoryNovel,
   selectUploadedNovel,
 } from './importPageModel.ts'
+import { formatHistoryTime, formatWordCount } from './importFormat.ts'
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) {
@@ -27,11 +27,6 @@ assert(actionsWithResult.primary.enabled, '识别出 3 章以上小说后应允�
 assert(
   actionsWithResult.secondary.every((action) => !action.label.includes('打磨')),
   '可开始分析后导入页仍不应出现打磨入口',
-)
-
-assert(
-  buildImportTextAreas().every((item) => !item.label.includes('粘贴正文')),
-  '导入页不应再暴露粘贴正文区域',
 )
 
 assert(
@@ -67,3 +62,8 @@ assert(restoredImportResult?.novelId === 'nv-history', '回到导入页时应能
 assert(restoredImportResult?.totalWordCount === 3500, '恢复导入结果时应保留章节字数汇总')
 assert(resolveEditableTitle('  新标题  ', '旧标题') === '新标题', '作品标题应去除首尾空白')
 assert(resolveEditableTitle('   ', '旧标题') === '旧标题', '标题输入为空时应回退到当前标题')
+assert(formatWordCount(9980) === '9980 字', '不足一万字时应展示字数')
+assert(formatWordCount(12000) === '1.2 万字', '超过一万字时应展示万字')
+assert(formatWordCount(10000) === '1 万字', '整万字不应带小数')
+assert(formatHistoryTime(null) === '时间未知', '历史时间为空时应展示未知')
+assert(formatHistoryTime('not-a-date') === '时间未知', '历史时间非法时应展示未知')

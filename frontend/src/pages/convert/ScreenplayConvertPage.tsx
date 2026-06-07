@@ -1,20 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Alert, Button, Card, Progress } from 'antd'
 import { ArrowLeftOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
-import type { ConversionSessionState } from './conversionSession'
-import { resolvePreviewEntryState, resolveResumeEntryState } from './conversionSession'
-import { getScreenplayConversionYaml } from '../services/novel'
-import { downloadBlob } from '../utils/download'
-import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
+import type { ConversionSessionState } from '../conversionSession'
+import { resolvePreviewEntryState, resolveResumeEntryState } from '../conversionSession'
+import { getScreenplayConversionYaml } from '../../services/novel'
+import { downloadBlob } from '../../utils/download'
+import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import {
   buildConvertProgressNote,
   buildPipelinePhases,
   buildStreamEventParts,
   type FlowStepKey,
   resolveCurrentConvertChapterIndex,
-} from './prototypeFlow'
-import { buildYamlDownloadFileName } from './screenplayPreview'
-import type { FlowStepNavigation } from './appNavigation'
+} from '../../components/prototype/prototypeFlow'
+import { buildYamlDownloadFileName } from '../preview/screenplayPreview'
+import type { FlowStepNavigation } from '../appNavigation'
 
 type ScreenplayConvertPageProps = {
   session: ConversionSessionState
@@ -108,7 +108,7 @@ function ScreenplayConvertPage({
         <Card
           className="prototype-panel"
           title={<PrototypePanelTitle code="PIPE" title="两阶段转换" />}
-          bordered={false}
+          variant="borderless"
         >
           <div className="prototype-phase-list">
             {pipelinePhases.map((phase) => (
@@ -185,7 +185,7 @@ function ScreenplayConvertPage({
               meta={session.connecting && !session.completed ? '● LIVE' : 'STREAM'}
             />
           }
-          bordered={false}
+          variant="borderless"
         >
           <div className="prototype-stream">
             {session.events.length === 0 ? (

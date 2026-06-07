@@ -3,7 +3,6 @@ import {
   buildConvertProgressNote,
   buildFlowSteps,
   buildPipelinePhases,
-  formatStreamEvent,
   resolveCurrentConvertChapterIndex,
 } from './prototypeFlow.ts'
 
@@ -66,12 +65,6 @@ assert(
     plannedChapterIndexes: [1, 2, 3, 4],
   }) === 4,
   '下一章已完成切场但尚未生成场景时，应显示正在生成下一章',
-)
-
-assert(
-  formatStreamEvent({ type: 'scene_completed', message: '已生成第 1 章第 2 场：天台' }) ===
-    'event: scene_completed 已生成第 1 章第 2 场：天台',
-  '事件流应使用 event: 前缀形成原型里的 SSE 观感',
 )
 
 const warningParts = buildStreamEventParts({

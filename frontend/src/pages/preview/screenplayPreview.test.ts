@@ -1,4 +1,4 @@
-import type { GeneratedSceneSummary } from '../types/novel'
+import type { GeneratedSceneSummary } from '../../types/novel'
 import {
   buildYamlDownloadFileName,
   buildPreviewTabs,
@@ -6,14 +6,13 @@ import {
   buildSceneHeadingText,
   buildSceneOutlineItems,
   buildSceneTableRows,
-  buildThoughtAuditRows,
   buildPreviewActions,
   resolveAdjacentSceneKeys,
   mapPersistedScenesToGeneratedScenes,
   getSourcePreview,
-  resolveConvertEventUpdate,
   resolveSelectedScene,
 } from './screenplayPreview.ts'
+import { resolveConvertEventUpdate } from './convertEventUpdate.ts'
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) {
@@ -109,7 +108,6 @@ assert(scriptRows[0].type === 'ACTION', '剧本预览应按 scriptBlocks 渲染�
 assert(scriptRows[1].type === 'DIALOGUE', '剧本预览应保留对白块顺序')
 assert(scriptRows[2].text === '她抬头看向窗外。', '剧本预览应支持动作与对白交错')
 assert(scriptRows[3].type === 'TRANSITION', '剧本预览应保留转场块')
-assert(buildThoughtAuditRows(scenes).length === 0, '预览页不应再从内部审计字段构建留痕列表')
 
 const persistedScenes = mapPersistedScenesToGeneratedScenes([
   {

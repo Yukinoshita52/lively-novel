@@ -1,4 +1,4 @@
-import type { ChapterPreview, ScreenplayConvertContext } from '../types/novel'
+import type { ChapterPreview, ScreenplayConvertContext } from '../../types/novel'
 
 export interface ImportEntryAction {
   label: string
@@ -8,10 +8,6 @@ export interface ImportEntryAction {
 export interface ImportEntryActions {
   primary: ImportEntryAction
   secondary: ImportEntryAction[]
-}
-
-export interface ImportTextAreaDescriptor {
-  label: string
 }
 
 export interface ScreenplayTypeCard {
@@ -51,10 +47,6 @@ export function buildImportEntryActions(canStartConvert: boolean): ImportEntryAc
     },
     secondary: [],
   }
-}
-
-export function buildImportTextAreas(): ImportTextAreaDescriptor[] {
-  return []
 }
 
 export function buildScreenplayTypeCards(selectedType: string): ScreenplayTypeCard[] {

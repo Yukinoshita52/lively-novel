@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { buildFlowSteps, type FlowStepKey } from './prototypeFlow'
-import type { FlowStepNavigation } from './appNavigation'
+import type { FlowStepNavigation } from '../../pages/appNavigation'
 
 type PrototypeFrameProps = {
   currentStep: FlowStepKey

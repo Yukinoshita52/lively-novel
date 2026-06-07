@@ -1,0 +1,33 @@
+.app-shell {
+  color: #2f2418;
+  min-height: 100vh;
+  padding: 40px 24px 56px;
+}
+
+.topbar {
+  align-items: flex-start;
+  display: flex;
+  gap: 24px;
+  margin: 0 auto 28px;
+  max-width: 1200px;
+}
+
+.topbar h1.ant-typography {
+  color: #24180d;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: clamp(2.2rem, 4vw, 4.4rem);
+  line-height: 1.02;
+  margin-bottom: 16px;
+  margin-top: 0;
+}
+
+.topbar-eyebrow {
+  color: #9c4b2e;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
+  letter-spacing: 0.2em;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+
