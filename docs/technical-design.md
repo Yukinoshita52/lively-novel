@@ -624,7 +624,7 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 }
 ```
 
-**校验：** `scriptBlocks[type=DIALOGUE].character` 必须存在于人物表（引用完整性，见 `yaml-schema.md` §8.3）；`scriptBlocks[].type` 须 ∈ `ACTION/DIALOGUE/TRANSITION`。
+**校验：** `scriptBlocks[type=DIALOGUE or VO].character` 必须存在于人物表（引用完整性，见 `yaml-schema.md` §8.3）；`scriptBlocks[].type` 须 ∈ `SHOT/ACTION/INSERT/SFX/DIALOGUE/VO/TRANSITION`。
 **可能错误码：** `40001`（字段非法/人物引用悬空）、`40401`（剧本或场景不存在）、`40301`（非本人）。
 
 #### ⑭ POST `/api/screenplay/{id}/scenes/{sceneId}/regenerate` — AI 重生单场（SSE）
@@ -845,7 +845,7 @@ PromptTemplateRegistry:
 
 ## 关于 scriptBlocks 字段
 它是场景正文的唯一主体：动作、对白、转场都按阅读/演出顺序放入同一个列表。
-内心戏视觉化结果必须直接体现在 `ACTION`、`DIALOGUE` 或带画外音提示的对白块中，不输出内部改编日志。
+内心戏视觉化结果必须直接体现在 `ACTION`、`DIALOGUE`、`VO`、`SHOT` 或 `INSERT` 等剧本正文块中，不输出内部改编日志。
 ```
 
 ---

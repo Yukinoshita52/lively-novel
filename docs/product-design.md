@@ -77,7 +77,7 @@
 
 她发现第 7 场的内心戏转译不够好——原文"她心里一阵酸楚"被转成了旁白，但她想改成动作。她点击那一场，进入**YAML 编辑模式**：
 - 左侧直接编辑本场 YAML 结构（heading / scriptBlocks / sourceChapter）
-- 右侧实时渲染 PREVIEW，按剧本阅读顺序展示 ACTION / DIALOGUE / TRANSITION
+- 右侧实时渲染 PREVIEW，按剧本阅读顺序展示 SHOT / ACTION / INSERT / SFX / DIALOGUE / VO / TRANSITION
 - 点击"保存"后把本场 YAML 变更持久化，最终进入导出链路
 - 点击"取消"只丢弃当前未保存修改，回到最近一次保存后的草稿
 

@@ -169,9 +169,9 @@ screenplay
 │       │   └── timeOfDay: string            # 时间，如 "夜"/"黄昏"
 │       ├── scriptBlocks: list               # 剧本正文块（有序）
 │       │   └── (item)
-│       │       ├── type: enum               # ACTION|DIALOGUE|TRANSITION
-│       │       ├── text: string?            # 动作/转场正文
-│       │       ├── character: string?       # 对白说话人
+│       │       ├── type: enum               # SHOT|ACTION|INSERT|SFX|DIALOGUE|VO|TRANSITION
+│       │       ├── text: string?            # 镜头/动作/特写/音效/转场正文
+│       │       ├── character: string?       # 对白/画外音说话人
 │       │       ├── parenthetical: string?   # 可选，括号提示
 │       │       └── line: string?            # 台词正文
 │       └── sourceChapter: int               # 来源章节：来自第几章
@@ -278,12 +278,21 @@ heading:
 
 ```yaml
 scriptBlocks:
+  - type: SHOT
+    text: 出租屋一角。雨声压过房间里的沉默。
   - type: ACTION
-    text: 雨敲打着铁皮屋檐。
+    text: 林晚把简历放在桌上。
+  - type: INSERT
+    text: 简历纸角被反复捻出深深的褶皱。
+  - type: SFX
+    text: 手机震动。
+  - type: VO
+    character: 林晚
+    parenthetical: 画外音
+    line: 又一次……我都习惯了。
   - type: DIALOGUE
     character: 林晚
-    parenthetical: (画外音)
-    line: 又一次……我都习惯了。
+    line: 不能停在这里。
   - type: TRANSITION
     text: 切至：
 ```
@@ -292,11 +301,23 @@ scriptBlocks:
 
 | 子字段 | 必填 | 类型 | 说明与设计原因 |
 |---|---|---|---|
-| `type` | 必填 | enum | `ACTION/DIALOGUE/TRANSITION`。用于标明这一块如何渲染，而不是把整场拆成三组互不相干的数据。 |
-| `text` | 条件必填 | string | `ACTION` 与 `TRANSITION` 使用。动作描述可见画面，转场描述镜头/场景切换。 |
-| `character` | 条件必填 | string | `DIALOGUE` 使用。说话人应来自 `characters` 表中的规范名（引用完整性，见 §8 校验规则）。 |
-| `parenthetical` | *可选* | string | `DIALOGUE` 使用。括号提示，如 `(画外音)`、`(冷笑)`、`(压低声音)`。 |
-| `line` | 条件必填 | string | `DIALOGUE` 使用。台词正文。 |
+| `type` | 必填 | enum | `SHOT/ACTION/INSERT/SFX/DIALOGUE/VO/TRANSITION`。用于标明这一块如何渲染，而不是把整场拆成按类型分组的素材表。 |
+| `text` | 条件必填 | string | `SHOT/ACTION/INSERT/SFX/TRANSITION` 使用。分别表示镜头/构图、可拍摄动作节拍、插入特写、音效、转场。 |
+| `character` | 条件必填 | string | `DIALOGUE` 与 `VO` 使用。说话人应来自 `characters` 表中的规范名（引用完整性，见 §8 校验规则）。 |
+| `parenthetical` | *可选* | string | `DIALOGUE` 与 `VO` 使用。括号提示，如 `画外音`、`冷笑`、`压低声音`。 |
+| `line` | 条件必填 | string | `DIALOGUE` 与 `VO` 使用。台词或画外音正文。 |
+
+#### `scriptBlocks.type` 枚举说明
+
+| 值 | 含义 | 字段 | 设计原因 |
+|---|---|---|---|
+| `SHOT` | 镜头/构图/视线焦点 | `text` | 承接动画剧本的镜头感，避免把“家庭餐厅一角”“镜头推近”等镜头语言塞进动作。 |
+| `ACTION` | 可见动作节拍 | `text` | 只写一个可拍摄动作或反应，避免长段小说叙述。 |
+| `INSERT` | 插入特写 | `text` | 表达书封、钥匙、账单、玻璃杯等道具信息，让物件说明更像剧本。 |
+| `SFX` | 音效 | `text` | 表达门铃、咳嗽、脚步声、尖叫等听觉信息。 |
+| `DIALOGUE` | 对白 | `character`、`parenthetical`、`line` | 标准角色对白。 |
+| `VO` | 画外音/内心独白 | `character`、`parenthetical`、`line` | 承接小说内心戏，不混入普通对白或动作。 |
+| `TRANSITION` | 转场 | `text` | 表达切至、淡出等场景切换。 |
 
 - **为什么不用 `actionLines` / `dialogueBlocks` / `transitions` 三组并列字段作为导出正文**：剧本不是素材分类表，而是按阅读和演出顺序推进的文本。`scriptBlocks` 既保留了动作、对白、转场的结构化类型，又把它们放在同一个有序列表里，更接近真实剧本。
 - **当前导出约束**：最终 YAML 的场景正文只输出 `scriptBlocks`。即使后端 DTO 为兼容旧链路仍可能保留 `actionLines`、`dialogueBlocks`、`transitions` 或 `visualizedInnerThoughts`，这些都不作为导出正文并列输出。
@@ -405,13 +426,17 @@ scenes:
       location: 出租屋
       timeOfDay: 夜
     scriptBlocks:
+      - type: SHOT
+        text: 狭小出租屋。雨声压过房间里的沉默。
       - type: ACTION
-        text: 雨敲打着铁皮屋檐。狭小的房间里，林晚盘腿坐在地板上，膝头摊着一份被反复折叠的简历。
+        text: 林晚盘腿坐在地板上，膝头摊着一份被反复折叠的简历。
       - type: ACTION
-        text: 台灯昏黄。她把简历又看了一遍，指尖无意识地把纸角捻出深深的褶皱。
-      - type: DIALOGUE
+        text: 她把简历又看了一遍。
+      - type: INSERT
+        text: 简历纸角被她无意识地捻出深深的褶皱。
+      - type: VO
         character: 林晚
-        parenthetical: (画外音)
+        parenthetical: 画外音
         line: 又一次……我都习惯了。习惯，是最体面的认输。
       - type: TRANSITION
         text: 切至：
@@ -423,11 +448,15 @@ scenes:
       location: 天台
       timeOfDay: 黄昏
     scriptBlocks:
+      - type: SHOT
+        text: 天台边缘。城市在脚下铺开。
       - type: ACTION
-        text: 城市在脚下铺开，晚风掀动林晚的发。她走到栏杆边，指节因用力而泛白。
-      - type: DIALOGUE
+        text: 晚风掀动林晚的发。
+      - type: ACTION
+        text: 她走到栏杆边，指节因用力而泛白。
+      - type: VO
         character: 林晚
-        parenthetical: (画外音)
+        parenthetical: 画外音
         line: 往下看一眼，就一眼……可那串电话还没挂断。
       - type: TRANSITION
         text: 切至：
@@ -441,6 +470,8 @@ scenes:
     scriptBlocks:
       - type: ACTION
         text: 手机骤然震动。林晚怔住，缓缓接起。
+      - type: SFX
+        text: 手机震动声。
       - type: DIALOGUE
         character: 陈经理
         line: 林晚小姐，恭喜你通过了。
@@ -484,7 +515,7 @@ storylines:
 
 ### 8.2 枚举合法性
 
-- `screenplayType` ∈ §6.1；`role` ∈ §6.2；`scriptBlocks[].type` ∈ `ACTION/DIALOGUE/TRANSITION`；`storyline.type` ∈ §6.3。
+- `screenplayType` ∈ §6.1；`role` ∈ §6.2；`scriptBlocks[].type` ∈ `SHOT/ACTION/INSERT/SFX/DIALOGUE/VO/TRANSITION`；`storyline.type` ∈ §6.3。
 - 不在枚举内的值 → 校验失败（或降级为默认值并告警，见技术方案"字段缺失降级处理"）。
 
 ### 8.3 引用完整性（关键）
@@ -493,7 +524,7 @@ storylines:
 
 | 引用 | 规则 |
 |---|---|
-| `scriptBlocks[type=DIALOGUE].character` | 必须存在于 `characters[].name` 中（对白说话人必须是已登记人物）。 |
+| `scriptBlocks[type=DIALOGUE or VO].character` | 必须存在于 `characters[].name` 中（对白/画外音说话人必须是已登记人物）。 |
 | `relationships[].target` | 必须存在于 `characters[].name` 中（关系对端必须是已登记人物）。 |
 | `storylines[].events[].scene` | 必须存在于某个 `scenes[].sceneId`（事件必须挂在真实场景上）。 |
 
@@ -507,7 +538,7 @@ storylines:
 ### 8.5 一致性（软校验，告警而非拒绝）
 
 - `sourceChapter` 宜随 `scenes` 顺序单调不减（场景顺序通常与章节顺序一致）；逆序时告警，因为可能是闪回（合法）或切分错误（需复查）。
-- `scriptBlocks` 宜至少包含一个 `ACTION` 或 `DIALOGUE` 块；只有转场的场景通常意味着生成质量不足。
+- `scriptBlocks` 宜至少包含一个 `ACTION`、`DIALOGUE` 或 `VO` 块；只有转场的场景通常意味着生成质量不足。
 
 ---
 
@@ -553,7 +584,7 @@ Schema 在不破坏现有结构的前提下，预留了以下扩展路径：
 | 扩展方向 | 扩展方式 | 是否破坏兼容 |
 |---|---|---|
 | 新剧本类型（短剧/广播剧/话剧） | `screenplayType` 加枚举值 + 新增渲染/生成模板 | 否 |
-| 新正文块类型（蒙太奇/音效/字幕） | `scriptBlocks.type` 加枚举值 | 否 |
+| 新正文块类型（蒙太奇/字幕） | `scriptBlocks.type` 加枚举值 | 否 |
 | 分镜细化（镜头类型、运镜） | `scenes[]` 下新增可选 `shots[]` 字段 | 否（可选字段） |
 | 多语言剧本 | 顶层加可选 `language`；渲染层按语言拼装 heading | 否 |
 | 配乐/音效（广播剧需要） | `scenes[]` 下新增可选 `sound[]` | 否 |
@@ -593,11 +624,11 @@ Schema 在不破坏现有结构的前提下，预留了以下扩展路径：
 | `scenes[].heading.interior` | bool | ✅ | 内/外景 |
 | `scenes[].heading.location` | string | ✅ | 地点 |
 | `scenes[].heading.timeOfDay` | string | ✅ | 时间 |
-| `scenes[].scriptBlocks[].type` | enum | ✅ | 正文块类型：`ACTION/DIALOGUE/TRANSITION` |
-| `scenes[].scriptBlocks[].text` | string | 条件必填 | 动作或转场正文 |
-| `scenes[].scriptBlocks[].character` | string | 条件必填 | 对白说话人（引用人物名） |
+| `scenes[].scriptBlocks[].type` | enum | ✅ | 正文块类型：`SHOT/ACTION/INSERT/SFX/DIALOGUE/VO/TRANSITION` |
+| `scenes[].scriptBlocks[].text` | string | 条件必填 | 镜头、动作、特写、音效或转场正文 |
+| `scenes[].scriptBlocks[].character` | string | 条件必填 | 对白/画外音说话人（引用人物名） |
 | `scenes[].scriptBlocks[].parenthetical` | string | ⬜ | 括号提示 |
-| `scenes[].scriptBlocks[].line` | string | 条件必填 | 台词 |
+| `scenes[].scriptBlocks[].line` | string | 条件必填 | 台词或画外音正文 |
 | `scenes[].sourceChapter` | int | ✅ | 来源章节 |
 | `storylines[].name` | string | ✅ | 线索名 |
 | `storylines[].type` | enum | ✅ | 主线/支线 |
