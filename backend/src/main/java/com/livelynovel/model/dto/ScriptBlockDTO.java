@@ -17,15 +17,27 @@ public class ScriptBlockDTO {
     public ScriptBlockDTO() {}
 
     public static ScriptBlockDTO action(String text) {
+        return textBlock("ACTION", text);
+    }
+
+    public static ScriptBlockDTO textBlock(String type, String text) {
         ScriptBlockDTO block = new ScriptBlockDTO();
-        block.setType("ACTION");
+        block.setType(type);
         block.setText(text);
         return block;
     }
 
     public static ScriptBlockDTO dialogue(String character, String parenthetical, String line) {
+        return spokenBlock("DIALOGUE", character, parenthetical, line);
+    }
+
+    public static ScriptBlockDTO voiceOver(String character, String parenthetical, String line) {
+        return spokenBlock("VO", character, parenthetical, line);
+    }
+
+    public static ScriptBlockDTO spokenBlock(String type, String character, String parenthetical, String line) {
         ScriptBlockDTO block = new ScriptBlockDTO();
-        block.setType("DIALOGUE");
+        block.setType(type);
         block.setCharacter(character);
         block.setParenthetical(parenthetical);
         block.setLine(line);
@@ -33,10 +45,7 @@ public class ScriptBlockDTO {
     }
 
     public static ScriptBlockDTO transition(String text) {
-        ScriptBlockDTO block = new ScriptBlockDTO();
-        block.setType("TRANSITION");
-        block.setText(text);
-        return block;
+        return textBlock("TRANSITION", text);
     }
 
     public String getType() { return type; }
