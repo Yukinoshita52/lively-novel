@@ -1,11 +1,11 @@
-export interface DownloadLink {
+interface DownloadLink {
   download: string
   href: string
   click: () => void
   remove: () => void
 }
 
-export interface DownloadEnvironment {
+interface DownloadEnvironment {
   createElement: (tagName: 'a') => DownloadLink
   appendChild: (node: DownloadLink) => void
   createObjectURL: (blob: Blob) => string
