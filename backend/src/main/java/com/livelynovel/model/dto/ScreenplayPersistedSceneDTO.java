@@ -7,6 +7,7 @@ public class ScreenplayPersistedSceneDTO {
 
     private int chapterIndex;
     private int sceneIndexInChapter;
+    private String title;
     private SceneDTO scene;
 
     public int getChapterIndex() {
@@ -23,6 +24,14 @@ public class ScreenplayPersistedSceneDTO {
 
     public void setSceneIndexInChapter(int sceneIndexInChapter) {
         this.sceneIndexInChapter = sceneIndexInChapter;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public SceneDTO getScene() {

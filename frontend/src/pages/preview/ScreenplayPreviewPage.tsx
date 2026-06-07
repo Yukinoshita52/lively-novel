@@ -13,7 +13,7 @@ import {
   buildScriptBlockRows,
   buildSceneOutlineItems,
   buildSceneTableRows,
-  getSourcePreview,
+  getSourceDisplayText,
   mapPersistedScenesToGeneratedScenes,
   resolveSelectedScene,
   type PreviewTabKey,
@@ -37,7 +37,6 @@ function ScreenplayPreviewPage({
   onNavigateStep,
 }: ScreenplayPreviewPageProps) {
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
-  const [sourceExpanded, setSourceExpanded] = useState(false)
   const [activePreviewTab, setActivePreviewTab] = useState<PreviewTabKey>('script')
   const [conversionDetail, setConversionDetail] = useState<ScreenplayConversionDetail | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
@@ -129,7 +128,6 @@ function ScreenplayPreviewPage({
                   key={scene.key}
                   onClick={() => {
                     setSelectedSceneKey(scene.key)
-                    setSourceExpanded(false)
                   }}
                   type="button"
                 >
@@ -176,7 +174,7 @@ function ScreenplayPreviewPage({
               </div>
 
               {activePreviewTab === 'script' ? (
-                <div className="screenplay-preview">
+                <div className="screenplay-preview preview-reading-scroll">
                   <div className="screenplay-scene-meta">
                     <Tag variant="filled">{selectedScene.sceneNumber}</Tag>
                     <Text>第 {selectedScene.chapterIndex} 章</Text>
@@ -209,20 +207,24 @@ function ScreenplayPreviewPage({
                     })}
                   </div>
 
-                  <div className="source-preview">
-                    <div className="source-preview-head">
-                      <Text className="scene-section-title">本场原文</Text>
-                      <Button
-                        className="content-toggle"
-                        onClick={() => setSourceExpanded((current) => !current)}
-                        type="link"
-                      >
-                        {sourceExpanded ? '收起' : '展开'}
-                      </Button>
+                </div>
+              ) : null}
+
+              {activePreviewTab === 'source' ? (
+                <div className="screenplay-preview preview-reading-scroll">
+                  <div className="screenplay-scene-meta">
+                    <Tag variant="filled">{selectedScene.sceneNumber}</Tag>
+                    <Text>第 {selectedScene.chapterIndex} 章</Text>
+                    {selectedScene.sceneIndexInChapter ? <Text>第 {selectedScene.sceneIndexInChapter} 场</Text> : null}
+                  </div>
+                  <Title level={4}>{selectedScene.title}</Title>
+
+                  <div className="screenplay-paper source-reading-paper">
+                    <div className="sp-scene-heading">
+                      <span>{selectedScene.sceneNumber}</span>
+                      本场原文
                     </div>
-                    <div className="source-preview-text">
-                      {getSourcePreview(selectedScene.scene.sourceText || '', sourceExpanded)}
-                    </div>
+                    <p className="source-reading-text">{getSourceDisplayText(selectedScene.scene.sourceText || '')}</p>
                   </div>
                 </div>
               ) : null}

@@ -77,6 +77,7 @@ export interface GeneratedSceneSummary {
 export interface ScreenplayPersistedScene {
   chapterIndex: number
   sceneIndexInChapter: number
+  title?: string
   scene: SceneResult
 }
 

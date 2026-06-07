@@ -311,9 +311,17 @@ class ScreenplayServiceImplTest {
                 }
                 """);
 
+        ScreenplaySceneUnitEntity sceneUnitEntity = new ScreenplaySceneUnitEntity();
+        sceneUnitEntity.setConversionId("cv-1234abcd");
+        sceneUnitEntity.setChapterIndex(1);
+        sceneUnitEntity.setSceneIndexInChapter(1);
+        sceneUnitEntity.setTitle("特典：比食欲更加重要的东西");
+
         when(conversionRepository.findById("cv-1234abcd")).thenReturn(Optional.of(conversion));
         when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-1234abcd"))
                 .thenReturn(List.of(sceneEntity));
+        when(sceneUnitRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-1234abcd"))
+                .thenReturn(List.of(sceneUnitEntity));
 
         ScreenplayConversionDetailDTO detail = screenplayService.getConversionDetail("cv-1234abcd");
 
@@ -322,6 +330,7 @@ class ScreenplayServiceImplTest {
         assertThat(detail.getNovelId()).isEqualTo("nv-1234abcd");
         assertThat(detail.getStatus()).isEqualTo("COMPLETED");
         assertThat(detail.getScenes()).hasSize(1);
+        assertThat(detail.getScenes().get(0).getTitle()).isEqualTo("特典：比食欲更加重要的东西");
         assertThat(detail.getScenes().get(0).getScene().getSceneId()).isEqualTo("s1");
     }
 
