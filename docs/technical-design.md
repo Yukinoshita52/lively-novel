@@ -9,6 +9,7 @@
 > **v1.3 变更（§5 重审重写）**：① 全局分析改为**自适应 Map-Reduce**（短文单次／长文顺序滚动逐章 Map + Reduce，非并行以保跨章连贯）；② 修正中文 token 量级误算；③ 明确**场景切分**步骤补齐 A/B 缺环；④ prompt 改为"仅任务+规则"，Schema 交由 `.entity()` 注入；⑤ MVP **仅影视类**，广播剧/话剧规则列为扩展；⑥ 补人物名一致性、前场上下文、内心戏视觉化语义。
 > **v1.4 变更（§6/7/8/9 复审）**：§6 补注册/登录滥用、并发任务、上传体积、提示注入、CORS、SQL 注入等风险；§7 标注初版、补 README/resources/common/dto/exception/test/data 等关键目录；§8 补 40401/42901/40303/50004 错误码；§9 补 WAL 开启、multipart 与 SSE 超时、全局预算、模型名核对提示。
 > **v1.5 变更（§4 重写）**：结合原型逐屏，为全部 16 个接口补全请求/响应详细设计；接口列表增加「原型来源」列；新增 §4.2 通用约定（鉴权/JSON 包装/SSE 约定）；注册改为返回 token 自动登录；响应字段与 `yaml-schema.md` 全面对齐（ANIME 默认、schemaVersion、scriptBlocks 正文块）；补 ⑥⑨⑩⑪⑫⑬⑮⑯ 等此前缺失的接口示例。
+> **v1.6 变更（当前实现同步）**：补充 §4.0 当前实现基线，明确比赛 MVP 当前使用 `/api/screenplay/conversions/...` 转换详情、单场保存与 YAML 导出接口；标注 JWT、AI 单场重生、可读文本导出、完整人物/线索视图仍为后续扩展；同步失败后继续转换、语言漂移降级提示、`sourceText`/`visualizedInnerThoughts` 不进入导出 YAML 等已实现约束。
 
 ---
 
@@ -183,9 +184,40 @@ Screenplay (持久化)
 
 ## 4. API 设计
 
+### 4.0 当前实现基线（2026-06-07）
+
+本节记录当前代码已经落地的比赛 MVP 接口与页面链路。§4.1 起保留的是目标态/扩展态接口设计，用于说明后续演进方向；开发与演示时以本节为准。
+
+| 方法 | 路径 | 当前用途 | 状态 |
+|---|---|---|---|
+| GET | `/api/health` | 健康检查 | 已实现 |
+| POST | `/api/novel/parse` | 粘贴正文解析章节 | 已实现 |
+| POST | `/api/novel/upload` | 上传 `.txt`、解析并持久化小说 | 已实现 |
+| GET | `/api/novel` | 历史小说列表 | 已实现 |
+| GET | `/api/novel/{id}/chapters` | 回读小说章节摘要 | 已实现 |
+| GET | `/api/novel/{id}/chapters/{chapterIndex}` | 回读单章详情 | 已实现 |
+| PUT | `/api/novel/{id}/title` | 修改并持久化作品标题 | 已实现 |
+| POST | `/api/screenplay/convert` | 提交整本转换任务，SSE 返回进度与场景 | 已实现 |
+| GET | `/api/screenplay/conversions/{conversionId}` | 回读转换详情与已持久化场景 | 已实现 |
+| GET | `/api/screenplay/conversions/latest?novelId=...&screenplayType=...` | 回读某小说最近完成的转换 | 已实现 |
+| PUT | `/api/screenplay/conversions/{conversionId}/chapters/{chapterIndex}/scenes/{sceneIndexInChapter}` | 保存单场打磨后的场景 JSON | 已实现 |
+| GET | `/api/screenplay/conversions/{conversionId}/yaml` | 导出最终 YAML 剧本 | 已实现 |
+| POST | `/api/screenplay/convert-single` | 单场转换实验入口 | 已实现，非主演示链路 |
+
+当前实现的关键约束：
+
+- MVP 页面链路为"导入 → 转换 → 预览 → 打磨 → 导出"。导出入口统一放在"导出"页。
+- 当前主链路未启用完整 JWT 登录、用户配额与资源归属校验；相关设计仍保留在目标态安全章节，作为后续扩展。
+- 转换任务会持久化章节切场结果与已生成场景；失败后可继续转换，前端会跳过已完成部分。
+- 单场生成如果多次重试后仍疑似出现语言漂移，不再直接中断整本转换；后端会继续保留该场并通过 SSE 提示用户在预览/打磨时重点检查。
+- 打磨页当前支持直接编辑单场 YAML、保存、取消和右侧实时预览；AI 单场重生、视觉化手法选择、风格提示重写仍是后续扩展。
+- 导出 YAML 使用 `scriptBlocks` 作为剧本正文唯一主体；`sourceText` 与 `visualizedInnerThoughts` 属于内部生成/审计字段，不进入最终 YAML。
+- YAML 导出禁用长字符串自动反斜杠折行，保证长 `text` 字段在同一逻辑行展示。
+
 ### 4.1 接口列表（含原型映射）
 
 > **原型映射列**指出该接口在 `docs/prototype/` 哪一屏被调用（各页面左下角「场记板」亦有标注）。
+> 注意：下表描述目标态 API 设计，部分接口尚未落地或已被当前 MVP 的 `/api/screenplay/conversions/...` 接口替代；当前开发与演示接口见 §4.0。
 
 | # | 方法 | 路径 | 说明 | 鉴权 | 响应类型 | 原型来源 |
 |---|---|---|---|---|---|---|
@@ -555,10 +587,12 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 ### 4.6 剧本打磨接口
 
 > 原型：`scene-edit.html`。打磨即编辑 YAML 结构——两条路径：**手动编辑（⑬ PUT）**与 **AI 重生（⑭ SSE）**。
+> 当前 MVP 已落地手动编辑 YAML、保存、取消与右侧实时预览；AI 重生与视觉化手法切换仍为扩展项。
 
 #### ⑬ PUT `/api/screenplay/{id}/scenes/{sceneId}` — 手动编辑单场
 
 > 原型：`scene-edit.html`「保存本场修改 ✓」。提交编辑后的整场 YAML 结构落库。
+> 当前实现路径为 `PUT /api/screenplay/conversions/{conversionId}/chapters/{chapterIndex}/scenes/{sceneIndexInChapter}`，按转换任务、章节序号和章内场次定位已持久化场景。
 
 **请求**（可编辑字段；`sourceChapter`/`sourceText` 为内部溯源字段，不作为打磨主体）：
 ```json
@@ -596,6 +630,7 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 #### ⑭ POST `/api/screenplay/{id}/scenes/{sceneId}/regenerate` — AI 重生单场（SSE）
 
 > 原型：`scene-edit.html`「↻ 重新生成本场」+ 风格提示 + 视觉化手法切换 + 「携带全局上下文」勾选。
+> 当前 MVP 尚未实现该接口；现阶段通过 YAML 手动编辑完成单场打磨。
 
 **请求：**
 ```json
@@ -639,6 +674,7 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 #### ⑮ GET `/api/screenplay/{id}/export/yaml` — 导出 YAML（核心交付）
 
 > 原型：`export.html`「↧ 下载 screenplay.yaml」。
+> 当前实现路径为 `GET /api/screenplay/conversions/{conversionId}/yaml`，导出指定转换任务已持久化的最终 YAML。
 
 **请求：** 路径参数 `id`。（预留 query `?download=true` 控制是否带 `attachment` 头。）
 
@@ -654,6 +690,7 @@ Content-Disposition: attachment; filename="她比烟花寂寞.yaml"
 #### ⑯ GET `/api/screenplay/{id}/export/text` — 导出可读剧本
 
 > 原型：`export.html`「↧ 下载 screenplay.txt」。后端将 YAML 渲染为标准剧本排版文本（场景标题、动作行、角色名、对白、转场）。
+> 当前 MVP 尚未实现该接口；导出页聚焦最终 YAML 的展示、复制与下载。
 
 **请求：** 路径参数 `id`。（预留 query `?format=txt|md|fountain`，默认 `txt`；`md`/`fountain` 可保留排版，见 `yaml-schema.md` §10/§11。）
 
