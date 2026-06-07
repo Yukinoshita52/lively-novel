@@ -12,6 +12,7 @@ import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
 import com.livelynovel.model.dto.ScriptBlockDTO;
+import com.livelynovel.model.dto.RollingAnalysisStateDTO;
 import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.dto.ScreenplayPersistedSceneDTO;
 import com.livelynovel.model.entity.ScreenplayConversionEntity;
@@ -129,6 +130,9 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                     "totalChapters", chaptersResult.getTotalChapters()
             ));
 
+            RollingAnalysisStateDTO rollingAnalysisState = parseAnalysisState(conversion.getAnalysisStateJson());
+            sendAnalysisRestoredEventIfPresent(emitter, conversion.getId(), rollingAnalysisState);
+
             List<ChapterPreviewDTO> chapters = chaptersResult.getChapters();
             if (chapters == null) {
                 chapters = Collections.emptyList();
@@ -144,7 +148,6 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             if (persistedScenes == null) {
                 persistedScenes = Collections.emptyList();
             }
-
             for (ChapterPreviewDTO chapter : chapters) {
                 if (chapter == null) {
                     continue;
@@ -251,6 +254,14 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                     scene.setSourceChapter(chapterIndex);
                     scene.setSourceText(sceneText);
                     persistGeneratedScene(conversion.getId(), chapterIndex, sceneUnit, scene);
+                    rollingAnalysisState = updateRollingAnalysisState(
+                            emitter,
+                            conversion,
+                            rollingAnalysisState,
+                            sceneUnit,
+                            scene,
+                            screenplayType
+                    );
                     sendSceneCompletedEvent(
                             emitter,
                             conversion.getId(),
@@ -342,6 +353,82 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     private record SceneConversionResult(SceneDTO scene, String warningMessage) {}
+
+    private void sendAnalysisRestoredEventIfPresent(
+            SseEmitter emitter,
+            String conversionId,
+            RollingAnalysisStateDTO state
+    ) throws IOException {
+        if (state == null || isBlankAnalysisState(state)) {
+            return;
+        }
+        int characterCount = nullToEmpty(state.getCharacters()).size();
+        int storylineCount = nullToEmpty(state.getStorylines()).size();
+        int activeThreadCount = nullToEmpty(state.getActiveThreads()).size();
+        int motifCount = nullToEmpty(state.getMotifs()).size();
+        sendEvent(emitter, "analysis_restored", Map.of(
+                "conversionId", conversionId,
+                "plotSummary", defaultIfBlank(state.getPlotSummary(), ""),
+                "contextSummary", defaultIfBlank(state.getContextSummary(), ""),
+                "characterCount", characterCount,
+                "storylineCount", storylineCount,
+                "activeThreadCount", activeThreadCount,
+                "motifCount", motifCount,
+                "message", "已载入历史全局状态"
+        ));
+    }
+
+    private boolean isBlankAnalysisState(RollingAnalysisStateDTO state) {
+        return (state.getPlotSummary() == null || state.getPlotSummary().isBlank())
+                && (state.getContextSummary() == null || state.getContextSummary().isBlank())
+                && nullToEmpty(state.getCharacters()).isEmpty()
+                && nullToEmpty(state.getStorylines()).isEmpty()
+                && nullToEmpty(state.getActiveThreads()).isEmpty()
+                && nullToEmpty(state.getMotifs()).isEmpty();
+    }
+
+    private RollingAnalysisStateDTO updateRollingAnalysisState(
+            SseEmitter emitter,
+            ScreenplayConversionEntity conversion,
+            RollingAnalysisStateDTO currentState,
+            SceneUnitDTO sceneUnit,
+            SceneDTO scene,
+            ScreenplayTypeEnum screenplayType
+    ) throws IOException {
+        RollingAnalysisStateDTO updatedState;
+        try {
+            updatedState = llmService.updateRollingAnalysisState(
+                    currentState == null ? new RollingAnalysisStateDTO() : currentState,
+                    sceneUnit,
+                    scene,
+                    screenplayType
+            );
+        } catch (Exception e) {
+            LOGGER.warn(
+                    "Rolling analysis state update failed; keeping previous state: conversionId={}, sceneId={}, chapterIndex={}, sceneIndexInChapter={}, currentStateChars={}, errorMessage={}",
+                    conversion.getId(),
+                    scene == null ? null : scene.getSceneId(),
+                    sceneUnit == null ? null : sceneUnit.getSourceChapter(),
+                    sceneUnit == null ? null : sceneUnit.getSceneIndexInChapter(),
+                    conversion.getAnalysisStateJson() == null ? 0 : conversion.getAnalysisStateJson().length(),
+                    e.getMessage(),
+                    e
+            );
+            return currentState;
+        }
+        if (updatedState == null) {
+            return currentState;
+        }
+
+        conversion.setAnalysisStateJson(toJson(updatedState));
+        conversionRepository.save(conversion);
+        sendEvent(emitter, "analysis_updated", Map.of(
+                "conversionId", conversion.getId(),
+                "sceneId", defaultIfBlank(scene.getSceneId(), ""),
+                "plotSummary", defaultIfBlank(updatedState.getPlotSummary(), "")
+        ));
+        return updatedState;
+    }
 
     private void markConversionCompleted(ScreenplayConversionEntity conversion) {
         conversion.setStatus("COMPLETED");
@@ -452,10 +539,14 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     private String toJson(SceneDTO scene) {
+        return toJson((Object) scene);
+    }
+
+    private String toJson(Object value) {
         try {
-            return OBJECT_MAPPER.writeValueAsString(scene);
+            return OBJECT_MAPPER.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("场景持久化序列化失败", e);
+            throw new IllegalStateException("JSON 序列化失败", e);
         }
     }
 
@@ -520,17 +611,31 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         }
 
         Map<String, Object> screenplay = new LinkedHashMap<>();
+        RollingAnalysisStateDTO analysisState = parseAnalysisState(detail.getAnalysisStateJson());
+        NovelChaptersResultDTO chaptersResult = novelService.getChapters(detail.getNovelId());
         screenplay.put("schemaVersion", "1.0");
-        screenplay.put("title", "");
+        screenplay.put("title", chaptersResult == null ? "" : defaultIfBlank(chaptersResult.getTitle(), ""));
         screenplay.put("screenplayType", detail.getScreenplayType());
-        screenplay.put("plotSummary", "");
-        screenplay.put("characters", List.of());
+        screenplay.put("plotSummary", defaultIfBlank(analysisState.getPlotSummary(), ""));
+        screenplay.put("characters", nullToEmpty(analysisState.getCharacters()));
         screenplay.put("scenes", detail.getScenes().stream()
                 .map(ScreenplayPersistedSceneDTO::getScene)
                 .map(this::toExportScene)
                 .toList());
-        screenplay.put("storylines", List.of());
+        screenplay.put("storylines", nullToEmpty(analysisState.getStorylines()));
         return toYaml(screenplay);
+    }
+
+    private RollingAnalysisStateDTO parseAnalysisState(String analysisStateJson) {
+        if (analysisStateJson == null || analysisStateJson.isBlank()) {
+            return new RollingAnalysisStateDTO();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(analysisStateJson, RollingAnalysisStateDTO.class);
+        } catch (JsonProcessingException e) {
+            LOGGER.warn("Analysis state JSON parse failed; exporting empty global analysis fields", e);
+            return new RollingAnalysisStateDTO();
+        }
     }
 
     private Map<String, Object> toExportScene(SceneDTO scene) {
@@ -590,6 +695,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         detail.setScreenplayType(conversion.getScreenplayType());
         detail.setStatus(conversion.getStatus());
         detail.setErrorMessage(conversion.getErrorMessage());
+        detail.setAnalysisStateJson(conversion.getAnalysisStateJson());
 
         List<ScreenplaySceneUnitEntity> sceneUnits = sceneUnitRepository
                 .findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc(conversion.getId());

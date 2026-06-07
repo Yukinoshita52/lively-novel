@@ -36,6 +36,9 @@ public class ScreenplayConversionEntity {
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Column(columnDefinition = "TEXT")
+    private String analysisStateJson;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -96,6 +99,14 @@ public class ScreenplayConversionEntity {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public String getAnalysisStateJson() {
+        return analysisStateJson;
+    }
+
+    public void setAnalysisStateJson(String analysisStateJson) {
+        this.analysisStateJson = analysisStateJson;
     }
 
     public Instant getCreatedAt() {

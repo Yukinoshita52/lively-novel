@@ -2,6 +2,7 @@ package com.livelynovel.service;
 
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
+import com.livelynovel.model.dto.RollingAnalysisStateDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
 
 import java.util.List;
@@ -35,5 +36,23 @@ public interface LlmService {
         ScreenplayTypeEnum screenplayType
     ) {
         throw new UnsupportedOperationException("splitChapterIntoScenes not implemented");
+    }
+
+    /**
+     * 更新滚动全局认知状态。
+     *
+     * @param currentState 当前已知的全局状态
+     * @param sceneUnit    当前场景单元
+     * @param scene        当前已生成的结构化场景
+     * @param screenplayType 剧本类型（MVP 仅支持 ANIME）
+     * @return 更新后的全局状态
+     */
+    default RollingAnalysisStateDTO updateRollingAnalysisState(
+        RollingAnalysisStateDTO currentState,
+        SceneUnitDTO sceneUnit,
+        SceneDTO scene,
+        ScreenplayTypeEnum screenplayType
+    ) {
+        throw new UnsupportedOperationException("updateRollingAnalysisState not implemented");
     }
 }

@@ -15,6 +15,7 @@ public class ScreenplayConversionDetailDTO {
     private ScreenplayTypeEnum screenplayType;
     private String status;
     private String errorMessage;
+    private String analysisStateJson;
     private List<ScreenplayPersistedSceneDTO> scenes = new ArrayList<>();
 
     public String getConversionId() {
@@ -55,6 +56,14 @@ public class ScreenplayConversionDetailDTO {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public String getAnalysisStateJson() {
+        return analysisStateJson;
+    }
+
+    public void setAnalysisStateJson(String analysisStateJson) {
+        this.analysisStateJson = analysisStateJson;
     }
 
     public List<ScreenplayPersistedSceneDTO> getScenes() {

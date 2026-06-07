@@ -1,11 +1,16 @@
 package com.livelynovel.service.impl;
 
 import com.livelynovel.model.dto.ChapterSegmentDTO;
+import com.livelynovel.model.dto.ForeshadowDTO;
+import com.livelynovel.model.dto.RollingAnalysisStateDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.SceneHeadingDTO;
 import com.livelynovel.model.dto.ScriptBlockDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
+import com.livelynovel.model.dto.StorylineDTO;
+import com.livelynovel.model.dto.StorylineEventDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.model.enums.StorylineTypeEnum;
 import com.livelynovel.common.exception.SceneLanguageDriftException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
@@ -147,6 +152,66 @@ class LlmServiceImplUnitTest {
     }
 
     @Test
+    void buildRollingAnalysisPromptTracksTimelineWithoutAssumingNarrativeOrder() {
+        LlmServiceImpl service = new LlmServiceImpl(mockBuilder(), chapterText -> List.of());
+
+        String prompt = service.buildRollingAnalysisPrompt(
+                new RollingAnalysisStateDTO(),
+                sceneUnit(1, 2),
+                scene("s2"),
+                ScreenplayTypeEnum.ANIME
+        );
+
+        assertThat(prompt).contains("滚动全局状态");
+        assertThat(prompt).contains("plotSummary");
+        assertThat(prompt).contains("characters");
+        assertThat(prompt).contains("storylines");
+        assertThat(prompt).contains("timeline");
+        assertThat(prompt).contains("foreshadows");
+        assertThat(prompt).contains("不要因为叙述顺序靠后，就判断事件一定发生得更晚");
+        assertThat(prompt).contains("storyTimeLabel");
+        assertThat(prompt).contains("certainty");
+    }
+
+    @Test
+    void buildRollingAnalysisPromptUsesCompactContextAndSummaryRules() {
+        LlmServiceImpl service = new LlmServiceImpl(mockBuilder(), chapterText -> List.of());
+        RollingAnalysisStateDTO state = new RollingAnalysisStateDTO();
+        state.setPlotSummary("旧摘要不应逐字塞进 prompt 造成上下文膨胀。");
+        state.setContextSummary("温水已经被卷入八奈见失恋后的关系变化。");
+        state.setStorylines(List.of(
+                storyline("过早低价值事件", "s1", "很久以前的低价值事件不应进入 prompt。"),
+                storyline("近期关系变化", "s11", "八奈见欠下温水餐费，两人关系产生新连接。")
+        ));
+        ForeshadowDTO foreshadow = new ForeshadowDTO();
+        foreshadow.setScene("s3");
+        foreshadow.setClue("反复出现的薯条和账单");
+        foreshadow.setStatus("OPEN");
+        foreshadow.setNote("可能继续制造温水与八奈见的接触。");
+        state.setForeshadows(List.of(foreshadow));
+
+        String prompt = service.buildRollingAnalysisPrompt(
+                state,
+                sceneUnit(2, 1),
+                scene("s12"),
+                ScreenplayTypeEnum.ANIME
+        );
+
+        assertThat(prompt).contains("温水已经被卷入八奈见失恋后的关系变化。");
+        assertThat(prompt).contains("近期关系变化");
+        assertThat(prompt).contains("八奈见欠下温水餐费，两人关系产生新连接。");
+        assertThat(prompt).contains("反复出现的薯条和账单");
+        assertThat(prompt).doesNotContain("很久以前的低价值事件不应进入 prompt。");
+        assertThat(prompt).contains("plotSummary 不要逐场拼接");
+        assertThat(prompt).contains("越久远的事件越概括");
+        assertThat(prompt).contains("近期未解决事件要更具体");
+        assertThat(prompt).contains("不得编造确定剧情");
+        assertThat(prompt).contains("contextSummary");
+        assertThat(prompt).contains("activeThreads");
+        assertThat(prompt).contains("motifs");
+    }
+
+    @Test
     void chapterSegmentToolsExposeListAndRangeOperations() {
         LlmServiceImpl.ChapterSegmentTools tools = new LlmServiceImpl.ChapterSegmentTools(List.of(
                 segment(1, "第一段"),
@@ -263,11 +328,54 @@ class LlmServiceImplUnitTest {
         assertThat(scene.getScriptBlocks().get(0).getText()).isEqualTo("服务员的声音：\"久等了，这是大份薯条！\"");
     }
 
+    @Test
+    void parseRollingAnalysisStateFailureIncludesResponsePreview() {
+        String responseText = """
+                模型输出了说明文字，但 JSON 不完整。
+                {
+                  "plotSummary": "温水继续旁观八奈见",
+                  "characters": [
+                """;
+
+        assertThatThrownBy(() -> LlmServiceImpl.parseRollingAnalysisStateResult(responseText))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("滚动全局状态结构化解析失败")
+                .hasMessageContaining("responsePreview=模型输出了说明文字");
+    }
+
     private ChapterSegmentDTO segment(int segmentIndex, String text) {
         ChapterSegmentDTO segment = new ChapterSegmentDTO();
         segment.setSegmentIndex(segmentIndex);
         segment.setText(text);
         return segment;
+    }
+
+    private SceneUnitDTO sceneUnit(int chapterIndex, int sceneIndexInChapter) {
+        SceneUnitDTO sceneUnit = new SceneUnitDTO();
+        sceneUnit.setSourceChapter(chapterIndex);
+        sceneUnit.setSceneIndexInChapter(sceneIndexInChapter);
+        sceneUnit.setTitle("家庭餐厅的偶遇");
+        sceneUnit.setSummary("温水听见八奈见和袴田争执。");
+        sceneUnit.setStartSegmentIndex(1);
+        sceneUnit.setEndSegmentIndex(3);
+        return sceneUnit;
+    }
+
+    private SceneDTO scene(String sceneId) {
+        SceneDTO scene = new SceneDTO();
+        scene.setSceneId(sceneId);
+        scene.setHeading(new SceneHeadingDTO(true, "家庭餐厅", "午后"));
+        scene.setScriptBlocks(List.of(ScriptBlockDTO.action("温水抬头看向隔壁桌。")));
+        scene.setSourceChapter(1);
+        return scene;
+    }
+
+    private StorylineDTO storyline(String name, String sceneId, String eventText) {
+        StorylineDTO storyline = new StorylineDTO();
+        storyline.setName(name);
+        storyline.setType(StorylineTypeEnum.MAIN);
+        storyline.setEvents(List.of(new StorylineEventDTO(sceneId, eventText)));
+        return storyline;
     }
 
     private ChatClient.Builder mockBuilder() {

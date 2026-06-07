@@ -3,6 +3,7 @@ package com.livelynovel.service.impl;
 import com.livelynovel.model.dto.ChapterSegmentDTO;
 import com.livelynovel.model.dto.DialogueBlockDTO;
 import com.livelynovel.model.dto.LlmSceneOutputDTO;
+import com.livelynovel.model.dto.RollingAnalysisStateDTO;
 import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.ScriptBlockDTO;
 import com.livelynovel.model.dto.SceneUnitDTO;
@@ -34,6 +35,9 @@ public class LlmServiceImpl implements LlmService {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Pattern SCENE_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*\"sceneIndexInChapter\"[^{}]*}", Pattern.DOTALL);
     private static final Pattern JAPANESE_KANA_PATTERN = Pattern.compile("[\\u3040-\\u30ff]");
+    private static final int MAX_PROMPT_ACTIVE_ITEMS = 8;
+    private static final int MAX_PROMPT_STORYLINES = 1;
+    private static final int MAX_PROMPT_EVENTS_PER_STORYLINE = 3;
 
     public LlmServiceImpl(
             ChatClient.Builder chatClientBuilder,
@@ -78,6 +82,23 @@ public class LlmServiceImpl implements LlmService {
                 .content();
 
         return parseSplitChapterScenesResult(responseText);
+    }
+
+    @Override
+    public RollingAnalysisStateDTO updateRollingAnalysisState(
+            RollingAnalysisStateDTO currentState,
+            SceneUnitDTO sceneUnit,
+            SceneDTO scene,
+            ScreenplayTypeEnum screenplayType
+    ) {
+        String prompt = buildRollingAnalysisPrompt(currentState, sceneUnit, scene, screenplayType);
+
+        String responseText = chatClient.prompt()
+                .user(prompt)
+                .call()
+                .content();
+
+        return parseRollingAnalysisStateResult(responseText);
     }
 
     /**
@@ -167,6 +188,210 @@ public class LlmServiceImpl implements LlmService {
             } catch (JsonProcessingException repairedError) {
                 throw new RuntimeException("单场剧本结构化解析失败", repairedError);
             }
+        }
+    }
+
+    static RollingAnalysisStateDTO parseRollingAnalysisStateResult(String responseText) {
+        String json;
+        try {
+            json = extractJsonObject(responseText);
+        } catch (RuntimeException e) {
+            throw new RuntimeException(
+                    "滚动全局状态结构化解析失败：responsePreview=" + previewText(responseText),
+                    e
+            );
+        }
+        try {
+            return OBJECT_MAPPER.readValue(json, RollingAnalysisStateDTO.class);
+        } catch (JsonProcessingException e) {
+            try {
+                return OBJECT_MAPPER.readValue(repairUnescapedQuotesInJsonStrings(json), RollingAnalysisStateDTO.class);
+            } catch (JsonProcessingException repairedError) {
+                throw new RuntimeException(
+                        "滚动全局状态结构化解析失败：responsePreview=" + previewText(responseText),
+                        repairedError
+                );
+            }
+        }
+    }
+
+    String buildRollingAnalysisPrompt(
+            RollingAnalysisStateDTO currentState,
+            SceneUnitDTO sceneUnit,
+            SceneDTO scene,
+            ScreenplayTypeEnum screenplayType
+    ) {
+        if (screenplayType != ScreenplayTypeEnum.ANIME) {
+            throw new UnsupportedOperationException(
+                    "MVP 阶段仅支持 ANIME 类型，暂不支持: " + screenplayType);
+        }
+
+        return """
+                你是一位资深剧本统筹，正在维护小说改编过程中的【滚动全局状态】。
+                请根据当前已知状态、刚切分的场景单元、以及刚生成的剧本场景，更新全局认知。
+
+                ## 当前压缩上下文
+                %s
+
+                ## 当前场景单元
+                %s
+
+                ## 当前已生成剧本场景
+                %s
+
+                ## 更新规则
+                1. contextSummary：写给下一场生成使用，必须有承上启下作用；保留近期未解决事件和当前人物状态。
+                2. plotSummary：写给最终 YAML 使用；plotSummary 不要逐场拼接，越久远的事件越概括，近期未解决事件要更具体，控制在 200 字内。
+                3. 若后续发展尚不明确，只能写"可能继续影响……"等不确定表达，不得编造确定剧情。
+                4. activeCharacters：只保留近期出场或仍影响当前剧情的人物状态。
+                5. characters：维护全局规范人物表；同一人物只保留一个规范名，relationships 必须使用规范人物名。
+                6. activeThreads：维护近期仍影响剧情的事件、矛盾或关系线；status 使用 OPEN 或 RESOLVED，importance 使用 HIGH、MEDIUM、LOW。
+                7. storylines：维护最终导出的主线/支线事件，events[].scene 必须引用当前或既有 sceneId。
+                8. motifs：记录重复出现的意象、物件或符号，例如账单、薯条、钥匙、玻璃杯等。
+                9. timeline：作为内部状态记录叙述顺序与故事内时间，字段包含 scene、narrativeOrder、storyTimeLabel、event、certainty。
+                10. foreshadows：作为内部状态记录伏笔，字段包含 scene、clue、status、note；status 使用 OPEN 或 RESOLVED。
+                11. 不要因为叙述顺序靠后，就判断事件一定发生得更晚；遇到回忆、插叙、倒叙、梦境、传闻时，标记 storyTimeLabel 和 certainty。
+                12. 不确定时保守描述，不改写已知事实。
+                13. 所有输出使用简体中文。
+
+                ## 输出 JSON 字段
+                {
+                  "contextSummary": "...",
+                  "plotSummary": "...",
+                  "activeCharacters": [
+                    {
+                      "name": "...",
+                      "recentState": "...",
+                      "longTermRole": "...",
+                      "lastSeenScene": "s1",
+                      "unresolvedEvents": ["..."]
+                    }
+                  ],
+                  "characters": [
+                    {
+                      "name": "...",
+                      "role": "PROTAGONIST|SUPPORTING|MINOR",
+                      "description": "...",
+                      "firstAppearance": "第1章",
+                      "relationships": [
+                        {"target": "...", "relation": "..."}
+                      ]
+                    }
+                  ],
+                  "activeThreads": [
+                    {
+                      "name": "...",
+                      "status": "OPEN|RESOLVED",
+                      "importance": "HIGH|MEDIUM|LOW",
+                      "recentSummary": "...",
+                      "relatedCharacters": ["..."]
+                    }
+                  ],
+                  "storylines": [
+                    {
+                      "name": "...",
+                      "type": "MAIN|SUB",
+                      "events": [
+                        {"scene": "s1", "event": "..."}
+                      ]
+                    }
+                  ],
+                  "motifs": [
+                    {
+                      "name": "...",
+                      "meaning": "...",
+                      "firstScene": "s1",
+                      "lastScene": "s1",
+                      "occurrenceCount": 1
+                    }
+                  ],
+                  "timeline": [
+                    {
+                      "scene": "s1",
+                      "narrativeOrder": 1,
+                      "storyTimeLabel": "当前时间线",
+                      "event": "...",
+                      "certainty": "HIGH|MEDIUM|LOW"
+                    }
+                  ],
+                  "foreshadows": [
+                    {
+                      "scene": "s1",
+                      "clue": "...",
+                      "status": "OPEN|RESOLVED",
+                      "note": "..."
+                    }
+                  ]
+                }
+                """.formatted(
+                toCompactJson(buildRollingAnalysisPromptContext(currentState)),
+                toCompactJson(sceneUnit),
+                toCompactJson(scene)
+        );
+    }
+
+    static RollingAnalysisPromptContext buildRollingAnalysisPromptContext(RollingAnalysisStateDTO currentState) {
+        RollingAnalysisStateDTO state = currentState == null ? new RollingAnalysisStateDTO() : currentState;
+        RollingAnalysisPromptContext context = new RollingAnalysisPromptContext();
+        context.contextSummary = state.getContextSummary();
+        context.recentActiveCharacters = lastItems(state.getActiveCharacters(), MAX_PROMPT_ACTIVE_ITEMS);
+        context.recentActiveThreads = lastItems(state.getActiveThreads(), MAX_PROMPT_ACTIVE_ITEMS);
+        context.recentStorylines = compactStorylines(state.getStorylines());
+        context.openForeshadows = state.getForeshadows() == null
+                ? List.of()
+                : state.getForeshadows().stream()
+                .filter(item -> item != null && !"RESOLVED".equalsIgnoreCase(item.getStatus()))
+                .limit(MAX_PROMPT_ACTIVE_ITEMS)
+                .toList();
+        context.recentMotifs = lastItems(state.getMotifs(), MAX_PROMPT_ACTIVE_ITEMS);
+        context.recentTimeline = lastItems(state.getTimeline(), MAX_PROMPT_ACTIVE_ITEMS);
+        return context;
+    }
+
+    private static List<com.livelynovel.model.dto.StorylineDTO> compactStorylines(
+            List<com.livelynovel.model.dto.StorylineDTO> storylines
+    ) {
+        if (storylines == null || storylines.isEmpty()) {
+            return List.of();
+        }
+        return lastItems(storylines, MAX_PROMPT_STORYLINES).stream()
+                .map(storyline -> {
+                    if (storyline == null) {
+                        return null;
+                    }
+                    com.livelynovel.model.dto.StorylineDTO compact = new com.livelynovel.model.dto.StorylineDTO();
+                    compact.setName(storyline.getName());
+                    compact.setType(storyline.getType());
+                    compact.setEvents(lastItems(storyline.getEvents(), MAX_PROMPT_EVENTS_PER_STORYLINE));
+                    return compact;
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    private static <T> List<T> lastItems(List<T> values, int maxItems) {
+        if (values == null || values.isEmpty() || maxItems <= 0) {
+            return List.of();
+        }
+        int fromIndex = Math.max(0, values.size() - maxItems);
+        return values.subList(fromIndex, values.size());
+    }
+
+    static class RollingAnalysisPromptContext {
+        public String contextSummary;
+        public List<com.livelynovel.model.dto.ActiveCharacterDTO> recentActiveCharacters = List.of();
+        public List<com.livelynovel.model.dto.ActiveThreadDTO> recentActiveThreads = List.of();
+        public List<com.livelynovel.model.dto.StorylineDTO> recentStorylines = List.of();
+        public List<com.livelynovel.model.dto.ForeshadowDTO> openForeshadows = List.of();
+        public List<com.livelynovel.model.dto.MotifDTO> recentMotifs = List.of();
+        public List<com.livelynovel.model.dto.TimelineEventDTO> recentTimeline = List.of();
+    }
+
+    private static String toCompactJson(Object value) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Prompt JSON 序列化失败", e);
         }
     }
 
