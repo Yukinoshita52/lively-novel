@@ -1,0 +1,250 @@
+.convert-shell {
+  color: #2f2418;
+  min-height: 100vh;
+  padding: 40px 24px 56px;
+}
+
+.convert-topbar {
+  align-items: flex-start;
+  display: flex;
+  gap: 20px;
+  margin: 0 auto 28px;
+  max-width: 1200px;
+}
+
+.convert-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.convert-progress-grid {
+  grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
+}
+
+.progress-summary {
+  display: grid;
+  gap: 16px;
+}
+
+.progress-status {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.progress-ratio {
+  color: #8c3f21;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 1rem;
+}
+
+.event-list,
+.scene-summary-list {
+  display: grid;
+  gap: 12px;
+}
+
+.event-row,
+.scene-summary-row {
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(120, 82, 49, 0.1);
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+
+.event-row {
+  display: grid;
+  gap: 6px;
+}
+
+.scene-summary-row {
+  display: grid;
+  gap: 8px;
+}
+
+.scene-summary-row h5.ant-typography {
+  margin: 0;
+}
+
+.scene-summary-meta {
+  color: #8c3f21;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
+}
+
+.scene-summary-heading {
+  color: #7a6656;
+  line-height: 1.7;
+}
+
+.event-panel .event-list {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.convert-grid.convert-progress-grid {
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.25fr);
+  max-width: none;
+}
+
+.prototype-phase-list {
+  display: grid;
+  gap: 10px;
+}
+
+.prototype-phase {
+  display: grid;
+  gap: 8px;
+}
+
+.prototype-phase-row {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.prototype-phase-dot {
+  align-items: center;
+  background: #f1eadb;
+  border: 2px solid rgba(28, 24, 19, 0.16);
+  border-radius: 50%;
+  color: #8a7e6a;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.prototype-phase.done .prototype-phase-dot {
+  background: #be3a2e;
+  border-color: #be3a2e;
+  color: #f1eadb;
+}
+
+.prototype-phase.active .prototype-phase-dot {
+  border-color: #be3a2e;
+  color: #be3a2e;
+}
+
+.prototype-phase.failed .prototype-phase-dot {
+  background: #8c2820;
+  border-color: #8c2820;
+  color: #f1eadb;
+}
+
+.prototype-phase-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.prototype-phase-desc,
+.prototype-progress-note {
+  color: #8a7e6a;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.84rem;
+}
+
+.prototype-phase-bar {
+  background: #dcd0b6;
+  border-radius: 999px;
+  height: 5px;
+  margin-left: 52px;
+  overflow: hidden;
+}
+
+.prototype-phase-bar > i {
+  background: linear-gradient(90deg, #be3a2e, #b0863a);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.prototype-progress-note {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+
+.prototype-progress.ant-progress {
+  margin-top: 8px;
+}
+
+.prototype-export-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.prototype-stream {
+  background: #1c1813;
+  border-radius: 4px;
+  color: #e7ddc8;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.92rem;
+  line-height: 1.9;
+  max-height: 340px;
+  min-height: 220px;
+  overflow: auto;
+  padding: 18px 20px;
+}
+
+.prototype-stream-line {
+  color: #e7ddc8;
+  white-space: pre-wrap;
+}
+
+.prototype-stream-prefix {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  color: #ffffff;
+  display: inline-block;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-right: 8px;
+  padding: 1px 6px;
+}
+
+.prototype-stream-type {
+  color: #b0863a;
+  font-weight: 700;
+  margin-right: 8px;
+}
+
+.prototype-stream-message {
+  color: #e7ddc8;
+}
+
+.prototype-stream-warning {
+  color: #d64a3f;
+  font-weight: 700;
+}
+
+.prototype-stream-line.muted {
+  color: #8a7e6a;
+}
+
+.prototype-caret {
+  animation: prototype-blink 1s steps(1) infinite;
+  background: #b0863a;
+  display: inline-block;
+  height: 15px;
+  margin-left: 3px;
+  vertical-align: middle;
+  width: 8px;
+}
+
+@keyframes prototype-blink {
+  50% {
+    opacity: 0;
+  }
+}
+

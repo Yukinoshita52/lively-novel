@@ -1,4 +1,4 @@
-import type { SceneResult, ScriptBlock } from '../types/novel'
+import type { SceneResult, ScriptBlock } from '../../types/novel'
 
 export const POLISH_YAML_SCROLLBAR_GUTTER_PX = 18
 export const POLISH_YAML_SPELL_CHECK = false

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Card, Spin, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons'
-import type { ConversionSessionState } from './conversionSession'
-import type { GeneratedSceneSummary, ScreenplayConversionDetail } from '../types/novel'
-import { getScreenplayConversionDetail } from '../services/novel'
-import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from './PrototypeFrame'
-import type { FlowStepNavigation } from './appNavigation'
-import type { FlowStepKey } from './prototypeFlow'
+import type { ConversionSessionState } from '../conversionSession'
+import type { GeneratedSceneSummary, ScreenplayConversionDetail } from '../../types/novel'
+import { getScreenplayConversionDetail } from '../../services/novel'
+import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
+import type { FlowStepNavigation } from '../appNavigation'
+import type { FlowStepKey } from '../../components/prototype/prototypeFlow'
 import {
   buildPreviewActions,
   buildPreviewTabs,
@@ -104,7 +104,7 @@ function ScreenplayPreviewPage({
       <Card
         className="prototype-panel scene-preview-panel"
         title={<PrototypePanelTitle code="PREVIEW" title="逐场预览" meta="YAML → 渲染视图" />}
-        bordered={false}
+        variant="borderless"
       >
         {loadingDetail ? (
           <div className="screenplay-empty">
@@ -178,7 +178,7 @@ function ScreenplayPreviewPage({
               {activePreviewTab === 'script' ? (
                 <div className="screenplay-preview">
                   <div className="screenplay-scene-meta">
-                    <Tag bordered={false}>{selectedScene.sceneNumber}</Tag>
+                    <Tag variant="filled">{selectedScene.sceneNumber}</Tag>
                     <Text>第 {selectedScene.chapterIndex} 章</Text>
                     {selectedScene.sceneIndexInChapter ? <Text>第 {selectedScene.sceneIndexInChapter} 场</Text> : null}
                   </div>

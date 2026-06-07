@@ -1,4 +1,4 @@
-import type { ConvertEventItem } from '../types/novel'
+import type { ConvertEventItem } from '../../types/novel'
 
 export type FlowStepKey = 'import' | 'convert' | 'preview' | 'polish' | 'export'
 export type PipelinePhaseStatus = 'idle' | 'active' | 'done' | 'failed'
@@ -124,10 +124,6 @@ function createPhase(
     progress,
     status,
   }
-}
-
-export function formatStreamEvent(event: ConvertEventItem) {
-  return `event: ${event.type} ${event.message}`
 }
 
 export function buildStreamEventParts(event: ConvertEventItem): StreamEventPart[] {

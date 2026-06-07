@@ -40,7 +40,7 @@ export async function getNovelChapters(novelId: string) {
   return unwrapResponse<NovelChaptersResult>(response)
 }
 
-export function buildNovelTitleUpdateUrl(novelId: string) {
+function buildNovelTitleUpdateUrl(novelId: string) {
   return `/api/novel/${encodeURIComponent(novelId)}/title`
 }
 
@@ -79,16 +79,7 @@ export async function getScreenplayConversionDetail(conversionId: string) {
   return request
 }
 
-export function buildLatestCompletedConversionUrl(novelId: string, screenplayType: string) {
-  return `/api/screenplay/conversions/latest?novelId=${encodeURIComponent(novelId)}&screenplayType=${encodeURIComponent(screenplayType)}`
-}
-
-export async function getLatestCompletedConversion(novelId: string, screenplayType: string) {
-  const response = await fetch(buildLatestCompletedConversionUrl(novelId, screenplayType))
-  return unwrapResponse<ScreenplayConversionDetail>(response)
-}
-
-export function buildScreenplaySceneUpdateUrl(
+function buildScreenplaySceneUpdateUrl(
   conversionId: string,
   chapterIndex: number,
   sceneIndexInChapter: number,
@@ -113,7 +104,7 @@ export async function updateScreenplayScene(
   return unwrapResponse<SceneResult>(response)
 }
 
-export function buildScreenplayYamlUrl(conversionId: string) {
+function buildScreenplayYamlUrl(conversionId: string) {
   return `/api/screenplay/conversions/${encodeURIComponent(conversionId)}/yaml`
 }
 

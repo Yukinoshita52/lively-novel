@@ -4,7 +4,7 @@ import type {
   GeneratedSceneSummary,
   ScreenplayConvertContext,
 } from '../types/novel'
-import { resolveConvertEventUpdate } from './screenplayPreview.ts'
+import { resolveConvertEventUpdate } from './preview/convertEventUpdate.ts'
 
 export interface ConversionSessionState {
   context: ScreenplayConvertContext

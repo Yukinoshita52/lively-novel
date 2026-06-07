@@ -1,4 +1,4 @@
-import { buildYamlLineNumbers } from './screenplayPolish.ts'
+import { buildYamlLineNumbers } from '../polish/screenplayPolish.ts'
 
 export interface ExportYamlDisplayContext {
   loading: boolean

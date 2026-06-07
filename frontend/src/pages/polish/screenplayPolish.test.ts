@@ -9,7 +9,7 @@ import {
   resetPolishDraft,
   updatePolishSceneYaml,
 } from './screenplayPolish.ts'
-import type { SceneResult } from '../types/novel.ts'
+import type { SceneResult } from '../../types/novel.ts'
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) {
