@@ -361,7 +361,7 @@ storylines:
 |---|---|
 | YAML 导出入口 | `ScreenplayController#exportConversionYaml` |
 | YAML 组装逻辑 | `ScreenplayServiceImpl#exportConversionYaml` |
-| 顶层结构 DTO | `ScreenplayContentDTO` |
+| 顶层结构 | `ScreenplayServiceImpl#exportConversionYaml` 组装的 `Map<String, Object>` |
 | 场景 DTO | `SceneDTO` |
 | 正文块 DTO | `ScriptBlockDTO` |
 | 人物 DTO | `CharacterDTO`、`CharacterRelationshipDTO` |
