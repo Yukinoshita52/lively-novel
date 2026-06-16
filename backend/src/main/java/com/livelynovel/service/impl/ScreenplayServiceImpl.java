@@ -27,6 +27,7 @@ import com.livelynovel.repository.ScreenplaySceneUnitRepository;
 import com.livelynovel.service.LlmService;
 import com.livelynovel.service.NovelService;
 import com.livelynovel.service.ScreenplayService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.UUID;
 
 /**
@@ -67,6 +70,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     private final ScreenplayConversionRepository conversionRepository;
     private final ScreenplaySceneUnitRepository sceneUnitRepository;
     private final ScreenplaySceneRepository sceneRepository;
+    private final Executor conversionExecutor;
 
     private static DumperOptions createYamlDumperOptions() {
         DumperOptions options = new DumperOptions();
@@ -74,6 +78,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         return options;
     }
 
+    @Autowired
     public ScreenplayServiceImpl(
             NovelService novelService,
             LlmService llmService,
@@ -82,19 +87,40 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             ScreenplaySceneUnitRepository sceneUnitRepository,
             ScreenplaySceneRepository sceneRepository
     ) {
+        this(
+                novelService,
+                llmService,
+                chapterSegmentationService,
+                conversionRepository,
+                sceneUnitRepository,
+                sceneRepository,
+                ForkJoinPool.commonPool()
+        );
+    }
+
+    public ScreenplayServiceImpl(
+            NovelService novelService,
+            LlmService llmService,
+            ChapterSegmentationService chapterSegmentationService,
+            ScreenplayConversionRepository conversionRepository,
+            ScreenplaySceneUnitRepository sceneUnitRepository,
+            ScreenplaySceneRepository sceneRepository,
+            Executor conversionExecutor
+    ) {
         this.novelService = novelService;
         this.llmService = llmService;
         this.chapterSegmentationService = chapterSegmentationService;
         this.conversionRepository = conversionRepository;
         this.sceneUnitRepository = sceneUnitRepository;
         this.sceneRepository = sceneRepository;
+        this.conversionExecutor = conversionExecutor;
     }
 
     @Override
     public SseEmitter convertNovel(String novelId, ScreenplayTypeEnum screenplayType) {
         SseEmitter emitter = new SseEmitter(0L);
 
-        CompletableFuture.runAsync(() -> convertNovel(novelId, screenplayType, emitter));
+        CompletableFuture.runAsync(() -> convertNovel(novelId, screenplayType, emitter), conversionExecutor);
 
         return emitter;
     }
