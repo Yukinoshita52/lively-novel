@@ -6,7 +6,6 @@ import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.dto.ScreenplayConvertRequestDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
-import com.livelynovel.service.LlmService;
 import com.livelynovel.service.ScreenplayService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +17,8 @@ import static org.mockito.Mockito.when;
 
 class ScreenplayControllerTest {
 
-    private final LlmService llmService = mock(LlmService.class);
     private final ScreenplayService screenplayService = mock(ScreenplayService.class);
-    private final ScreenplayController controller = new ScreenplayController(llmService, screenplayService);
+    private final ScreenplayController controller = new ScreenplayController(screenplayService);
 
     @Test
     void rejectsEmptyNovelIdBeforeStartingConvertStream() {

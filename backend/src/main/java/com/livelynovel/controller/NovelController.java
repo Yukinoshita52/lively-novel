@@ -2,7 +2,6 @@ package com.livelynovel.controller;
 
 import com.livelynovel.common.Result;
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
-import com.livelynovel.model.dto.NovelChapterDetailDTO;
 import com.livelynovel.model.dto.NovelListResultDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
 import com.livelynovel.service.NovelService;
@@ -92,17 +91,4 @@ public class NovelController {
         return Result.ok(result);
     }
 
-    /**
-     * 回读已存小说的单章正文。
-     */
-    @Operation(summary = "获取单章正文", description = "根据 novelId 与 chapterIndex 返回单章正文")
-    @GetMapping("/{id}/chapters/{chapterIndex}")
-    public Result<NovelChapterDetailDTO> getChapterDetail(@PathVariable("id") String novelId,
-                                                          @PathVariable("chapterIndex") int chapterIndex) {
-        NovelChapterDetailDTO result = novelService.getChapterDetail(novelId, chapterIndex);
-        if (result == null) {
-            return Result.fail(40401, "章节不存在");
-        }
-        return Result.ok(result);
-    }
 }

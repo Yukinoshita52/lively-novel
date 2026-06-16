@@ -1,7 +1,6 @@
 package com.livelynovel.controller;
 
 import com.livelynovel.controller.ScreenplayController;
-import com.livelynovel.service.LlmService;
 import com.livelynovel.service.ScreenplayService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,9 +27,6 @@ class ScreenplayControllerWebMvcTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockBean
-    private LlmService llmService;
 
     @MockBean
     private ScreenplayService screenplayService;
