@@ -194,7 +194,6 @@ Screenplay (持久化)
 | 方法 | 路径 | 当前用途 | 状态 |
 |---|---|---|---|
 | GET | `/api/health` | 健康检查 | 已实现 |
-| POST | `/api/novel/parse` | 粘贴正文解析章节 | 已实现 |
 | POST | `/api/novel/upload` | 上传 `.txt`、解析并持久化小说 | 已实现 |
 | GET | `/api/novel` | 历史小说列表 | 已实现 |
 | GET | `/api/novel/{id}/chapters` | 回读小说章节摘要 | 已实现 |
@@ -230,19 +229,18 @@ Screenplay (持久化)
 | 1 | POST | `/api/auth/register` | 注册并自动登录 | 否 | JSON | `login.html` |
 | 2 | POST | `/api/auth/login` | 登录，返回 JWT | 否 | JSON | `login.html` |
 | 3 | GET | `/api/auth/me` | 当前用户信息/配额 | 是 | JSON | 所有页顶栏配额条 |
-| 4 | POST | `/api/novel/parse` | 粘贴文本并解析章节（当前无状态，不落库） | 否 | JSON | `import.html` |
-| 5 | POST | `/api/novel/upload` | 上传 txt 文件并解析（当前无鉴权） | 否 | JSON | `import.html` |
-| 6 | GET | `/api/novel/{id}/chapters` | 获取章节列表（当前无鉴权） | 否 | JSON | `import.html`（复用回显） |
-| 7 | GET | `/api/novel` | 我的小说列表（复用历史） | 是 | JSON | `import.html` |
-| 8 | POST | `/api/screenplay/convert` | 提交转换任务 | 是 | SSE | `converting.html` |
-| 9 | GET | `/api/screenplay` | 我的剧本列表 | 是 | JSON | `preview.html`（切换剧本） |
-| 10 | GET | `/api/screenplay/{id}` | 获取完整剧本 | 是(本人) | JSON | `preview.html` |
-| 11 | GET | `/api/screenplay/{id}/scenes` | 场景表/大纲（轻量投影） | 是(本人) | JSON | `preview.html` |
-| 12 | GET | `/api/screenplay/{id}/characters` | 获取人物表 | 是(本人) | JSON | `preview.html` |
-| 13 | PUT | `/api/screenplay/{id}/scenes/{sceneId}` | 手动编辑单场 | 是(本人) | JSON | `scene-edit.html` |
-| 14 | POST | `/api/screenplay/{id}/scenes/{sceneId}/regenerate` | AI 重生单场 | 是(本人) | SSE | `scene-edit.html` |
-| 15 | GET | `/api/screenplay/{id}/export/yaml` | 导出 YAML（核心交付） | 是(本人) | YAML 文件 | `export.html` |
-| 16 | GET | `/api/screenplay/{id}/export/text` | 导出可读剧本 | 是(本人) | Text 文件 | `export.html` |
+| 4 | POST | `/api/novel/upload` | 上传 txt 文件并解析（当前无鉴权） | 否 | JSON | `import.html` |
+| 5 | GET | `/api/novel/{id}/chapters` | 获取章节列表（当前无鉴权） | 否 | JSON | `import.html`（复用回显） |
+| 6 | GET | `/api/novel` | 我的小说列表（复用历史） | 是 | JSON | `import.html` |
+| 7 | POST | `/api/screenplay/convert` | 提交转换任务 | 是 | SSE | `converting.html` |
+| 8 | GET | `/api/screenplay` | 我的剧本列表 | 是 | JSON | `preview.html`（切换剧本） |
+| 9 | GET | `/api/screenplay/{id}` | 获取完整剧本 | 是(本人) | JSON | `preview.html` |
+| 10 | GET | `/api/screenplay/{id}/scenes` | 场景表/大纲（轻量投影） | 是(本人) | JSON | `preview.html` |
+| 11 | GET | `/api/screenplay/{id}/characters` | 获取人物表 | 是(本人) | JSON | `preview.html` |
+| 12 | PUT | `/api/screenplay/{id}/scenes/{sceneId}` | 手动编辑单场 | 是(本人) | JSON | `scene-edit.html` |
+| 13 | POST | `/api/screenplay/{id}/scenes/{sceneId}/regenerate` | AI 重生单场 | 是(本人) | SSE | `scene-edit.html` |
+| 14 | GET | `/api/screenplay/{id}/export/yaml` | 导出 YAML（核心交付） | 是(本人) | YAML 文件 | `export.html` |
+| 15 | GET | `/api/screenplay/{id}/export/text` | 导出可读剧本 | 是(本人) | Text 文件 | `export.html` |
 
 ---
 
@@ -252,7 +250,7 @@ Screenplay (持久化)
 
 除 `register`/`login` 外，所有接口须在请求头携带 `Authorization: Bearer <JWT>`。带 `(本人)` 的接口在鉴权之外，还校验**资源归属**（`资源.userId == 当前用户`），不符返回 `40301`。
 
-> 当前代码基线中的 `POST /api/novel/parse`、`POST /api/novel/upload`、`GET /api/novel/{id}/chapters` 尚未接入 JWT；其中 `parse` 为无状态章节识别，`upload` 与 `/{id}/chapters` 已接入 SQLite 持久化。待认证切片完成后，再按本节统一鉴权。
+> 当前代码基线中的 `POST /api/novel/upload`、`GET /api/novel/{id}/chapters` 尚未接入 JWT；二者已接入 SQLite 持久化。待认证切片完成后，再按本节统一鉴权。
 
 #### 4.2.2 JSON 响应包装
 
@@ -335,22 +333,22 @@ Screenplay (持久化)
 
 ### 4.4 小说接口
 
-#### ④ POST `/api/novel/parse` — 粘贴文本解析
+#### ④ POST `/api/novel/upload` — 上传 .txt 解析
 
-> 原型：`import.html` 左侧粘贴正文，触发"自动识别章节"——返回 `已识别 3 章 · 约 1.2 万字`。
+> 原型：`import.html` 上传 `.txt` 文件，系统解析章节并持久化小说。
 
-**请求：**
-```json
-{
-  "title": "她比烟花寂寞",
-  "text": "第一章 出租屋的夜\n...\n第二章 天台\n...\n第三章 转机\n..."
-}
-```
+**请求：** `multipart/form-data`
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `file` | file(.txt) | 是 | UTF-8 文本，≤ 5MB（§6 multipart 上限） |
+| `title` | text | 否 | 缺省时取文件名（去扩展名） |
 
 **响应 `data`：**
 ```json
 {
+  "novelId": "nv-7f3a",
   "title": "她比烟花寂寞",
+  "contentHash": "sha256:...",
   "totalChapters": 3,
   "totalWordCount": 12000,
   "chapters": [
@@ -361,25 +359,9 @@ Screenplay (持久化)
 }
 ```
 
-**说明：** 当前实现为**无状态解析**：仅返回章节元信息，**不落库、不返回 `novelId/contentHash`**。章节标题/字数由后端确定性切分得出（§5.2 步骤①）；`novelId/contentHash` 待持久层切片补入。
-
-**可能错误码：** `40001`（文本为空）、`40002`（超 20 万字）、`40003`（不足 3 章）。
-
-#### ⑤ POST `/api/novel/upload` — 上传 .txt 解析
-
-> 原型：`import.html`「或 上传 .txt 文件」。与 ④ 等价，仅入参形式不同。
-
-**请求：** `multipart/form-data`
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `file` | file(.txt) | 是 | UTF-8 文本，≤ 5MB（§6 multipart 上限） |
-| `title` | text | 否 | 缺省时取文件名（去扩展名） |
-
-**响应 `data`：** 同 ④（`novelId / title / contentHash / totalChapters / totalWordCount / chapters[]`）。
-
 **可能错误码：** `40001`（空文件/非文本）、`40002`（超 20 万字或超 5MB）、`40003`（不足 3 章）。
 
-#### ⑥ GET `/api/novel/{id}/chapters` — 获取章节列表
+#### ⑤ GET `/api/novel/{id}/chapters` — 获取章节列表
 
 > 原型：`import.html` 复用历史小说时回显章节；亦供转换前确认。
 
@@ -402,9 +384,9 @@ Screenplay (持久化)
 
 **可能错误码：** `40401`（小说不存在）、`40301`（非本人）。
 
-#### ⑦ GET `/api/novel` — 我的小说列表
+#### ⑥ GET `/api/novel` — 我的小说列表
 
-> 原型：`import.html` 复用历史小说，避免重复粘贴。
+> 原型：`import.html` 复用历史小说，避免重复上传。
 
 **请求：** 可选 query `?page=1&size=20`。
 
@@ -422,7 +404,7 @@ Screenplay (持久化)
 
 ### 4.5 剧本转换与读取接口
 
-#### ⑧ POST `/api/screenplay/convert` — 提交转换（SSE 流式）
+#### ⑦ POST `/api/screenplay/convert` — 提交转换（SSE 流式）
 
 > 原型：`import.html`「开始转换」跳转 `converting.html`，左侧两阶段进度条 + 右侧实时事件流。
 
@@ -497,7 +479,7 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 
 **流中错误码：** `50001`（LLM 调用失败）、`50002`（输出格式异常）、`50004`（LLM 超时）。
 
-#### ⑨ GET `/api/screenplay` — 我的剧本列表
+#### ⑧ GET `/api/screenplay` — 我的剧本列表
 
 > 原型：`preview.html` 顶部"切换我的其它剧本"。
 
