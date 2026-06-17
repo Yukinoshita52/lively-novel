@@ -442,6 +442,26 @@
   padding: 4px 8px;
 }
 
+.scene-outline-state {
+  align-items: center;
+  background: rgba(46, 102, 112, 0.12);
+  border-radius: 999px;
+  color: #2e6670;
+  display: inline-flex;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  justify-content: center;
+  min-width: 34px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.scene-outline-state.unsaved {
+  background: rgba(190, 58, 46, 0.12);
+  color: #8c2820;
+}
+
 .scene-warning-panel {
   display: grid;
   gap: 8px;
