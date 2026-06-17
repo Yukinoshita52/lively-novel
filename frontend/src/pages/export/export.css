@@ -1,3 +1,127 @@
+.export-check-panel {
+  margin-bottom: 18px;
+}
+
+.export-readiness-banner {
+  border: 1px solid rgba(28, 24, 19, 0.14);
+  border-left-width: 4px;
+  border-radius: 4px;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.export-readiness-banner.status-ready {
+  background: rgba(226, 240, 222, 0.62);
+  border-left-color: #4f8a55;
+}
+
+.export-readiness-banner.status-check {
+  background: rgba(255, 246, 221, 0.72);
+  border-left-color: #c58a1a;
+}
+
+.export-readiness-banner.status-blocked {
+  background: rgba(252, 231, 224, 0.7);
+  border-left-color: #be3a2e;
+}
+
+.export-readiness-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.export-readiness-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.export-readiness-title {
+  color: #1c1813;
+  font-weight: 800;
+}
+
+.export-readiness-description {
+  color: #6f604f;
+  line-height: 1.7;
+}
+
+.export-readiness-metrics {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.export-readiness-list {
+  display: grid;
+  gap: 10px;
+}
+
+.export-readiness-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(28, 24, 19, 0.12);
+  border-left: 3px solid rgba(197, 138, 26, 0.86);
+  border-radius: 4px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px 14px;
+}
+
+.export-readiness-row.severity-blocking {
+  border-left-color: #be3a2e;
+}
+
+.export-readiness-row.ignored {
+  opacity: 0.64;
+}
+
+.export-readiness-row-main {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.export-readiness-scene {
+  color: #8c3f21;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.export-readiness-row-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.export-readiness-title-text {
+  color: #1c1813;
+  font-weight: 800;
+}
+
+.export-readiness-message {
+  color: #6f604f;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.export-readiness-row-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .export-yaml-viewer {
   background: #1c1813;
   border-radius: 4px;
@@ -34,5 +158,21 @@
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .export-readiness-head,
+  .export-readiness-row {
+    grid-template-columns: 1fr;
+  }
+
+  .export-readiness-head {
+    display: grid;
+  }
+
+  .export-readiness-metrics,
+  .export-readiness-row-actions {
+    justify-content: flex-start;
+  }
 }
 

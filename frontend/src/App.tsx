@@ -199,6 +199,10 @@ function App() {
       <ScreenplayExportPage
         session={conversionSession}
         onBackToPolish={openPolishPage}
+        onPolishScene={(sceneKey) => {
+          setSelectedSceneKey(sceneKey)
+          setPage('polish')
+        }}
         flowNavigation={flowNavigation}
         onNavigateStep={handleNavigateStep}
       />
