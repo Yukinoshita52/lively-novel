@@ -1,8 +1,10 @@
 import {
   createInitialAppFlowState,
   enterConvertPage,
+  enterConvertPageForHistoryReplay,
   enterExportPage,
   enterPolishPage,
+  enterPolishPageWithFallback,
   enterPreviewPage,
   returnToPreviewPage,
   returnToConvertPage,
@@ -56,10 +58,31 @@ state = enterExportPage(state)
 assert(state.page === 'export', '从打磨页后续流程应能进入导出页')
 assert(state.convertContext === sessionBeforePreview, '进入导出页不应清空转换上下文')
 
+state = {
+  ...state,
+  selectedSceneKey: undefined,
+}
+state = enterPolishPageWithFallback(state, '1-1')
+assert(state.page === 'polish', '从导出页返回打磨时应进入打磨页')
+assert(state.selectedSceneKey === '1-1', '从导出页返回打磨时应默认选择第一场')
+
 state = resumeConvertPage(state)
 assert(state.page === 'convert', '继续转换应回到转换页')
 assert(state.convertContext !== sessionBeforePreview, '继续转换应替换 context 对象以重新发起转换请求')
 assert(state.convertContext?.novelId === sessionBeforePreview?.novelId, '继续转换应保留原 novelId')
+
+const restoredStaticState = enterConvertPageForHistoryReplay({
+  page: 'preview',
+  convertContext: {
+    ...context,
+    restoredConversionId: 'cv-completed',
+    restoredConversionStatus: 'COMPLETED',
+    restoredConversionMode: 'static',
+  },
+})
+assert(restoredStaticState.page === 'convert', '进入转换页时应切到转换页')
+assert(restoredStaticState.convertContext?.restoredConversionMode === 'stream', '已完成历史转换进入转换页时应切换为 SSE 重放模式')
+assert(restoredStaticState.convertContext !== context, '切换 SSE 重放模式时应替换 context 对象以触发会话重建')
 
 const navigationWithoutContext = resolveFlowStepNavigation(createInitialAppFlowState(), {
   hasGeneratedScenes: false,

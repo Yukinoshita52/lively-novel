@@ -1,7 +1,11 @@
 import { Button, Card, Typography } from 'antd'
 import type { NovelListItem } from '../../types/novel'
 import { formatHistoryTime, formatWordCount } from './importFormat'
-import { buildLatestConversionStatusLabel } from './importPageModel'
+import {
+  buildHistoryConversionActions,
+  buildLatestConversionStatusLabel,
+  type HistoryConversionActionKey,
+} from './importPageModel'
 
 const { Text, Title } = Typography
 
@@ -13,6 +17,7 @@ type ImportHistoryPanelProps = {
   onToggle: () => void
   onRefresh: () => void
   onUseHistory: (novelId: string) => void
+  onHistoryConversionAction: (item: NovelListItem, action: HistoryConversionActionKey) => void
 }
 
 function ImportHistoryPanel({
@@ -23,6 +28,7 @@ function ImportHistoryPanel({
   onToggle,
   onRefresh,
   onUseHistory,
+  onHistoryConversionAction,
 }: ImportHistoryPanelProps) {
   return (
     <>
@@ -57,6 +63,7 @@ function ImportHistoryPanel({
                   status: item.latestConversionStatus,
                   updatedAt: item.latestConversionUpdatedAt,
                 })
+                const historyActions = buildHistoryConversionActions(item)
 
                 return (
                   <div className={`history-row${selected ? ' selected' : ''}`} key={item.novelId}>
@@ -75,9 +82,24 @@ function ImportHistoryPanel({
                         ) : null}
                       </div>
                     </div>
-                    <Button type={selected ? 'primary' : 'default'} onClick={() => onUseHistory(item.novelId)}>
-                      {selected ? '已选择' : '使用这本'}
-                    </Button>
+                    <div className="history-actions">
+                      {historyActions.map((action) => (
+                        <Button
+                          key={action.key}
+                          type={action.key === 'use' && selected ? 'primary' : 'default'}
+                          disabled={!action.enabled}
+                          onClick={() => {
+                            if (action.key === 'use') {
+                              onUseHistory(item.novelId)
+                              return
+                            }
+                            onHistoryConversionAction(item, action.key)
+                          }}
+                        >
+                          {action.key === 'use' && selected ? '已选择' : action.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
