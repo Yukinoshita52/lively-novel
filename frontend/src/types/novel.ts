@@ -47,13 +47,6 @@ export interface NovelListResult {
   total: number
 }
 
-export interface ImportFlowContext {
-  novelId: string
-  title: string
-  chapters: ChapterPreview[]
-  selectedChapterIndex: number
-}
-
 export interface ScreenplayConvertContext {
   novelId: string
   title: string

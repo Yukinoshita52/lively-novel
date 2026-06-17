@@ -1,6 +1,6 @@
-import type { ImportFlowContext, ScreenplayConvertContext } from '../types/novel'
+import type { ScreenplayConvertContext } from '../types/novel'
 
-export type AppPageKey = 'import' | 'single-scene' | 'convert' | 'preview' | 'polish' | 'export'
+export type AppPageKey = 'import' | 'convert' | 'preview' | 'polish' | 'export'
 
 export interface FlowStepNavigationState {
   hasGeneratedScenes: boolean
@@ -16,7 +16,6 @@ export type FlowStepNavigation = Record<AppPageKey, {
 
 export interface AppFlowState {
   page: AppPageKey
-  singleSceneContext: ImportFlowContext | null
   convertContext: ScreenplayConvertContext | null
   selectedSceneKey?: string
 }
@@ -24,7 +23,6 @@ export interface AppFlowState {
 export function createInitialAppFlowState(): AppFlowState {
   return {
     page: 'import',
-    singleSceneContext: null,
     convertContext: null,
   }
 }
@@ -99,7 +97,6 @@ export function resolveFlowStepNavigation(
 
   return {
     import: { clickable: true, enabled: true, target: 'import' },
-    'single-scene': { clickable: false, enabled: false, target: 'single-scene' },
     convert: {
       clickable: true,
       enabled: hasConvertContext,

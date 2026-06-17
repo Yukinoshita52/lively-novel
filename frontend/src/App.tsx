@@ -31,7 +31,6 @@ function App() {
     () => resolveFlowStepNavigation(
       {
         page,
-        singleSceneContext: null,
         convertContext,
         selectedSceneKey,
       },
@@ -59,7 +58,6 @@ function App() {
   function resumeConversion() {
     const nextState = resumeConvertPage({
       page,
-      singleSceneContext: null,
       convertContext,
       selectedSceneKey,
     })

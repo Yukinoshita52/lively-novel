@@ -30,8 +30,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -51,13 +54,15 @@ class ScreenplayServiceImplTest {
     private final ScreenplaySceneUnitRepository sceneUnitRepository = mock(ScreenplaySceneUnitRepository.class);
     private final ScreenplaySceneRepository sceneRepository = mock(ScreenplaySceneRepository.class);
     private final ChapterSegmentationService chapterSegmentationService = new ChapterSegmentationServiceImpl();
+    private final DeferredExecutor conversionExecutor = new DeferredExecutor();
     private final ScreenplayServiceImpl screenplayService = new ScreenplayServiceImpl(
             novelService,
             llmService,
             chapterSegmentationService,
             conversionRepository,
             sceneUnitRepository,
-            sceneRepository
+            sceneRepository,
+            conversionExecutor
     );
 
     @BeforeEach
@@ -960,6 +965,23 @@ class ScreenplayServiceImplTest {
         Method initializeMethod = ResponseBodyEmitter.class.getDeclaredMethod("initialize", handlerType);
         initializeMethod.setAccessible(true);
         initializeMethod.invoke(emitter, handler);
+        conversionExecutor.runPending();
+    }
+
+    private static class DeferredExecutor implements Executor {
+        private final Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
+
+        void runPending() {
+            Runnable task;
+            while ((task = tasks.poll()) != null) {
+                task.run();
+            }
+        }
     }
 
     private boolean containsChapterSplitEvent(List<Object> sentPayloads) {

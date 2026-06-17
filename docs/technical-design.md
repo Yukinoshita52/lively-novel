@@ -197,14 +197,12 @@ Screenplay (持久化)
 | POST | `/api/novel/upload` | 上传 `.txt`、解析并持久化小说 | 已实现 |
 | GET | `/api/novel` | 历史小说列表 | 已实现 |
 | GET | `/api/novel/{id}/chapters` | 回读小说章节摘要 | 已实现 |
-| GET | `/api/novel/{id}/chapters/{chapterIndex}` | 回读单章详情 | 已实现 |
 | PUT | `/api/novel/{id}/title` | 修改并持久化作品标题 | 已实现 |
 | POST | `/api/screenplay/convert` | 提交整本转换任务，SSE 返回进度与场景 | 已实现 |
 | GET | `/api/screenplay/conversions/{conversionId}` | 回读转换详情与已持久化场景 | 已实现 |
 | GET | `/api/screenplay/conversions/latest?novelId=...&screenplayType=...` | 回读某小说最近完成的转换 | 已实现 |
 | PUT | `/api/screenplay/conversions/{conversionId}/chapters/{chapterIndex}/scenes/{sceneIndexInChapter}` | 保存单场打磨后的场景 JSON | 已实现 |
 | GET | `/api/screenplay/conversions/{conversionId}/yaml` | 导出最终 YAML 剧本 | 已实现 |
-| POST | `/api/screenplay/convert-single` | 单场转换实验入口 | 已实现，非主演示链路 |
 
 当前实现的关键约束：
 
