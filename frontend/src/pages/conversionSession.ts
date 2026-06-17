@@ -18,6 +18,7 @@ export interface ConversionSessionState {
   completed: boolean
   conversionId?: string
   convertError: string | null
+  failureDetail: ConversionFailureDetail | null
 }
 
 export interface PreviewEntryState {
@@ -30,6 +31,98 @@ export interface ResumeEntryState {
   label: string
 }
 
+export interface ConversionFailureDetail {
+  userMessage: string
+  technicalMessage?: string
+  chapterIndex?: number
+  sceneIndexInChapter?: number
+  stage: string
+  locationLabel: string
+}
+
+export interface RestoredConversionSummary {
+  conversionId: string
+  status: string
+  statusLabel: string
+  updatedAt?: string
+}
+
+const CONVERSION_FAILURE_USER_MESSAGE = '转换中断，可继续转换；已完成部分不会丢失。'
+
+function extractNumber(text: string, pattern: RegExp) {
+  const matched = text.match(pattern)
+  return matched?.[1] ? Number(matched[1]) : undefined
+}
+
+function resolveFailureStage(text: string) {
+  if (/读取|chapter_loaded/i.test(text)) {
+    return '读取章节'
+  }
+  if (/切场|切分|片段|sceneUnit/i.test(text)) {
+    return '切分场景'
+  }
+  if (/全局状态|analysis/i.test(text)) {
+    return '更新全局状态'
+  }
+  if (/生成|剧本|语言漂移|场景原文|scene/i.test(text)) {
+    return '生成剧本'
+  }
+  return '转换流程'
+}
+
+function normalizeTechnicalMessage(message: string) {
+  return message
+    .replace(/^转换中断[^\n]*(\n|$)/, '')
+    .replace(/^转换未完成[^\n]*(\n|$)/, '')
+    .replace(/^失败原因[:：]\s*/, '')
+    .trim()
+}
+
+export function createConversionFailureDetail(message: string | null | undefined): ConversionFailureDetail {
+  const rawMessage = message?.trim() ?? ''
+  const chapterSceneMatched = rawMessage.match(/第\s*(\d+)\s*章(?:第\s*(\d+)\s*场)?/)
+  const chapterIndex = chapterSceneMatched?.[1]
+    ? Number(chapterSceneMatched[1])
+    : extractNumber(rawMessage, /chapterIndex\s*[=:：]\s*(\d+)/i)
+  const sceneIndexInChapter = chapterSceneMatched?.[2]
+    ? Number(chapterSceneMatched[2])
+    : extractNumber(rawMessage, /sceneIndexInChapter\s*[=:：]\s*(\d+)/i)
+  const technicalMessage = normalizeTechnicalMessage(rawMessage)
+  const locationLabel = chapterIndex
+    ? `第 ${chapterIndex} 章${sceneIndexInChapter ? `第 ${sceneIndexInChapter} 场` : ''}`
+    : '位置待确认'
+
+  return {
+    userMessage: CONVERSION_FAILURE_USER_MESSAGE,
+    technicalMessage: technicalMessage || undefined,
+    chapterIndex,
+    sceneIndexInChapter,
+    stage: resolveFailureStage(rawMessage),
+    locationLabel,
+  }
+}
+
+export function resolveRestoredConversionSummary(
+  context: ScreenplayConvertContext,
+): RestoredConversionSummary | null {
+  if (!context.restoredConversionId || !context.restoredConversionStatus) {
+    return null
+  }
+
+  const statusLabelMap: Record<string, string> = {
+    RUNNING: '转换中',
+    FAILED: '转换失败',
+    COMPLETED: '已完成',
+  }
+
+  return {
+    conversionId: context.restoredConversionId,
+    status: context.restoredConversionStatus,
+    statusLabel: statusLabelMap[context.restoredConversionStatus] ?? '状态未知',
+    updatedAt: context.restoredConversionUpdatedAt,
+  }
+}
+
 export function createInitialConversionSessionState(context: ScreenplayConvertContext): ConversionSessionState {
   return {
     context,
@@ -40,6 +133,7 @@ export function createInitialConversionSessionState(context: ScreenplayConvertCo
     chapterSceneCounts: {},
     completed: false,
     convertError: null,
+    failureDetail: null,
   }
 }
 
@@ -63,8 +157,12 @@ export function createRestoredConversionSessionState(
   const restoredScenes = context.restoredGeneratedScenes ?? []
   const completed = context.restoredConversionStatus === 'COMPLETED'
   const failed = context.restoredConversionStatus === 'FAILED'
-  const errorMessage = failed
-    ? context.restoredConversionErrorMessage ?? '转换中断，可继续转换；系统会跳过已完成部分。'
+  const failureDetail = failed ? createConversionFailureDetail(context.restoredConversionErrorMessage) : null
+  const errorMessage = failed && failureDetail
+    ? [
+      failureDetail.userMessage,
+      failureDetail.technicalMessage ? `失败原因：${failureDetail.technicalMessage}` : undefined,
+    ].filter(Boolean).join('\n')
     : null
 
   return {
@@ -82,6 +180,7 @@ export function createRestoredConversionSessionState(
     completed,
     conversionId: context.restoredConversionId,
     convertError: errorMessage,
+    failureDetail,
   }
 }
 
@@ -142,6 +241,7 @@ export function reduceConversionSessionEvent(
     connecting: update.completed || update.convertError ? false : state.connecting,
     running: update.completed || update.convertError ? false : state.running,
     convertError: update.convertError ?? state.convertError,
+    failureDetail: update.convertError ? createConversionFailureDetail(update.convertError) : state.failureDetail,
   }
 }
 
@@ -217,6 +317,7 @@ function appendConversionSessionError(state: ConversionSessionState, message: st
     connecting: false,
     running: false,
     convertError: message,
+    failureDetail: createConversionFailureDetail(message),
     events: [...state.events, { type: 'error', message }],
   }
 }

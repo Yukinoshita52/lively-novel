@@ -4,6 +4,7 @@ import {
   createRestoredConversionContextFromDetail,
   isRestoredCompletedConversionContext,
   reduceConversionSessionEvent,
+  resolveRestoredConversionSummary,
   resolvePreviewEntryState,
   resolveResumeEntryState,
 } from './conversionSession.ts'
@@ -86,6 +87,11 @@ failedState = reduceConversionSessionEvent(failedState, 'failed', {
 assert(resolveResumeEntryState(failedState).enabled, '失败且后台已停止时应允许继续转换')
 assert(resolveResumeEntryState(failedState).label === '继续转换', '继续入口文案应明确不是重新上传')
 assert(failedState.convertError?.includes('第 4 章第 11 场生成失败') === true, '失败原因应进入可见错误详情')
+assert(failedState.failureDetail?.chapterIndex === 4, '失败详情应解析章节位置')
+assert(failedState.failureDetail?.sceneIndexInChapter === 11, '失败详情应解析场景位置')
+assert(failedState.failureDetail?.stage === '生成剧本', '失败详情应解析失败阶段')
+assert(failedState.failureDetail?.userMessage.includes('已完成部分不会丢失') === true, '失败说明应明确已完成部分不会丢失')
+assert(failedState.failureDetail?.technicalMessage?.includes('第 4 章第 11 场生成失败') === true, '技术详情应保留后端失败原因')
 
 const restoredCompletedContext: ScreenplayConvertContext = {
   ...context,
@@ -142,3 +148,9 @@ assert(!restoredFailedState.running, '失败历史上下文静态恢复不应立
 assert(resolvePreviewEntryState(restoredFailedState).enabled, '失败历史上下文有已生成场景时应允许预览')
 assert(resolveResumeEntryState(restoredFailedState).enabled, '失败历史上下文应允许继续转换')
 assert(restoredFailedState.convertError?.includes('第 4 章第 11 场生成失败') === true, '失败历史上下文应恢复错误详情')
+assert(restoredFailedState.failureDetail?.chapterIndex === 4, '失败历史上下文应恢复失败章节')
+assert(restoredFailedState.failureDetail?.sceneIndexInChapter === 11, '失败历史上下文应恢复失败场景')
+
+const restoredSummary = resolveRestoredConversionSummary(restoredFailedContext)
+assert(restoredSummary?.statusLabel === '转换失败', '恢复摘要应展示最近转换状态')
+assert(restoredSummary?.updatedAt === '2026-06-17T09:15:30Z', '恢复摘要应展示最近转换更新时间')

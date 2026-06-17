@@ -11,6 +11,7 @@ import {
   enterConvertPageForHistoryReplay,
   enterPolishPageWithFallback,
   resolveFlowStepNavigation,
+  retryConvertPage,
   resumeConvertPage,
 } from './pages/appNavigation'
 import type { PolishDraft } from './pages/polish/screenplayPolish'
@@ -72,6 +73,18 @@ function App() {
     setPage(nextState.page)
   }
 
+  function retryConversion() {
+    const nextState = retryConvertPage({
+      page,
+      convertContext,
+      selectedSceneKey,
+    })
+    setConvertContext(nextState.convertContext)
+    setSelectedSceneKey(nextState.selectedSceneKey)
+    setPolishDraftsBySceneKey({})
+    setPage(nextState.page)
+  }
+
   function openConvertPage() {
     const nextState = enterConvertPageForHistoryReplay({
       page,
@@ -130,6 +143,7 @@ function App() {
         onBack={backToImport}
         onPreview={() => setPage('preview')}
         onResume={resumeConversion}
+        onRetry={retryConversion}
         flowNavigation={flowNavigation}
         onNavigateStep={handleNavigateStep}
       />

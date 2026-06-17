@@ -9,6 +9,7 @@ import {
   returnToPreviewPage,
   returnToConvertPage,
   resolveFlowStepNavigation,
+  retryConvertPage,
   resumeConvertPage,
   selectPolishScene,
 } from './appNavigation.ts'
@@ -70,6 +71,20 @@ state = resumeConvertPage(state)
 assert(state.page === 'convert', '继续转换应回到转换页')
 assert(state.convertContext !== sessionBeforePreview, '继续转换应替换 context 对象以重新发起转换请求')
 assert(state.convertContext?.novelId === sessionBeforePreview?.novelId, '继续转换应保留原 novelId')
+
+state = retryConvertPage({
+  ...state,
+  convertContext: {
+    ...context,
+    restoredConversionId: 'cv-failed',
+    restoredConversionStatus: 'FAILED',
+    restoredConversionMode: 'static',
+  },
+})
+assert(state.page === 'convert', '重新尝试应回到转换页')
+assert(state.convertContext?.restoredConversionId === undefined, '重新尝试应清除历史 conversionId')
+assert(state.convertContext?.restoredConversionStatus === undefined, '重新尝试应清除历史转换状态')
+assert(state.convertContext?.restoredGeneratedScenes === undefined, '重新尝试应清除历史生成场景')
 
 const restoredStaticState = enterConvertPageForHistoryReplay({
   page: 'preview',

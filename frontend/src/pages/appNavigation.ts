@@ -70,6 +70,39 @@ export function resumeConvertPage(state: AppFlowState): AppFlowState {
   }
 }
 
+export function retryConvertPage(state: AppFlowState): AppFlowState {
+  if (!state.convertContext) {
+    return {
+      ...state,
+      page: 'convert',
+    }
+  }
+
+  const {
+    restoredConversionId,
+    restoredConversionStatus,
+    restoredConversionUpdatedAt,
+    restoredConversionErrorMessage,
+    restoredConversionMode,
+    restoredGeneratedScenes,
+    ...freshContext
+  } = state.convertContext
+
+  void restoredConversionId
+  void restoredConversionStatus
+  void restoredConversionUpdatedAt
+  void restoredConversionErrorMessage
+  void restoredConversionMode
+  void restoredGeneratedScenes
+
+  return {
+    ...state,
+    page: 'convert',
+    convertContext: freshContext,
+    selectedSceneKey: undefined,
+  }
+}
+
 export function enterPolishPage(state: AppFlowState, selectedSceneKey: string): AppFlowState {
   return {
     ...state,
