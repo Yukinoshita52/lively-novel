@@ -81,11 +81,6 @@
   line-height: 1.7;
 }
 
-.event-panel .event-list {
-  max-height: 260px;
-  overflow: auto;
-}
-
 .convert-grid.convert-progress-grid {
   grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.25fr);
   max-width: none;
@@ -175,6 +170,30 @@
   margin-top: 8px;
 }
 
+.conversion-progress-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.conversion-progress-row {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.conversion-progress-label {
+  color: #8a7e6a;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.8rem;
+}
+
+.conversion-progress-value {
+  color: #2f2418;
+  font-weight: 700;
+}
+
 .prototype-export-row {
   align-items: center;
   display: flex;
@@ -216,43 +235,6 @@
   color: #8a7e6a;
   font-family: 'IBM Plex Mono', 'Consolas', monospace;
   font-size: 0.82rem;
-}
-
-.conversion-failure-panel {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.conversion-failure-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.conversion-failure-grid > div {
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(140, 40, 32, 0.14);
-  border-radius: 4px;
-  display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-}
-
-.conversion-failure-label {
-  color: #8a7e6a;
-  font-size: 0.78rem;
-}
-
-.conversion-error-collapse.ant-collapse {
-  background: rgba(255, 255, 255, 0.58);
-  border-radius: 4px;
-}
-
-.conversion-error-detail {
-  display: block;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .prototype-stream {

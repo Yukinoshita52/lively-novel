@@ -304,7 +304,10 @@ const failedUpdate = resolveConvertEventUpdate(
 
 assert(failedUpdate?.event !== undefined, 'failed 事件应生成事件流记录')
 assert(failedUpdate.event.type === 'failed', 'failed 事件应进入事件流')
-assert(failedUpdate?.event.message === '转换中断，可继续转换；系统会跳过已完成部分。', 'failed 事件应使用后端用户提示')
+assert(
+  failedUpdate?.event.message === '转换中断，可继续转换；系统会跳过已完成部分。\n失败原因：章节切场退化为整章单场',
+  'failed 事件日志应直接包含后端失败原因',
+)
 assert(failedUpdate?.convertError?.includes('转换中断，可继续转换；系统会跳过已完成部分。') === true, 'failed 事件应设置转换错误')
 assert(failedUpdate?.convertError?.includes('章节切场退化为整章单场') === true, 'failed 事件应展示后端失败原因')
 

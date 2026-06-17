@@ -174,6 +174,12 @@ export function createRestoredConversionSessionState(
         type: 'completed',
         message: `已载入历史转换：共 ${restoredScenes.length} 场。`,
       },
+      ...(failed && errorMessage
+        ? [{
+          type: 'failed' as const,
+          message: errorMessage,
+        }]
+        : []),
     ],
     generatedScenes: restoredScenes,
     chapterSceneCounts: {},

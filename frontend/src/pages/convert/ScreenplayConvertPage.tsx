@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Alert, Button, Card, Collapse, Progress, Typography } from 'antd'
+import { Button, Card, Progress, Typography } from 'antd'
 import { ArrowLeftOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
 import {
@@ -73,6 +73,11 @@ function ScreenplayConvertPage({
   const previewEntry = resolvePreviewEntryState(session)
   const resumeEntry = resolveResumeEntryState(session)
   const restoredSummary = resolveRestoredConversionSummary(session.context)
+  const recentScene = session.generatedScenes.at(-1)
+  const chapterProgressText = currentChapterIndex > 0 ? `第 ${currentChapterIndex} 章` : '章节待定'
+  const sceneProgressText = totalSceneCount > 0
+    ? `${finishedSceneCount} / ${totalSceneCount} 场`
+    : `${finishedSceneCount} 场`
 
   return (
     <PrototypeFrame
@@ -115,14 +120,24 @@ function ScreenplayConvertPage({
             ))}
           </div>
 
+          <div className="conversion-progress-summary">
+            <div className="conversion-progress-row">
+              <span className="conversion-progress-label">章节进度</span>
+              <span className="conversion-progress-value">{chapterProgressText}</span>
+            </div>
+            <div className="conversion-progress-row">
+              <span className="conversion-progress-label">场景进度</span>
+              <span className="conversion-progress-value">{sceneProgressText}</span>
+            </div>
+            <div className="conversion-progress-row">
+              <span className="conversion-progress-label">最近完成</span>
+              <span className="conversion-progress-value">
+                {recentScene ? `第 ${recentScene.chapterIndex} 章 · ${recentScene.title}` : '等待第一场生成'}
+              </span>
+            </div>
+          </div>
           <div className="prototype-progress-note">
-            <span>
-              {buildConvertProgressNote({
-                currentChapterIndex,
-                finishedSceneCount,
-                totalSceneCount,
-              })}
-            </span>
+            <span>{buildConvertProgressNote({ currentChapterIndex, finishedSceneCount, totalSceneCount })}</span>
           </div>
           <Progress className="prototype-progress" percent={progressPercent} strokeColor="#be3a2e" showInfo={false} />
           {restoredSummary ? (
@@ -154,47 +169,6 @@ function ScreenplayConvertPage({
               </Button>
             ) : null}
           </div>
-
-          {session.convertError ? (
-            <div className="conversion-failure-panel">
-              <Alert
-                className="feedback-block"
-                message="转换失败"
-                description={session.failureDetail?.userMessage ?? '转换中断，可继续转换；已完成部分不会丢失。'}
-                type="error"
-                showIcon
-              />
-              {session.failureDetail ? (
-                <div className="conversion-failure-grid">
-                  <div>
-                    <Text className="conversion-failure-label">失败位置</Text>
-                    <Text>{session.failureDetail.locationLabel}</Text>
-                  </div>
-                  <div>
-                    <Text className="conversion-failure-label">失败阶段</Text>
-                    <Text>{session.failureDetail.stage}</Text>
-                  </div>
-                </div>
-              ) : null}
-              {session.failureDetail?.technicalMessage ? (
-                <Collapse
-                  className="conversion-error-collapse"
-                  size="small"
-                  items={[
-                    {
-                      key: 'technical-error',
-                      label: '查看技术错误详情',
-                      children: (
-                        <Text className="conversion-error-detail">
-                          {session.failureDetail.technicalMessage}
-                        </Text>
-                      ),
-                    },
-                  ]}
-                />
-              ) : null}
-            </div>
-          ) : null}
         </Card>
 
         <Card
