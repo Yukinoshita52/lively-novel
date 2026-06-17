@@ -130,8 +130,7 @@
   height: 52px;
 }
 
-.prototype-inner-panel.ant-card,
-.history-card.ant-card {
+.prototype-inner-panel.ant-card {
   background: #e7ddc8;
   border: 1px solid rgba(28, 24, 19, 0.1);
   border-radius: 4px;
@@ -148,7 +147,6 @@
   background-image: linear-gradient(rgba(28, 24, 19, 0.08) 1px, transparent 1px);
 }
 
-.history-row,
 .chapter-row,
 .event-row,
 .scene-summary-row,

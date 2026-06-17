@@ -30,6 +30,11 @@ const context: ScreenplayConvertContext = {
 }
 
 let state = createInitialAppFlowState()
+assert(state.page === 'workspace', '应用初始页应进入历史作品工作台')
+state = {
+  ...state,
+  page: 'import',
+}
 state = enterConvertPage(state, context)
 const sessionBeforePreview = state.convertContext
 state = enterPreviewPage(state)
@@ -103,6 +108,7 @@ const navigationWithoutContext = resolveFlowStepNavigation(createInitialAppFlowS
   hasGeneratedScenes: false,
   completed: false,
 })
+assert(navigationWithoutContext.workspace.enabled, '历史作品工作台应始终可点击')
 assert(navigationWithoutContext.import.enabled, '导入步骤应始终可点击')
 assert(navigationWithoutContext.convert.clickable, '没有转换上下文时转换步骤仍应可点击以提示用户')
 assert(!navigationWithoutContext.convert.enabled, '没有转换上下文时不应跳转转换页')

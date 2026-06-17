@@ -1,6 +1,6 @@
 import type { ConvertEventItem } from '../../types/novel'
 
-export type FlowStepKey = 'import' | 'convert' | 'preview' | 'polish' | 'export'
+export type FlowStepKey = 'workspace' | 'import' | 'convert' | 'preview' | 'polish' | 'export'
 export type PipelinePhaseStatus = 'idle' | 'active' | 'done' | 'failed'
 
 export interface FlowStep {
@@ -39,6 +39,7 @@ export interface StreamEventPart {
 }
 
 const FLOW_STEPS: Array<Omit<FlowStep, 'active' | 'done'>> = [
+  { key: 'workspace', number: '', label: '作品' },
   { key: 'import', number: '', label: '导入' },
   { key: 'convert', number: '', label: '转换' },
   { key: 'preview', number: '', label: '预览' },

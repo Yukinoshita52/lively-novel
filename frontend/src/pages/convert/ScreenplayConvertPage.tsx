@@ -26,6 +26,7 @@ type ScreenplayConvertPageProps = {
   onPreview: () => void
   onResume: () => void
   onRetry: () => void
+  backLabel?: string
   flowNavigation?: FlowStepNavigation
   onNavigateStep?: (step: FlowStepKey) => void
 }
@@ -36,6 +37,7 @@ function ScreenplayConvertPage({
   onPreview,
   onResume,
   onRetry,
+  backLabel = '返回导入',
   flowNavigation,
   onNavigateStep,
 }: ScreenplayConvertPageProps) {
@@ -85,7 +87,7 @@ function ScreenplayConvertPage({
         meta="→ 动画剧本"
         action={
           <Button className="prototype-ghost-button" icon={<ArrowLeftOutlined />} onClick={onBack}>
-            返回导入
+            {backLabel}
           </Button>
         }
       />
