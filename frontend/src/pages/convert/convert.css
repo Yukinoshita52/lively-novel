@@ -178,9 +178,81 @@
 .prototype-export-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
   margin-top: 14px;
+}
+
+.conversion-summary {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(120, 82, 49, 0.12);
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.conversion-summary-status {
+  font-weight: 800;
+}
+
+.conversion-summary-status.status-COMPLETED {
+  color: #2f6a3a;
+}
+
+.conversion-summary-status.status-FAILED {
+  color: #8c2820;
+}
+
+.conversion-summary-status.status-RUNNING {
+  color: #8c3f21;
+}
+
+.conversion-summary-id {
+  color: #8a7e6a;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
+}
+
+.conversion-failure-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.conversion-failure-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.conversion-failure-grid > div {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(140, 40, 32, 0.14);
+  border-radius: 4px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.conversion-failure-label {
+  color: #8a7e6a;
+  font-size: 0.78rem;
+}
+
+.conversion-error-collapse.ant-collapse {
+  background: rgba(255, 255, 255, 0.58);
+  border-radius: 4px;
+}
+
+.conversion-error-detail {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .prototype-stream {

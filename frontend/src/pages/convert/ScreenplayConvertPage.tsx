@@ -1,8 +1,12 @@
 import { useMemo } from 'react'
-import { Alert, Button, Card, Progress } from 'antd'
+import { Alert, Button, Card, Collapse, Progress, Typography } from 'antd'
 import { ArrowLeftOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
-import { resolvePreviewEntryState, resolveResumeEntryState } from '../conversionSession'
+import {
+  resolvePreviewEntryState,
+  resolveRestoredConversionSummary,
+  resolveResumeEntryState,
+} from '../conversionSession'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import {
   buildConvertProgressNote,
@@ -12,12 +16,16 @@ import {
   resolveCurrentConvertChapterIndex,
 } from '../../components/prototype/prototypeFlow'
 import type { FlowStepNavigation } from '../appNavigation'
+import { formatHistoryTime } from '../import/importFormat'
+
+const { Text } = Typography
 
 type ScreenplayConvertPageProps = {
   session: ConversionSessionState
   onBack: () => void
   onPreview: () => void
   onResume: () => void
+  onRetry: () => void
   flowNavigation?: FlowStepNavigation
   onNavigateStep?: (step: FlowStepKey) => void
 }
@@ -27,6 +35,7 @@ function ScreenplayConvertPage({
   onBack,
   onPreview,
   onResume,
+  onRetry,
   flowNavigation,
   onNavigateStep,
 }: ScreenplayConvertPageProps) {
@@ -61,6 +70,7 @@ function ScreenplayConvertPage({
   )
   const previewEntry = resolvePreviewEntryState(session)
   const resumeEntry = resolveResumeEntryState(session)
+  const restoredSummary = resolveRestoredConversionSummary(session.context)
 
   return (
     <PrototypeFrame
@@ -113,6 +123,15 @@ function ScreenplayConvertPage({
             </span>
           </div>
           <Progress className="prototype-progress" percent={progressPercent} strokeColor="#be3a2e" showInfo={false} />
+          {restoredSummary ? (
+            <div className="conversion-summary">
+              <Text className={`conversion-summary-status status-${restoredSummary.status}`}>
+                {restoredSummary.statusLabel}
+              </Text>
+              <Text>最近更新时间：{formatHistoryTime(restoredSummary.updatedAt ?? null)}</Text>
+              <Text className="conversion-summary-id">转换 ID：{restoredSummary.conversionId}</Text>
+            </div>
+          ) : null}
           <div className="prototype-export-row">
             <Button disabled={!previewEntry.enabled} icon={<EyeOutlined />} onClick={onPreview} type="primary">
               {previewEntry.label}
@@ -122,16 +141,57 @@ function ScreenplayConvertPage({
                 {resumeEntry.label}
               </Button>
             ) : null}
+            {session.convertError ? (
+              <Button onClick={onRetry}>
+                重新尝试
+              </Button>
+            ) : null}
+            {session.convertError ? (
+              <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
+                返回历史作品
+              </Button>
+            ) : null}
           </div>
 
           {session.convertError ? (
-            <Alert
-              className="feedback-block"
-              message="转换失败"
-              description={<span style={{ whiteSpace: 'pre-line' }}>{session.convertError}</span>}
-              type="error"
-              showIcon
-            />
+            <div className="conversion-failure-panel">
+              <Alert
+                className="feedback-block"
+                message="转换失败"
+                description={session.failureDetail?.userMessage ?? '转换中断，可继续转换；已完成部分不会丢失。'}
+                type="error"
+                showIcon
+              />
+              {session.failureDetail ? (
+                <div className="conversion-failure-grid">
+                  <div>
+                    <Text className="conversion-failure-label">失败位置</Text>
+                    <Text>{session.failureDetail.locationLabel}</Text>
+                  </div>
+                  <div>
+                    <Text className="conversion-failure-label">失败阶段</Text>
+                    <Text>{session.failureDetail.stage}</Text>
+                  </div>
+                </div>
+              ) : null}
+              {session.failureDetail?.technicalMessage ? (
+                <Collapse
+                  className="conversion-error-collapse"
+                  size="small"
+                  items={[
+                    {
+                      key: 'technical-error',
+                      label: '查看技术错误详情',
+                      children: (
+                        <Text className="conversion-error-detail">
+                          {session.failureDetail.technicalMessage}
+                        </Text>
+                      ),
+                    },
+                  ]}
+                />
+              ) : null}
+            </div>
           ) : null}
         </Card>
 
