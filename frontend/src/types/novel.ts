@@ -131,6 +131,7 @@ export interface SceneResult {
   dialogueBlocks?: DialogueBlock[]
   visualizedInnerThoughts?: VisualizedInnerThought[]
   transitions?: string[]
+  warnings?: string[]
   sourceChapter: number
   sourceText: string
 }

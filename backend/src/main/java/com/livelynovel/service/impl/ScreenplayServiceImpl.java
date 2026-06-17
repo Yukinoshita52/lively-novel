@@ -35,6 +35,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.yaml.snakeyaml.DumperOptions;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -279,6 +280,13 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                     SceneDTO scene = sceneResult.scene();
                     scene.setSourceChapter(chapterIndex);
                     scene.setSourceText(sceneText);
+                    if (sceneResult.warningMessage() != null && !sceneResult.warningMessage().isBlank()) {
+                        List<String> sceneWarnings = new ArrayList<>(scene.getWarnings() == null
+                                ? Collections.emptyList()
+                                : scene.getWarnings());
+                        sceneWarnings.add(sceneResult.warningMessage());
+                        scene.setWarnings(sceneWarnings);
+                    }
                     persistGeneratedScene(conversion.getId(), chapterIndex, sceneUnit, scene);
                     rollingAnalysisState = updateRollingAnalysisState(
                             emitter,
@@ -751,6 +759,9 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         persistedScene.setChapterIndex(entity.getChapterIndex());
         persistedScene.setSceneIndexInChapter(entity.getSceneIndexInChapter());
         persistedScene.setTitle(defaultIfBlank(title, buildSceneHeadingText(scene)));
+        if (scene != null && scene.getWarnings() == null) {
+            scene.setWarnings(Collections.emptyList());
+        }
         persistedScene.setScene(scene);
         return persistedScene;
     }

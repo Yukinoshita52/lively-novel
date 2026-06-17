@@ -28,6 +28,12 @@
   grid-column: 1 / -1;
 }
 
+.polish-warning-panel {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
 .polish-work-panel.prototype-panel {
   height: 100%;
 }

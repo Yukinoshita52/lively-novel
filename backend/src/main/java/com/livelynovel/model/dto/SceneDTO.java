@@ -20,6 +20,7 @@ public class SceneDTO {
     private List<DialogueBlockDTO> dialogueBlocks = new ArrayList<>();
     private List<VisualizedInnerThoughtDTO> visualizedInnerThoughts = new ArrayList<>();
     private List<String> transitions = new ArrayList<>();
+    private List<String> warnings = new ArrayList<>();
     private int sourceChapter;
     private String sourceText;
 
