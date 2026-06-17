@@ -37,6 +37,7 @@ function cloneScene(scene: SceneResult): SceneResult {
     dialogueBlocks: scene.dialogueBlocks?.map((dialogue) => ({ ...dialogue })),
     visualizedInnerThoughts: scene.visualizedInnerThoughts?.map((thought) => ({ ...thought })),
     transitions: scene.transitions ? [...scene.transitions] : undefined,
+    warnings: scene.warnings ? [...scene.warnings] : undefined,
   }
 }
 

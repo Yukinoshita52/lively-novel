@@ -33,12 +33,15 @@ const scene: SceneResult = {
     { type: 'DIALOGUE', character: '林秋', parenthetical: '低声', line: '今天先到这里。' },
     { type: 'TRANSITION', text: '切至：' },
   ],
+  warnings: ['该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。'],
   sourceChapter: 1,
   sourceText: '第一场原文。',
 }
 
 const draft = createPolishDraft(scene)
 assert(draft.scene !== scene, '本地打磨草稿不应直接复用原始 SceneResult 引用')
+assert(draft.scene.warnings?.[0]?.includes('非中文表达') === true, '本地打磨草稿应保留生成质量提示')
+assert(draft.savedScene.warnings?.[0]?.includes('非中文表达') === true, '本地打磨保存基线应保留生成质量提示')
 assert(
   draft.sceneYamlText.includes('scriptBlocks:'),
   '本地打磨草稿应直接暴露可编辑 YAML',

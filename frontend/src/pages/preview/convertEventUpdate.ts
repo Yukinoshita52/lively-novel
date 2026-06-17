@@ -111,6 +111,12 @@ export function resolveConvertEventUpdate(
     const generatedMessage = `已生成第 ${payload.chapterIndex ?? '?'} 章第 ${sceneIndexInChapter ?? '?'} 场：${String(payload.title ?? '未命名章节')}`
     const warningMessage =
       typeof payload.message === 'string' && payload.message.trim() ? payload.message.trim() : undefined
+    const sceneWithWarnings = warningMessage && payload.warning
+      ? {
+        ...scene,
+        warnings: [...(scene.warnings ?? []), warningMessage],
+      }
+      : scene
 
     return {
       conversionId,
@@ -126,7 +132,7 @@ export function resolveConvertEventUpdate(
         chapterIndex: Number(payload.chapterIndex ?? 0),
         sceneIndexInChapter,
         title: String(payload.title ?? '未命名章节'),
-        scene,
+        scene: sceneWithWarnings,
       },
     }
   }

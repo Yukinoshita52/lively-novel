@@ -183,6 +183,16 @@ function ScreenplayPolishPage({
             onToggleExpanded={() => setScenePickerExpanded((current) => !current)}
             onSelectScene={onSelectScene}
           />
+          {scene.warnings.length > 0 ? (
+            <div className="polish-warning-panel">
+              {scene.warnings.map((warning) => (
+                <div className={`scene-warning-row severity-${warning.severity}`} key={warning.key}>
+                  <Text className="scene-warning-title">{warning.title}</Text>
+                  <Text>{warning.message}</Text>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <PolishYamlEditor
             panelCode={workspaceLayout.left.code}

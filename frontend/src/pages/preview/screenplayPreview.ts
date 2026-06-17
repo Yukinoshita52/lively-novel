@@ -10,6 +10,7 @@ export interface SceneOutlineItem extends GeneratedSceneSummary {
   key: string
   sceneNumber: string
   headingText: string
+  warnings: GenerationQualityWarning[]
 }
 
 export type PreviewTabKey = 'script' | 'source' | 'scene-table'
@@ -41,6 +42,21 @@ export interface SceneTableRow {
 
 export interface ScriptBlockRow extends ScriptBlock {
   key: string
+}
+
+export type GenerationQualityWarningSeverity = 'blocking' | 'check'
+export type GenerationQualityWarningSource = 'generation' | 'structure'
+
+export interface GenerationQualityWarning {
+  key: string
+  sceneKey: string
+  sceneNumber: string
+  chapterIndex: number
+  sceneIndexInChapter?: number
+  severity: GenerationQualityWarningSeverity
+  source: GenerationQualityWarningSource
+  title: string
+  message: string
 }
 
 const PREVIEW_TABS: Array<Omit<PreviewTab, 'active'>> = [
@@ -84,6 +100,102 @@ export function getSceneKey(scene: GeneratedSceneSummary) {
   return `${scene.chapterIndex}-${scene.sceneIndexInChapter ?? scene.title}`
 }
 
+function createWarning(
+  scene: GeneratedSceneSummary,
+  sceneKey: string,
+  sceneNumber: string,
+  source: GenerationQualityWarningSource,
+  severity: GenerationQualityWarningSeverity,
+  title: string,
+  message: string,
+  index: number,
+): GenerationQualityWarning {
+  return {
+    key: `${sceneKey}-${source}-${index}`,
+    sceneKey,
+    sceneNumber,
+    chapterIndex: scene.chapterIndex,
+    sceneIndexInChapter: scene.sceneIndexInChapter,
+    severity,
+    source,
+    title,
+    message,
+  }
+}
+
+export function buildSceneQualityWarnings(
+  scene: GeneratedSceneSummary,
+  sceneKey = getSceneKey(scene),
+  sceneNumber = '',
+): GenerationQualityWarning[] {
+  const warnings: GenerationQualityWarning[] = []
+  const scriptBlocks = normalizeScriptBlocks(scene.scene)
+
+  scene.scene.warnings
+    ?.filter((message) => message.trim())
+    .forEach((message, index) => {
+      warnings.push(createWarning(scene, sceneKey, sceneNumber, 'generation', 'check', '生成结果建议检查', message, index))
+    })
+
+  if (scriptBlocks.length === 0) {
+    warnings.push(createWarning(
+      scene,
+      sceneKey,
+      sceneNumber,
+      'structure',
+      'blocking',
+      '剧本正文为空',
+      '本场没有可渲染的剧本正文块，需要补写动作、对白或转场。',
+      warnings.length,
+    ))
+  } else {
+    scriptBlocks.forEach((block, index) => {
+      const hasText = typeof block.text === 'string' && block.text.trim()
+      const hasLine = typeof block.line === 'string' && block.line.trim()
+      if (!hasText && !hasLine) {
+        warnings.push(createWarning(
+          scene,
+          sceneKey,
+          sceneNumber,
+          'structure',
+          'check',
+          '正文块为空',
+          `第 ${index + 1} 个剧本正文块缺少可读内容，需要在打磨页补齐。`,
+          warnings.length,
+        ))
+      }
+    })
+  }
+
+  if (!scene.scene.heading?.location || scene.scene.heading.location === '未知地点') {
+    warnings.push(createWarning(
+      scene,
+      sceneKey,
+      sceneNumber,
+      'structure',
+      'check',
+      '地点待确认',
+      '本场地点为空或仍是未知地点，建议检查场景标题。',
+      warnings.length,
+    ))
+  }
+
+  if (!scene.scene.heading?.timeOfDay || scene.scene.heading.timeOfDay === '未知时间') {
+    warnings.push(createWarning(
+      scene,
+      sceneKey,
+      sceneNumber,
+      'structure',
+      'check',
+      '时间待确认',
+      '本场时间为空或仍是未知时间，建议检查场景标题。',
+      warnings.length,
+    ))
+  }
+
+  return warnings
+}
+
 export function buildSceneOutlineItems(scenes: GeneratedSceneSummary[]): SceneOutlineItem[] {
   return [...scenes]
     .sort((left, right) => {
@@ -99,6 +211,10 @@ export function buildSceneOutlineItems(scenes: GeneratedSceneSummary[]): SceneOu
       sceneNumber: `S${index + 1}`,
       headingText: buildSceneHeadingText(scene.scene.heading),
     }))
+    .map((scene) => ({
+      ...scene,
+      warnings: buildSceneQualityWarnings(scene, scene.key, scene.sceneNumber),
+    }))
 }
 
 export function mapPersistedScenesToGeneratedScenes(scenes: ScreenplayPersistedScene[]): GeneratedSceneSummary[] {
@@ -108,6 +224,10 @@ export function mapPersistedScenesToGeneratedScenes(scenes: ScreenplayPersistedS
     title: scene.title?.trim() || buildSceneHeadingText(scene.scene.heading),
     scene: scene.scene,
   }))
+}
+
+export function buildGenerationQualityWarnings(scenes: GeneratedSceneSummary[]): GenerationQualityWarning[] {
+  return buildSceneOutlineItems(scenes).flatMap((scene) => scene.warnings)
 }
 
 export function buildSceneTableRows(scenes: GeneratedSceneSummary[]): SceneTableRow[] {

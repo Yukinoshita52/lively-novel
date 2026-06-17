@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Button, Card, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, EditOutlined, WarningOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
 import type { GeneratedSceneSummary } from '../../types/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
@@ -9,6 +9,7 @@ import type { FlowStepKey } from '../../components/prototype/prototypeFlow'
 import {
   buildPreviewActions,
   buildPreviewTabs,
+  buildGenerationQualityWarnings,
   buildScriptBlockRows,
   buildSceneOutlineItems,
   buildSceneTableRows,
@@ -40,6 +41,7 @@ function ScreenplayPreviewPage({
 
   const generatedScenes: GeneratedSceneSummary[] = session.generatedScenes
   const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(generatedScenes), [generatedScenes])
+  const qualityWarnings = useMemo(() => buildGenerationQualityWarnings(generatedScenes), [generatedScenes])
   const previewTabs = useMemo(() => buildPreviewTabs(activePreviewTab), [activePreviewTab])
   const sceneTableRows = useMemo(() => buildSceneTableRows(generatedScenes), [generatedScenes])
   const selectedScene = useMemo(
@@ -47,6 +49,12 @@ function ScreenplayPreviewPage({
     [generatedScenes, selectedSceneKey],
   )
   const previewActions = buildPreviewActions(Boolean(selectedScene))
+  const selectedSceneWarnings = selectedScene?.warnings ?? []
+
+  function selectWarningScene(sceneKey: string) {
+    setSelectedSceneKey(sceneKey)
+    setActivePreviewTab('script')
+  }
 
   return (
     <PrototypeFrame
@@ -71,6 +79,28 @@ function ScreenplayPreviewPage({
         title={<PrototypePanelTitle code="PREVIEW" title="逐场预览" meta="YAML → 渲染视图" />}
         variant="borderless"
       >
+        {qualityWarnings.length > 0 ? (
+          <div className="quality-warning-summary">
+            <div className="quality-warning-summary-head">
+              <WarningOutlined />
+              <Text>建议重点检查 {qualityWarnings.length} 项</Text>
+            </div>
+            <div className="quality-warning-list">
+              {qualityWarnings.map((warning) => (
+                <button
+                  className={`quality-warning-chip severity-${warning.severity}`}
+                  key={warning.key}
+                  onClick={() => selectWarningScene(warning.sceneKey)}
+                  type="button"
+                >
+                  <span>{warning.sceneNumber}</span>
+                  {warning.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="scene-preview-grid">
           <aside className="scene-outline">
             {sceneOutlineItems.length === 0 ? (
@@ -92,7 +122,15 @@ function ScreenplayPreviewPage({
                     <span className="scene-outline-title">{scene.title}</span>
                     <span className="scene-outline-heading">{scene.headingText}</span>
                   </span>
-                  <span className="scene-outline-ch">CH{scene.chapterIndex}</span>
+                  <span className="scene-outline-status">
+                    {scene.warnings.length > 0 ? (
+                      <span className="scene-outline-warning">
+                        <WarningOutlined />
+                        {scene.warnings.length}
+                      </span>
+                    ) : null}
+                    <span className="scene-outline-ch">CH{scene.chapterIndex}</span>
+                  </span>
                 </button>
               ))
             )}
@@ -136,6 +174,16 @@ function ScreenplayPreviewPage({
                     <Text>第 {selectedScene.chapterIndex} 章</Text>
                     {selectedScene.sceneIndexInChapter ? <Text>第 {selectedScene.sceneIndexInChapter} 场</Text> : null}
                   </div>
+                  {selectedSceneWarnings.length > 0 ? (
+                    <div className="scene-warning-panel">
+                      {selectedSceneWarnings.map((warning) => (
+                        <div className={`scene-warning-row severity-${warning.severity}`} key={warning.key}>
+                          <Text className="scene-warning-title">{warning.title}</Text>
+                          <Text>{warning.message}</Text>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <Title level={4}>{selectedScene.title}</Title>
 
                   <div className="screenplay-paper">

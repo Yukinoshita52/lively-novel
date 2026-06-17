@@ -865,6 +865,7 @@ class ScreenplayServiceImplTest {
         assertThat(containsEvent(sentPayloads, "failed")).isFalse();
         assertThat(containsEvent(sentPayloads, "completed")).isTrue();
         assertThat(containsMessage(sentPayloads, "该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。")).isTrue();
+        assertThat(containsSceneWarning(sentPayloads, "该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。")).isTrue();
     }
 
     @Test
@@ -1047,6 +1048,16 @@ class ScreenplayServiceImplTest {
             .filter(Map.class::isInstance)
             .map(Map.class::cast)
             .anyMatch(data -> expectedMessage.equals(data.get("message")));
+    }
+
+    private boolean containsSceneWarning(List<Object> sentPayloads, String expectedWarning) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .map(data -> data.get("scene"))
+            .filter(SceneDTO.class::isInstance)
+            .map(SceneDTO.class::cast)
+            .anyMatch(scene -> scene.getWarnings() != null && scene.getWarnings().contains(expectedWarning));
     }
 
     private boolean containsAnalysisRestoredEvent(

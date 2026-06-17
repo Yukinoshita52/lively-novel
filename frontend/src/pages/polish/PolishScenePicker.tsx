@@ -78,6 +78,11 @@ function PolishScenePicker({
                 <span className="scene-outline-title">{outlineScene.title}</span>
                 <span className="scene-outline-heading">{outlineScene.headingText}</span>
               </span>
+              <span className="scene-outline-status">
+                {outlineScene.warnings.length > 0 ? (
+                  <span className="scene-outline-warning">{outlineScene.warnings.length} 项检查</span>
+                ) : null}
+              </span>
             </button>
           ))}
         </div>
