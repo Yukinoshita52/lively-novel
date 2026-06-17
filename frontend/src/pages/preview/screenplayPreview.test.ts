@@ -8,6 +8,7 @@ import {
   buildSceneTableRows,
   buildPreviewActions,
   buildGenerationQualityWarnings,
+  buildPreviewScrollKey,
   buildSceneQualityWarnings,
   resolveAdjacentSceneKeys,
   mapPersistedScenesToGeneratedScenes,
@@ -112,6 +113,7 @@ assert(
 )
 assert(buildPreviewTabs('source')[1].active, '预览页应支持独立原文 tab')
 assert(buildPreviewTabs('scene-table')[2].label === '场景表', '预览页应提供场景表 tab')
+assert(buildPreviewScrollKey('1-2', 'source') === '1-2:source', '预览滚动位置应按场景和 tab 独立缓存')
 const previewActions = buildPreviewActions(true)
 assert(previewActions.primary.label === '打磨本场', '预览页主动作应进入单场打磨')
 assert(!previewActions.secondary.some((action) => action.label.includes('导出')), '预览页不应提供导出 YAML 动作')

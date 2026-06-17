@@ -9,6 +9,11 @@ export interface PolishDraft {
   sceneYamlText: string
 }
 
+export interface PolishSceneStatus {
+  changed: boolean
+  unsaved: boolean
+}
+
 export interface PolishWorkspaceLayout {
   left: {
     code: string
@@ -86,6 +91,28 @@ export function updatePolishSceneYaml(draft: PolishDraft, sceneYamlText: string)
     sceneYamlText,
     scene: parsedScene,
   }
+}
+
+export function buildPolishSceneStatus(draft?: PolishDraft): PolishSceneStatus {
+  if (!draft) {
+    return {
+      changed: false,
+      unsaved: false,
+    }
+  }
+
+  const savedYamlText = buildPolishSceneYaml(draft.savedScene)
+
+  return {
+    changed: savedYamlText !== buildPolishSceneYaml(draft.scene),
+    unsaved: savedYamlText !== draft.sceneYamlText,
+  }
+}
+
+export function buildPolishSceneStatusByKey(draftsBySceneKey: Record<string, PolishDraft>) {
+  return Object.fromEntries(
+    Object.entries(draftsBySceneKey).map(([sceneKey, draft]) => [sceneKey, buildPolishSceneStatus(draft)]),
+  )
 }
 
 function toYamlLines(value: unknown, indent = 0): string[] {

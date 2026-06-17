@@ -15,10 +15,13 @@ import {
   retryConvertPage,
   resumeConvertPage,
 } from './pages/appNavigation'
-import type { PolishDraft } from './pages/polish/screenplayPolish'
+import {
+  buildPolishSceneStatusByKey,
+  type PolishDraft,
+} from './pages/polish/screenplayPolish'
 import type { ScreenplayConvertContext } from './types/novel'
 import type { FlowStepKey } from './components/prototype/prototypeFlow'
-import { getSceneKey } from './pages/preview/screenplayPreview'
+import { getSceneKey, type PreviewTabKey } from './pages/preview/screenplayPreview'
 import './styles/app.css'
 import './pages/import/import.css'
 import './pages/import/importType.css'
@@ -34,9 +37,16 @@ function App() {
   const [page, setPage] = useState<AppPageKey>('workspace')
   const [convertContext, setConvertContext] = useState<ScreenplayConvertContext | null>(null)
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
+  const [previewSelectedSceneKey, setPreviewSelectedSceneKey] = useState<string>()
+  const [activePreviewTab, setActivePreviewTab] = useState<PreviewTabKey>('script')
+  const [previewReadingScrollByKey, setPreviewReadingScrollByKey] = useState<Record<string, number>>({})
   const [polishDraftsBySceneKey, setPolishDraftsBySceneKey] = useState<Record<string, PolishDraft>>({})
   const conversionSession = useScreenplayConversionSession(convertContext)
   const hasSceneAccess = Boolean(conversionSession?.generatedScenes.length)
+  const polishSceneStatusByKey = useMemo(
+    () => buildPolishSceneStatusByKey(polishDraftsBySceneKey),
+    [polishDraftsBySceneKey],
+  )
   const flowNavigation = useMemo(
     () => resolveFlowStepNavigation(
       {
@@ -55,12 +65,18 @@ function App() {
   function backToImport() {
     setPage('import')
     setSelectedSceneKey(undefined)
+    setPreviewSelectedSceneKey(undefined)
+    setActivePreviewTab('script')
+    setPreviewReadingScrollByKey({})
     setPolishDraftsBySceneKey({})
   }
 
   function backToWorkspace() {
     setPage('workspace')
     setSelectedSceneKey(undefined)
+    setPreviewSelectedSceneKey(undefined)
+    setActivePreviewTab('script')
+    setPreviewReadingScrollByKey({})
     setPolishDraftsBySceneKey({})
   }
 
@@ -89,6 +105,9 @@ function App() {
     })
     setConvertContext(nextState.convertContext)
     setSelectedSceneKey(nextState.selectedSceneKey)
+    setPreviewSelectedSceneKey(undefined)
+    setActivePreviewTab('script')
+    setPreviewReadingScrollByKey({})
     setPolishDraftsBySceneKey({})
     setPage(nextState.page)
   }
@@ -115,6 +134,14 @@ function App() {
     )
     setSelectedSceneKey(nextState.selectedSceneKey)
     setPage(nextState.page)
+  }
+
+  function openPreviewPage(sceneKey = selectedSceneKey ?? previewSelectedSceneKey) {
+    if (sceneKey) {
+      setPreviewSelectedSceneKey(sceneKey)
+      setSelectedSceneKey(sceneKey)
+    }
+    setPage('preview')
   }
 
   function handleNavigateStep(step: FlowStepKey) {
@@ -146,6 +173,11 @@ function App() {
       return
     }
 
+    if (step === 'preview') {
+      openPreviewPage()
+      return
+    }
+
     setPage(navigation.target)
   }
 
@@ -154,7 +186,7 @@ function App() {
       <ScreenplayConvertPage
         session={conversionSession}
         onBack={backToWorkspace}
-        onPreview={() => setPage('preview')}
+        onPreview={() => openPreviewPage()}
         onResume={resumeConversion}
         onRetry={retryConversion}
         backLabel="返回工作台"
@@ -168,8 +200,24 @@ function App() {
     return (
       <ScreenplayPreviewPage
         session={conversionSession}
+        selectedSceneKey={previewSelectedSceneKey ?? selectedSceneKey}
+        activePreviewTab={activePreviewTab}
+        readingScrollByKey={previewReadingScrollByKey}
+        polishSceneStatusByKey={polishSceneStatusByKey}
+        onSelectScene={(sceneKey) => {
+          setPreviewSelectedSceneKey(sceneKey)
+          setSelectedSceneKey(sceneKey)
+        }}
+        onChangePreviewTab={setActivePreviewTab}
+        onRecordReadingScroll={(key, scrollTop) => {
+          setPreviewReadingScrollByKey((current) => ({
+            ...current,
+            [key]: scrollTop,
+          }))
+        }}
         onBackToConvert={openConvertPage}
         onPolishScene={(sceneKey) => {
+          setPreviewSelectedSceneKey(sceneKey)
           setSelectedSceneKey(sceneKey)
           setPage('polish')
         }}
@@ -185,9 +233,13 @@ function App() {
         session={conversionSession}
         selectedSceneKey={selectedSceneKey}
         draftsBySceneKey={polishDraftsBySceneKey}
+        sceneStatusByKey={polishSceneStatusByKey}
         onUpdateDraft={updatePolishDraft}
-        onSelectScene={setSelectedSceneKey}
-        onBackToPreview={() => setPage('preview')}
+        onSelectScene={(sceneKey) => {
+          setSelectedSceneKey(sceneKey)
+          setPreviewSelectedSceneKey(sceneKey)
+        }}
+        onBackToPreview={() => openPreviewPage()}
         flowNavigation={flowNavigation}
         onNavigateStep={handleNavigateStep}
       />
@@ -216,11 +268,17 @@ function App() {
         onUseNovel={(nextContext) => {
           setConvertContext(nextContext)
           setSelectedSceneKey(undefined)
+          setPreviewSelectedSceneKey(undefined)
+          setActivePreviewTab('script')
+          setPreviewReadingScrollByKey({})
           setPage('import')
         }}
         onOpenHistoryConversion={(nextContext, targetPage) => {
           setConvertContext(nextContext)
           setSelectedSceneKey(undefined)
+          setPreviewSelectedSceneKey(undefined)
+          setActivePreviewTab('script')
+          setPreviewReadingScrollByKey({})
           setPage(targetPage)
         }}
         flowNavigation={flowNavigation}
@@ -234,6 +292,9 @@ function App() {
       onStartConvert={(nextContext) => {
         setConvertContext(nextContext)
         setSelectedSceneKey(undefined)
+        setPreviewSelectedSceneKey(undefined)
+        setActivePreviewTab('script')
+        setPreviewReadingScrollByKey({})
         setPage('convert')
       }}
       onTitleUpdated={(nextContext) => {

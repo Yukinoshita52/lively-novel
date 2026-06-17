@@ -20,6 +20,7 @@ import {
   resetPolishDraft,
   updatePolishSceneYaml,
   type PolishDraft,
+  type PolishSceneStatus,
 } from './screenplayPolish'
 import PolishRenderedPreview from './PolishRenderedPreview'
 import PolishScenePicker from './PolishScenePicker'
@@ -31,6 +32,7 @@ type ScreenplayPolishPageProps = {
   session: ConversionSessionState
   selectedSceneKey?: string
   draftsBySceneKey: Record<string, PolishDraft>
+  sceneStatusByKey?: Record<string, PolishSceneStatus>
   onUpdateDraft: (sceneKey: string, draft: PolishDraft) => void
   onSelectScene: (sceneKey: string) => void
   onBackToPreview: () => void
@@ -42,6 +44,7 @@ function ScreenplayPolishPage({
   session,
   selectedSceneKey,
   draftsBySceneKey,
+  sceneStatusByKey = {},
   onUpdateDraft,
   onSelectScene,
   onBackToPreview,
@@ -58,6 +61,7 @@ function ScreenplayPolishPage({
     [selectedSceneKey, session.generatedScenes],
   )
   const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(session.generatedScenes), [session.generatedScenes])
+  const currentSceneStatus = scene ? sceneStatusByKey[scene.key] : undefined
   const draft = useMemo(() => {
     if (!scene) {
       return undefined
@@ -177,14 +181,17 @@ function ScreenplayPolishPage({
           <PolishScenePicker
             scenes={sceneOutlineItems}
             selectedScene={scene}
+            sceneStatusByKey={sceneStatusByKey}
             expanded={scenePickerExpanded}
             previousKey={adjacentSceneKeys.previousKey}
             nextKey={adjacentSceneKeys.nextKey}
             onToggleExpanded={() => setScenePickerExpanded((current) => !current)}
             onSelectScene={onSelectScene}
           />
-          {scene.warnings.length > 0 ? (
+          {scene.warnings.length > 0 || currentSceneStatus?.changed || currentSceneStatus?.unsaved ? (
             <div className="polish-warning-panel">
+              {currentSceneStatus?.changed ? <div className="scene-outline-state">已改</div> : null}
+              {currentSceneStatus?.unsaved ? <div className="scene-outline-state unsaved">未存</div> : null}
               {scene.warnings.map((warning) => (
                 <div className={`scene-warning-row severity-${warning.severity}`} key={warning.key}>
                   <Text className="scene-warning-title">{warning.title}</Text>

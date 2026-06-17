@@ -230,6 +230,10 @@ export function buildGenerationQualityWarnings(scenes: GeneratedSceneSummary[]):
   return buildSceneOutlineItems(scenes).flatMap((scene) => scene.warnings)
 }
 
+export function buildPreviewScrollKey(sceneKey: string, activeTab: PreviewTabKey) {
+  return `${sceneKey}:${activeTab}`
+}
+
 export function buildSceneTableRows(scenes: GeneratedSceneSummary[]): SceneTableRow[] {
   return buildSceneOutlineItems(scenes).map((scene) => ({
     key: scene.key,
