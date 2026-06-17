@@ -1,14 +1,6 @@
-import type { ChapterPreview, NovelListItem, ScreenplayConvertContext } from '../../types/novel'
+import type { ChapterPreview, ScreenplayConvertContext } from '../../types/novel'
 
 export interface ImportEntryAction {
-  label: string
-  enabled: boolean
-}
-
-export type HistoryConversionActionKey = 'use' | 'resume' | 'preview' | 'export'
-
-export interface HistoryConversionAction {
-  key: HistoryConversionActionKey
   label: string
   enabled: boolean
 }
@@ -39,11 +31,6 @@ export interface ImportResultSnapshot {
   chapters: ChapterPreview[]
 }
 
-export interface LatestConversionStatusSnapshot {
-  status?: string | null
-  updatedAt?: string | null
-}
-
 const SCREENPLAY_TYPE_OPTIONS: Array<Omit<ScreenplayTypeCard, 'active'>> = [
   { code: 'ANIME', name: '动画剧本', badge: 'ANIME', description: 'TV单集 ~20-24min', enabled: true },
   { code: 'FILM', name: '影视剧本', badge: 'FILM', description: '长片 ~90-120min', enabled: false },
@@ -62,58 +49,11 @@ export function buildImportEntryActions(canStartConvert: boolean): ImportEntryAc
   }
 }
 
-export function buildHistoryConversionActions(item: NovelListItem): HistoryConversionAction[] {
-  const actions: HistoryConversionAction[] = [
-    {
-      key: 'use',
-      label: '使用这本',
-      enabled: true,
-    },
-  ]
-
-  if (!item.latestConversionId) {
-    return actions
-  }
-
-  if (item.latestConversionStatus === 'COMPLETED') {
-    actions.push(
-      {
-        key: 'preview',
-        label: '查看剧本',
-        enabled: true,
-      },
-      {
-        key: 'export',
-        label: '导出 YAML',
-        enabled: true,
-      },
-    )
-    return actions
-  }
-
-  if (item.latestConversionStatus === 'FAILED' || item.latestConversionStatus === 'RUNNING') {
-    actions.push({
-      key: 'resume',
-      label: '继续转换',
-      enabled: true,
-    })
-  }
-
-  return actions
-}
-
 export function buildScreenplayTypeCards(selectedType: string): ScreenplayTypeCard[] {
   return SCREENPLAY_TYPE_OPTIONS.map((type) => ({
     ...type,
     active: type.code === selectedType,
   }))
-}
-
-export function selectHistoryNovel(state: ImportSelectionState, novelId: string): ImportSelectionState {
-  return {
-    ...state,
-    selectedNovelId: novelId,
-  }
 }
 
 export function selectUploadedNovel(state: ImportSelectionState): ImportSelectionState {
@@ -142,21 +82,4 @@ export function buildImportResultFromConvertContext(
 export function resolveEditableTitle(inputTitle: string, fallbackTitle: string) {
   const trimmedTitle = inputTitle.trim()
   return trimmedTitle || fallbackTitle
-}
-
-export function buildLatestConversionStatusLabel(conversion: LatestConversionStatusSnapshot | null | undefined) {
-  if (!conversion?.status) {
-    return '未转换'
-  }
-
-  switch (conversion.status) {
-    case 'RUNNING':
-      return '转换中'
-    case 'FAILED':
-      return '转换失败'
-    case 'COMPLETED':
-      return '已完成'
-    default:
-      return '状态未知'
-  }
 }

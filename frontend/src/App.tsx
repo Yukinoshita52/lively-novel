@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { message as antdMessage } from 'antd'
+import HistoryWorkspacePage from './pages/workspace/HistoryWorkspacePage'
 import ImportPage from './pages/import/ImportPage'
 import ScreenplayConvertPage from './pages/convert/ScreenplayConvertPage'
 import ScreenplayExportPage from './pages/export/ScreenplayExportPage'
@@ -26,10 +27,11 @@ import './pages/preview/preview.css'
 import './components/prototype/prototype.css'
 import './pages/polish/polish.css'
 import './pages/export/export.css'
+import './pages/workspace/workspace.css'
 import './styles/responsive.css'
 
 function App() {
-  const [page, setPage] = useState<AppPageKey>('import')
+  const [page, setPage] = useState<AppPageKey>('workspace')
   const [convertContext, setConvertContext] = useState<ScreenplayConvertContext | null>(null)
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const [polishDraftsBySceneKey, setPolishDraftsBySceneKey] = useState<Record<string, PolishDraft>>({})
@@ -52,6 +54,12 @@ function App() {
 
   function backToImport() {
     setPage('import')
+    setSelectedSceneKey(undefined)
+    setPolishDraftsBySceneKey({})
+  }
+
+  function backToWorkspace() {
+    setPage('workspace')
     setSelectedSceneKey(undefined)
     setPolishDraftsBySceneKey({})
   }
@@ -123,6 +131,11 @@ function App() {
       return
     }
 
+    if (step === 'workspace') {
+      backToWorkspace()
+      return
+    }
+
     if (step === 'polish' && !selectedSceneKey && conversionSession?.generatedScenes[0]) {
       openPolishPage()
       return
@@ -140,10 +153,11 @@ function App() {
     return (
       <ScreenplayConvertPage
         session={conversionSession}
-        onBack={backToImport}
+        onBack={backToWorkspace}
         onPreview={() => setPage('preview')}
         onResume={resumeConversion}
         onRetry={retryConversion}
+        backLabel="返回工作台"
         flowNavigation={flowNavigation}
         onNavigateStep={handleNavigateStep}
       />
@@ -191,17 +205,32 @@ function App() {
     )
   }
 
+  if (page === 'workspace') {
+    return (
+      <HistoryWorkspacePage
+        onImportNew={backToImport}
+        onUseNovel={(nextContext) => {
+          setConvertContext(nextContext)
+          setSelectedSceneKey(undefined)
+          setPage('import')
+        }}
+        onOpenHistoryConversion={(nextContext, targetPage) => {
+          setConvertContext(nextContext)
+          setSelectedSceneKey(undefined)
+          setPage(targetPage)
+        }}
+        flowNavigation={flowNavigation}
+        onNavigateStep={handleNavigateStep}
+      />
+    )
+  }
+
   return (
     <ImportPage
       onStartConvert={(nextContext) => {
         setConvertContext(nextContext)
         setSelectedSceneKey(undefined)
         setPage('convert')
-      }}
-      onOpenHistoryConversion={(nextContext, targetPage) => {
-        setConvertContext(nextContext)
-        setSelectedSceneKey(undefined)
-        setPage(targetPage)
       }}
       onTitleUpdated={(nextContext) => {
         setConvertContext((current) => (

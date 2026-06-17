@@ -1,6 +1,6 @@
 import type { ScreenplayConvertContext } from '../types/novel'
 
-export type AppPageKey = 'import' | 'convert' | 'preview' | 'polish' | 'export'
+export type AppPageKey = 'workspace' | 'import' | 'convert' | 'preview' | 'polish' | 'export'
 
 export interface FlowStepNavigationState {
   hasGeneratedScenes: boolean
@@ -22,7 +22,7 @@ export interface AppFlowState {
 
 export function createInitialAppFlowState(): AppFlowState {
   return {
-    page: 'import',
+    page: 'workspace',
     convertContext: null,
   }
 }
@@ -153,6 +153,7 @@ export function resolveFlowStepNavigation(
   const canExport = hasGeneratedScenes && navigationState.completed
 
   return {
+    workspace: { clickable: true, enabled: true, target: 'workspace' },
     import: { clickable: true, enabled: true, target: 'import' },
     convert: {
       clickable: true,
