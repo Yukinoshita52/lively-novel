@@ -13,15 +13,16 @@ function assert(condition: boolean, message: string): asserts condition {
 }
 
 const importSteps = buildFlowSteps('import')
-assert(importSteps.length === 5, '流程条应包含导入、转换、预览、打磨、导出五个步骤')
-assert(importSteps[0].active, '导入页应高亮导入步骤')
-assert(importSteps[0].label === '导入', '导入步骤文案应简洁')
+assert(importSteps.length === 6, '流程条应包含作品、导入、转换、预览、打磨、导出六个步骤')
+assert(importSteps[1].active, '导入页应高亮导入步骤')
+assert(importSteps[1].label === '导入', '导入步骤文案应简洁')
 assert(importSteps.every((step) => step.number === ''), '流程条不应再显示步骤数字')
 
 const convertSteps = buildFlowSteps('convert')
 assert(convertSteps[0].done, '转换页应将导入步骤标记为已完成')
-assert(convertSteps[1].active, '转换页应高亮转换步骤')
-assert(!convertSteps[2].done, '转换页不应提前标记预览完成')
+assert(convertSteps[1].done, '转换页应将导入步骤标记为已完成')
+assert(convertSteps[2].active, '转换页应高亮转换步骤')
+assert(!convertSteps[3].done, '转换页不应提前标记预览完成')
 
 const runningPhases = buildPipelinePhases({
   completed: false,
@@ -29,6 +30,7 @@ const runningPhases = buildPipelinePhases({
   finishedSceneCount: 2,
   totalSceneCount: 5,
 })
+assert(runningPhases.length === 2, '转换页流水线应只保留章节切场和剧本生成两阶段')
 assert(runningPhases[0].status === 'done', '已有切场总数时全局分析应显示完成')
 assert(runningPhases[0].title === '章节切场', '第一阶段应展示当前真实流程：章节切场')
 assert(runningPhases[0].description === '读取章节 · 拆分场景单元', '切场阶段描述应匹配当前后端流程')
@@ -36,9 +38,6 @@ assert(runningPhases[1].status === 'active', '逐场生成中应显示 active')
 assert(runningPhases[1].title === '剧本生成', '第二阶段应展示当前真实流程：剧本生成')
 assert(runningPhases[1].description === '逐场生成 YAML · 更新全局状态', '生成阶段描述应包含 YAML 与滚动全局状态')
 assert(runningPhases[1].progress === 40, '逐场生成进度应按已完成场数计算')
-assert(runningPhases[2].status === 'idle', '未完成前组装落库应保持等待')
-assert(runningPhases[2].title === '结果整理', '第三阶段应展示结果整理')
-assert(runningPhases[2].description === '持久化场景 · 准备预览导出', '结果整理描述应贴合当前功能')
 
 const completedPhases = buildPipelinePhases({
   completed: true,
@@ -46,6 +45,7 @@ const completedPhases = buildPipelinePhases({
   finishedSceneCount: 5,
   totalSceneCount: 5,
 })
+assert(completedPhases.length === 2, '转换完成后仍应只展示两阶段流水线')
 assert(completedPhases.every((phase) => phase.status === 'done'), '转换完成后所有阶段应显示完成')
 
 const failedPhases = buildPipelinePhases({
