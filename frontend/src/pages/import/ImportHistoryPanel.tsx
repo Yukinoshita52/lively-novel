@@ -1,6 +1,7 @@
 import { Button, Card, Typography } from 'antd'
 import type { NovelListItem } from '../../types/novel'
 import { formatHistoryTime, formatWordCount } from './importFormat'
+import { buildLatestConversionStatusLabel } from './importPageModel'
 
 const { Text, Title } = Typography
 
@@ -52,6 +53,10 @@ function ImportHistoryPanel({
             <div className="history-list">
               {items.map((item) => {
                 const selected = selectedNovelId === item.novelId
+                const latestConversionLabel = buildLatestConversionStatusLabel({
+                  status: item.latestConversionStatus,
+                  updatedAt: item.latestConversionUpdatedAt,
+                })
 
                 return (
                   <div className={`history-row${selected ? ' selected' : ''}`} key={item.novelId}>
@@ -59,6 +64,16 @@ function ImportHistoryPanel({
                       <Title level={5}>{item.title}</Title>
                       <Text>{item.totalChapters} 章 · {formatWordCount(item.totalWordCount)}</Text>
                       <Text>{formatHistoryTime(item.createdAt)}</Text>
+                      <div className="history-status-line">
+                        <Text className={`history-status status-${item.latestConversionStatus ?? 'NONE'}`}>
+                          {latestConversionLabel}
+                        </Text>
+                        {item.latestConversionUpdatedAt ? (
+                          <Text className="history-status-time">
+                            {formatHistoryTime(item.latestConversionUpdatedAt)}
+                          </Text>
+                        ) : null}
+                      </div>
                     </div>
                     <Button type={selected ? 'primary' : 'default'} onClick={() => onUseHistory(item.novelId)}>
                       {selected ? '已选择' : '使用这本'}

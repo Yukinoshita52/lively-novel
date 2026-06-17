@@ -31,6 +31,11 @@ export interface ImportResultSnapshot {
   chapters: ChapterPreview[]
 }
 
+export interface LatestConversionStatusSnapshot {
+  status?: string | null
+  updatedAt?: string | null
+}
+
 const SCREENPLAY_TYPE_OPTIONS: Array<Omit<ScreenplayTypeCard, 'active'>> = [
   { code: 'ANIME', name: '动画剧本', badge: 'ANIME', description: 'TV单集 ~20-24min', enabled: true },
   { code: 'FILM', name: '影视剧本', badge: 'FILM', description: '长片 ~90-120min', enabled: false },
@@ -89,4 +94,21 @@ export function buildImportResultFromConvertContext(
 export function resolveEditableTitle(inputTitle: string, fallbackTitle: string) {
   const trimmedTitle = inputTitle.trim()
   return trimmedTitle || fallbackTitle
+}
+
+export function buildLatestConversionStatusLabel(conversion: LatestConversionStatusSnapshot | null | undefined) {
+  if (!conversion?.status) {
+    return '未转换'
+  }
+
+  switch (conversion.status) {
+    case 'RUNNING':
+      return '转换中'
+    case 'FAILED':
+      return '转换失败'
+    case 'COMPLETED':
+      return '已完成'
+    default:
+      return '状态未知'
+  }
 }

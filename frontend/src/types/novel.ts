@@ -40,6 +40,11 @@ export interface NovelListItem {
   totalChapters: number
   totalWordCount: number
   createdAt: string | null
+  latestConversionId?: string | null
+  latestConversionType?: string | null
+  latestConversionStatus?: 'RUNNING' | 'FAILED' | 'COMPLETED' | string | null
+  latestConversionUpdatedAt?: string | null
+  latestConversionErrorMessage?: string | null
 }
 
 export interface NovelListResult {
