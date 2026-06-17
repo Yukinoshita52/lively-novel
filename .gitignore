@@ -78,6 +78,7 @@ data/*
 .factorypath
 *.sublime-workspace
 *.sublime-project
+.codex/
 
 # ===== OS =====
 .DS_Store
@@ -91,6 +92,7 @@ desktop.ini
 
 # ===== Project temp =====
 temp/
+docs/todo-manager/
 
 # ===== Brainstorming / 设计草稿工作区（不追踪）=====
 docs/superpowers/
