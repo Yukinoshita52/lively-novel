@@ -2,10 +2,15 @@ package com.livelynovel.model.dto;
 
 import com.livelynovel.model.enums.VisualizationMethodEnum;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * 内心戏视觉化 DTO。
  * 对应 yaml-schema.md §5.3 scenes.visualizedInnerThoughts 字段。
  */
+@Getter
+@Setter
 public class VisualizedInnerThoughtDTO {
     private String original;
     private VisualizationMethodEnum method;
@@ -18,11 +23,4 @@ public class VisualizedInnerThoughtDTO {
         this.method = method;
         this.result = result;
     }
-
-    public String getOriginal() { return original; }
-    public void setOriginal(String original) { this.original = original; }
-    public VisualizationMethodEnum getMethod() { return method; }
-    public void setMethod(VisualizationMethodEnum method) { this.method = method; }
-    public String getResult() { return result; }
-    public void setResult(String result) { this.result = result; }
 }

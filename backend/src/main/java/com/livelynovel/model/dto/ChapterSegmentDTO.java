@@ -1,26 +1,15 @@
 package com.livelynovel.model.dto;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * 章节编号片段 DTO。
  */
+@Getter
+@Setter
 public class ChapterSegmentDTO {
 
     private int segmentIndex;
     private String text;
-
-    public int getSegmentIndex() {
-        return segmentIndex;
-    }
-
-    public void setSegmentIndex(int segmentIndex) {
-        this.segmentIndex = segmentIndex;
-    }
-
-    public String getText() {
-        return text;
-    }
-
-    public void setText(String text) {
-        this.text = text;
-    }
 }
