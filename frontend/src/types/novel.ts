@@ -60,6 +60,8 @@ export interface ScreenplayConvertContext {
   screenplayType: string
   restoredConversionId?: string
   restoredConversionStatus?: 'RUNNING' | 'FAILED' | 'COMPLETED' | string
+  restoredConversionUpdatedAt?: string
+  restoredConversionErrorMessage?: string
   restoredConversionMode?: 'static' | 'stream'
   restoredGeneratedScenes?: GeneratedSceneSummary[]
 }
@@ -88,6 +90,7 @@ export interface ScreenplayConversionDetail {
   novelId: string
   screenplayType: string
   status: 'RUNNING' | 'COMPLETED' | 'FAILED' | string
+  updatedAt?: string | null
   errorMessage?: string | null
   scenes: ScreenplayPersistedScene[]
 }

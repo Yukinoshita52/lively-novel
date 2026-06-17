@@ -61,6 +61,13 @@ export async function getNovelList() {
   return unwrapResponse<NovelListResult>(response)
 }
 
+export async function getLatestScreenplayConversion(novelId: string, screenplayType: string) {
+  const response = await fetch(
+    `/api/screenplay/conversions/latest?novelId=${encodeURIComponent(novelId)}&screenplayType=${encodeURIComponent(screenplayType)}`,
+  )
+  return unwrapResponse<ScreenplayConversionDetail>(response)
+}
+
 export async function getScreenplayConversionDetail(conversionId: string) {
   const requestKey = conversionId.trim()
   const inFlightRequest = conversionDetailRequests.get(requestKey)

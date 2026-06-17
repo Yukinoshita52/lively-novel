@@ -70,27 +70,27 @@ class ScreenplayControllerTest {
     }
 
     @Test
-    void returnsLatestCompletedConversionForNovelAndType() {
+    void returnsLatestConversionSessionForNovelAndType() {
         ScreenplayConversionDetailDTO detail = new ScreenplayConversionDetailDTO();
-        detail.setConversionId("cv-completed");
-        detail.setStatus("COMPLETED");
-        when(screenplayService.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME))
+        detail.setConversionId("cv-failed");
+        detail.setStatus("FAILED");
+        when(screenplayService.getLatestConversionSession("nv-1234abcd", ScreenplayTypeEnum.ANIME))
                 .thenReturn(detail);
 
         Result<ScreenplayConversionDetailDTO> response =
-                controller.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME);
+                controller.getLatestConversionSession("nv-1234abcd", ScreenplayTypeEnum.ANIME);
 
         assertThat(response.getCode()).isEqualTo(0);
-        assertThat(response.getData().getConversionId()).isEqualTo("cv-completed");
+        assertThat(response.getData().getConversionId()).isEqualTo("cv-failed");
     }
 
     @Test
-    void returnsNotFoundWhenLatestCompletedConversionMissing() {
-        when(screenplayService.getLatestCompletedConversion("nv-missing", ScreenplayTypeEnum.ANIME))
+    void returnsNotFoundWhenLatestConversionSessionMissing() {
+        when(screenplayService.getLatestConversionSession("nv-missing", ScreenplayTypeEnum.ANIME))
                 .thenReturn(null);
 
         Result<ScreenplayConversionDetailDTO> response =
-                controller.getLatestCompletedConversion("nv-missing", ScreenplayTypeEnum.ANIME);
+                controller.getLatestConversionSession("nv-missing", ScreenplayTypeEnum.ANIME);
 
         assertThat(response.getCode()).isEqualTo(40401);
         assertThat(response.getData()).isNull();
