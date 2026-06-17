@@ -58,6 +58,10 @@ export interface ScreenplayConvertContext {
   totalChapters: number
   chapters: ChapterPreview[]
   screenplayType: string
+  restoredConversionId?: string
+  restoredConversionStatus?: 'RUNNING' | 'FAILED' | 'COMPLETED' | string
+  restoredConversionMode?: 'static' | 'stream'
+  restoredGeneratedScenes?: GeneratedSceneSummary[]
 }
 
 export interface ConvertEventItem {

@@ -12,6 +12,7 @@ import {
 import {
   getNovelChapters,
   getNovelList,
+  getScreenplayConversionDetail,
   updateNovelTitle,
   uploadNovel,
 } from '../../services/novel'
@@ -38,11 +39,14 @@ import type {
   NovelListItem,
   ScreenplayConvertContext,
 } from '../../types/novel'
+import type { HistoryConversionActionKey } from './importPageModel'
+import { mapPersistedScenesToGeneratedScenes } from '../preview/screenplayPreview'
 
 const { Text } = Typography
 
 type ImportPageProps = {
   onStartConvert: (context: ScreenplayConvertContext) => void
+  onOpenHistoryConversion: (context: ScreenplayConvertContext, targetPage: 'convert' | 'preview' | 'export') => void
   onTitleUpdated?: (context: ScreenplayConvertContext) => void
   restoreContext?: ScreenplayConvertContext | null
   flowNavigation?: FlowStepNavigation
@@ -66,6 +70,7 @@ function toDisplayResult(result: NovelChaptersResult): DisplayResult {
 
 function ImportPage({
   onStartConvert,
+  onOpenHistoryConversion,
   onTitleUpdated,
   restoreContext,
   flowNavigation,
@@ -145,6 +150,44 @@ function ImportPage({
       setEditableTitle(chaptersResult.title)
     } catch (error) {
       setSelectedNovelId(null)
+      setErrorMessage(error instanceof Error ? error.message : '加载历史小说失败')
+    }
+  }
+
+  async function handleHistoryConversionAction(item: NovelListItem, action: HistoryConversionActionKey) {
+    setErrorMessage(null)
+
+    try {
+      const chaptersResult = await getNovelChapters(item.novelId)
+      const restoredGeneratedScenes = item.latestConversionId && item.latestConversionStatus === 'COMPLETED'
+        ? mapPersistedScenesToGeneratedScenes((await getScreenplayConversionDetail(item.latestConversionId)).scenes)
+        : undefined
+      const context: ScreenplayConvertContext = {
+        novelId: chaptersResult.novelId,
+        title: chaptersResult.title,
+        totalChapters: chaptersResult.totalChapters,
+        chapters: chaptersResult.chapters,
+        screenplayType: item.latestConversionType ?? selectedType,
+        restoredConversionId: item.latestConversionId ?? undefined,
+        restoredConversionStatus: item.latestConversionStatus ?? undefined,
+        restoredConversionMode: action === 'resume' ? 'stream' : 'static',
+        restoredGeneratedScenes,
+      }
+
+      if (action === 'resume') {
+        onOpenHistoryConversion(context, 'convert')
+        return
+      }
+
+      if (action === 'preview') {
+        onOpenHistoryConversion(context, 'preview')
+        return
+      }
+
+      if (action === 'export') {
+        onOpenHistoryConversion(context, 'export')
+      }
+    } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '加载历史小说失败')
     }
   }
@@ -260,6 +303,7 @@ function ImportPage({
             onToggle={() => (historyVisible ? setHistoryVisible(false) : void loadHistory())}
             onRefresh={() => void loadHistory(true)}
             onUseHistory={(novelId) => void handleUseHistory(novelId)}
+            onHistoryConversionAction={(item, action) => void handleHistoryConversionAction(item, action)}
           />
 
           {chapterResult ? (

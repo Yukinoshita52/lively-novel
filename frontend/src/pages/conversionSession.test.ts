@@ -1,5 +1,7 @@
 import {
+  createConversionSessionStateFromContext,
   createInitialConversionSessionState,
+  isRestoredCompletedConversionContext,
   reduceConversionSessionEvent,
   resolvePreviewEntryState,
   resolveResumeEntryState,
@@ -83,3 +85,35 @@ failedState = reduceConversionSessionEvent(failedState, 'failed', {
 assert(resolveResumeEntryState(failedState).enabled, '失败且后台已停止时应允许继续转换')
 assert(resolveResumeEntryState(failedState).label === '继续转换', '继续入口文案应明确不是重新上传')
 assert(failedState.convertError?.includes('第 4 章第 11 场生成失败') === true, '失败原因应进入可见错误详情')
+
+const restoredCompletedContext: ScreenplayConvertContext = {
+  ...context,
+  restoredConversionId: 'cv-completed',
+  restoredConversionStatus: 'COMPLETED',
+  restoredGeneratedScenes: [
+    {
+      chapterIndex: 1,
+      sceneIndexInChapter: 1,
+      title: '第一场',
+      scene,
+    },
+  ],
+}
+assert(isRestoredCompletedConversionContext(restoredCompletedContext), '带已完成 conversionId 的历史上下文应识别为已恢复完成')
+
+const restoredCompletedState = createConversionSessionStateFromContext(restoredCompletedContext)
+assert(restoredCompletedState.conversionId === 'cv-completed', '已完成历史上下文应恢复 conversionId')
+assert(restoredCompletedState.completed, '已完成历史上下文应直接进入完成态')
+assert(!restoredCompletedState.running, '已完成历史上下文不应重新启动转换')
+assert(!restoredCompletedState.connecting, '已完成历史上下文不应连接 SSE')
+assert(resolvePreviewEntryState(restoredCompletedState).enabled, '已完成历史上下文应允许进入预览')
+assert(restoredCompletedState.generatedScenes.length === 1, '已完成历史上下文应恢复已落库场景供打磨页使用')
+assert(restoredCompletedState.events[0]?.message === '已载入历史转换：共 1 场。', '已完成历史上下文应展示历史载入事件')
+
+const streamRestoredCompletedState = createConversionSessionStateFromContext({
+  ...restoredCompletedContext,
+  restoredConversionMode: 'stream',
+})
+assert(streamRestoredCompletedState.running, '已完成历史上下文进入转换页时应启动 SSE 历史重放')
+assert(streamRestoredCompletedState.connecting, '已完成历史上下文进入转换页时应连接 SSE')
+assert(streamRestoredCompletedState.events.length === 0, 'SSE 历史重放应等待后端返回真实事件流')

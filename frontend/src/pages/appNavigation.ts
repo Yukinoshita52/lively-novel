@@ -35,6 +35,19 @@ export function enterConvertPage(state: AppFlowState, context: ScreenplayConvert
   }
 }
 
+export function enterConvertPageForHistoryReplay(state: AppFlowState): AppFlowState {
+  return {
+    ...state,
+    page: 'convert',
+    convertContext: state.convertContext
+      ? {
+        ...state.convertContext,
+        restoredConversionMode: 'stream',
+      }
+      : state.convertContext,
+  }
+}
+
 export function enterPreviewPage(state: AppFlowState): AppFlowState {
   return {
     ...state,
@@ -62,6 +75,17 @@ export function enterPolishPage(state: AppFlowState, selectedSceneKey: string): 
     ...state,
     page: 'polish',
     selectedSceneKey,
+  }
+}
+
+export function enterPolishPageWithFallback(
+  state: AppFlowState,
+  fallbackSceneKey?: string,
+): AppFlowState {
+  return {
+    ...state,
+    page: 'polish',
+    selectedSceneKey: state.selectedSceneKey ?? fallbackSceneKey,
   }
 }
 

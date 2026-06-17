@@ -7,10 +7,16 @@ import ScreenplayPolishPage from './pages/polish/ScreenplayPolishPage'
 import ScreenplayPreviewPage from './pages/preview/ScreenplayPreviewPage'
 import type { AppPageKey } from './pages/appNavigation'
 import { useScreenplayConversionSession } from './pages/conversionSession'
-import { resolveFlowStepNavigation, resumeConvertPage } from './pages/appNavigation'
+import {
+  enterConvertPageForHistoryReplay,
+  enterPolishPageWithFallback,
+  resolveFlowStepNavigation,
+  resumeConvertPage,
+} from './pages/appNavigation'
 import type { PolishDraft } from './pages/polish/screenplayPolish'
 import type { ScreenplayConvertContext } from './types/novel'
 import type { FlowStepKey } from './components/prototype/prototypeFlow'
+import { getSceneKey } from './pages/preview/screenplayPreview'
 import './styles/app.css'
 import './pages/import/import.css'
 import './pages/import/importType.css'
@@ -27,6 +33,7 @@ function App() {
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const [polishDraftsBySceneKey, setPolishDraftsBySceneKey] = useState<Record<string, PolishDraft>>({})
   const conversionSession = useScreenplayConversionSession(convertContext)
+  const hasSceneAccess = Boolean(conversionSession?.generatedScenes.length)
   const flowNavigation = useMemo(
     () => resolveFlowStepNavigation(
       {
@@ -35,11 +42,11 @@ function App() {
         selectedSceneKey,
       },
       {
-        hasGeneratedScenes: Boolean(conversionSession?.generatedScenes.length),
+        hasGeneratedScenes: hasSceneAccess,
         completed: Boolean(conversionSession?.completed),
       },
     ),
-    [conversionSession?.completed, conversionSession?.generatedScenes.length, convertContext, page, selectedSceneKey],
+    [conversionSession?.completed, convertContext, hasSceneAccess, page, selectedSceneKey],
   )
 
   function backToImport() {
@@ -65,6 +72,30 @@ function App() {
     setPage(nextState.page)
   }
 
+  function openConvertPage() {
+    const nextState = enterConvertPageForHistoryReplay({
+      page,
+      convertContext,
+      selectedSceneKey,
+    })
+    setConvertContext(nextState.convertContext)
+    setPage(nextState.page)
+  }
+
+  function openPolishPage() {
+    const firstScene = conversionSession?.generatedScenes[0]
+    const nextState = enterPolishPageWithFallback(
+      {
+        page,
+        convertContext,
+        selectedSceneKey,
+      },
+      firstScene ? getSceneKey(firstScene) : undefined,
+    )
+    setSelectedSceneKey(nextState.selectedSceneKey)
+    setPage(nextState.page)
+  }
+
   function handleNavigateStep(step: FlowStepKey) {
     const navigation = flowNavigation[step]
     if (!navigation.enabled) {
@@ -80,8 +111,13 @@ function App() {
     }
 
     if (step === 'polish' && !selectedSceneKey && conversionSession?.generatedScenes[0]) {
-      const firstScene = conversionSession.generatedScenes[0]
-      setSelectedSceneKey(`${firstScene.chapterIndex}-${firstScene.sceneIndexInChapter ?? firstScene.title}`)
+      openPolishPage()
+      return
+    }
+
+    if (step === 'convert') {
+      openConvertPage()
+      return
     }
 
     setPage(navigation.target)
@@ -104,7 +140,7 @@ function App() {
     return (
       <ScreenplayPreviewPage
         session={conversionSession}
-        onBackToConvert={() => setPage('convert')}
+        onBackToConvert={openConvertPage}
         onPolishScene={(sceneKey) => {
           setSelectedSceneKey(sceneKey)
           setPage('polish')
@@ -134,7 +170,7 @@ function App() {
     return (
       <ScreenplayExportPage
         session={conversionSession}
-        onBackToPolish={() => setPage('polish')}
+        onBackToPolish={openPolishPage}
         flowNavigation={flowNavigation}
         onNavigateStep={handleNavigateStep}
       />
@@ -145,7 +181,13 @@ function App() {
     <ImportPage
       onStartConvert={(nextContext) => {
         setConvertContext(nextContext)
+        setSelectedSceneKey(undefined)
         setPage('convert')
+      }}
+      onOpenHistoryConversion={(nextContext, targetPage) => {
+        setConvertContext(nextContext)
+        setSelectedSceneKey(undefined)
+        setPage(targetPage)
       }}
       onTitleUpdated={(nextContext) => {
         setConvertContext((current) => (

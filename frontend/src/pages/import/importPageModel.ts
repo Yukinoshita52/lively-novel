@@ -1,6 +1,14 @@
-import type { ChapterPreview, ScreenplayConvertContext } from '../../types/novel'
+import type { ChapterPreview, NovelListItem, ScreenplayConvertContext } from '../../types/novel'
 
 export interface ImportEntryAction {
+  label: string
+  enabled: boolean
+}
+
+export type HistoryConversionActionKey = 'use' | 'resume' | 'preview' | 'export'
+
+export interface HistoryConversionAction {
+  key: HistoryConversionActionKey
   label: string
   enabled: boolean
 }
@@ -52,6 +60,46 @@ export function buildImportEntryActions(canStartConvert: boolean): ImportEntryAc
     },
     secondary: [],
   }
+}
+
+export function buildHistoryConversionActions(item: NovelListItem): HistoryConversionAction[] {
+  const actions: HistoryConversionAction[] = [
+    {
+      key: 'use',
+      label: '使用这本',
+      enabled: true,
+    },
+  ]
+
+  if (!item.latestConversionId) {
+    return actions
+  }
+
+  if (item.latestConversionStatus === 'COMPLETED') {
+    actions.push(
+      {
+        key: 'preview',
+        label: '查看剧本',
+        enabled: true,
+      },
+      {
+        key: 'export',
+        label: '导出 YAML',
+        enabled: true,
+      },
+    )
+    return actions
+  }
+
+  if (item.latestConversionStatus === 'FAILED' || item.latestConversionStatus === 'RUNNING') {
+    actions.push({
+      key: 'resume',
+      label: '继续转换',
+      enabled: true,
+    })
+  }
+
+  return actions
 }
 
 export function buildScreenplayTypeCards(selectedType: string): ScreenplayTypeCard[] {

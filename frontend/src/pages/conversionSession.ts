@@ -41,6 +41,47 @@ export function createInitialConversionSessionState(context: ScreenplayConvertCo
   }
 }
 
+export function isRestoredCompletedConversionContext(context: ScreenplayConvertContext): boolean {
+  return Boolean(context.restoredConversionId) && context.restoredConversionStatus === 'COMPLETED'
+}
+
+export function isStaticRestoredCompletedConversionContext(context: ScreenplayConvertContext): boolean {
+  return isRestoredCompletedConversionContext(context) && context.restoredConversionMode !== 'stream'
+}
+
+export function createRestoredCompletedConversionSessionState(
+  context: ScreenplayConvertContext,
+): ConversionSessionState {
+  const restoredScenes = context.restoredGeneratedScenes ?? []
+
+  return {
+    context,
+    connecting: false,
+    running: false,
+    events: [
+      {
+        type: 'completed',
+        message: `已载入历史转换：共 ${restoredScenes.length} 场。`,
+      },
+    ],
+    generatedScenes: restoredScenes,
+    chapterSceneCounts: {},
+    completed: true,
+    conversionId: context.restoredConversionId,
+    convertError: null,
+  }
+}
+
+export function createConversionSessionStateFromContext(
+  context: ScreenplayConvertContext,
+): ConversionSessionState {
+  if (isStaticRestoredCompletedConversionContext(context)) {
+    return createRestoredCompletedConversionSessionState(context)
+  }
+
+  return createInitialConversionSessionState(context)
+}
+
 export function reduceConversionSessionEvent(
   state: ConversionSessionState,
   eventName: string,
@@ -74,7 +115,7 @@ export function reduceConversionSessionEvent(
 }
 
 export function resolvePreviewEntryState(state: ConversionSessionState): PreviewEntryState {
-  const enabled = Boolean(state.conversionId) && state.generatedScenes.length > 0
+  const enabled = Boolean(state.conversionId) && (state.generatedScenes.length > 0 || state.completed)
 
   return {
     enabled,
@@ -159,11 +200,15 @@ function markConnectionClosed(state: ConversionSessionState): ConversionSessionS
 
 export function useScreenplayConversionSession(context: ScreenplayConvertContext | null) {
   const [state, setState] = useState<ConversionSessionState | null>(() =>
-    context ? createInitialConversionSessionState(context) : null,
+    context ? createConversionSessionStateFromContext(context) : null,
   )
 
   useEffect(() => {
     if (!context) {
+      return undefined
+    }
+
+    if (isStaticRestoredCompletedConversionContext(context)) {
       return undefined
     }
 
@@ -265,7 +310,7 @@ export function useScreenplayConversionSession(context: ScreenplayConvertContext
   }
 
   if (!state || state.context !== context) {
-    return createInitialConversionSessionState(context)
+    return createConversionSessionStateFromContext(context)
   }
 
   return state
