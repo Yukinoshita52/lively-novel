@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import {
   Alert,
-  Button,
   Card,
   Typography,
 } from 'antd'
@@ -195,13 +194,14 @@ function ImportPage({
   return (
     <PrototypeFrame
       currentStep="import"
-      maxWidth={1400}
+      maxWidth={1280}
       flowNavigation={flowNavigation}
       onNavigateStep={onNavigateStep}
     >
       <PrototypeHero
         eyebrow="01 · 导入"
         title="把小说交给它"
+        meta="上传 TXT · 识别章节 · 生成剧本"
       />
 
       <main className="page-grid">
@@ -220,33 +220,31 @@ function ImportPage({
             />
           ) : null}
 
-          <div className="action-row">
-            <div>
+          <input
+            ref={fileInputRef}
+            className="file-input"
+            type="file"
+            accept=".txt,text/plain"
+            onChange={handleFileChange}
+          />
+          <button
+            className={`import-upload-zone${chapterResult ? ' has-result' : ''}`}
+            type="button"
+            onClick={handleUploadClick}
+            disabled={uploadLoading}
+          >
+            <span className="import-upload-icon" aria-hidden="true">
+              {uploadLoading ? <LoadingOutlined spin /> : <UploadOutlined />}
+            </span>
+            <span className="import-upload-copy">
               <Text className="status-copy">
                 {chapterResult
                   ? `已识别 ${chapterResult.totalChapters} 章 · ${formatWordCount(chapterResult.totalWordCount)}`
-                  : '尚未识别章节'}
+                  : '点击上传 TXT 小说'}
               </Text>
               {selectedFile ? <Text className="file-copy">已选择：{selectedFile.name}</Text> : null}
-            </div>
-            <div className="button-group">
-              <input
-                ref={fileInputRef}
-                className="file-input"
-                type="file"
-                accept=".txt,text/plain"
-                onChange={handleFileChange}
-              />
-              <Button
-                size="large"
-                icon={uploadLoading ? <LoadingOutlined spin /> : <UploadOutlined />}
-                onClick={handleUploadClick}
-                loading={uploadLoading}
-              >
-                上传 .txt
-              </Button>
-            </div>
-          </div>
+            </span>
+          </button>
 
           {errorMessage ? (
             <Alert

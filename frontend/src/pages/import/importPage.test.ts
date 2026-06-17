@@ -39,6 +39,7 @@ assert(screenplayTypes[0].code === 'ANIME', '动画剧本应是第一个类型')
 assert(screenplayTypes[0].badge === 'ANIME', '动画剧本应显示 ANIME 徽标')
 assert(screenplayTypes[0].description === 'TV单集 ~20-24min', '动画剧本应展示原型里的时长描述')
 assert(screenplayTypes[0].active, '当前选择 ANIME 时动画剧本卡应高亮')
+assert(screenplayTypes.filter((type) => type.enabled).length === 1, '导入页当前只有 ANIME 类型可选')
 assert(screenplayTypes[1].badge === 'FILM', '影视剧本应显示 FILM 徽标')
 assert(screenplayTypes[3].badge === 'SOON', '暂未开放类型应显示 SOON 徽标')
 

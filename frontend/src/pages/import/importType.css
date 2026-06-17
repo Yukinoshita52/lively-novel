@@ -121,6 +121,9 @@
 }
 
 .convert-button.ant-btn:disabled {
+  background: rgba(28, 24, 19, 0.12);
+  border-color: transparent;
+  color: rgba(28, 24, 19, 0.38);
   box-shadow: none;
   transform: none;
 }
@@ -128,6 +131,17 @@
 .secondary-button {
   border-radius: 18px;
   height: 52px;
+}
+
+.import-config-panel .ant-card-body {
+  display: grid;
+  gap: 18px;
+}
+
+.convert-action-panel {
+  border-top: 1px solid rgba(28, 24, 19, 0.12);
+  display: grid;
+  padding-top: 14px;
 }
 
 .prototype-inner-panel.ant-card {

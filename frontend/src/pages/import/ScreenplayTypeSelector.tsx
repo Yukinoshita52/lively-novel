@@ -20,7 +20,7 @@ function ScreenplayTypeSelector({
   return (
     <div className="side-column">
       <Card
-        className="prototype-panel"
+        className="prototype-panel import-config-panel"
         title={<PrototypePanelTitle code="TYPE" title="剧本类型" />}
         variant="borderless"
       >
@@ -43,17 +43,20 @@ function ScreenplayTypeSelector({
             </button>
           ))}
         </div>
+
+        <div className="convert-action-panel">
+          <Button
+            block
+            className="convert-button"
+            size="large"
+            type="primary"
+            disabled={!actions.primary.enabled}
+            onClick={onStartConvert}
+          >
+            {actions.primary.label}
+          </Button>
+        </div>
       </Card>
-      <Button
-        block
-        className="convert-button"
-        size="large"
-        type="primary"
-        disabled={!actions.primary.enabled}
-        onClick={onStartConvert}
-      >
-        {actions.primary.label}
-      </Button>
     </div>
   )
 }

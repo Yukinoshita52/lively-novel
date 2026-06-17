@@ -32,10 +32,15 @@ function HistoryWorkspacePage({
   flowNavigation,
   onNavigateStep,
 }: HistoryWorkspacePageProps) {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<NovelListItem[]>([])
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  async function fetchHistoryItems() {
+    const result = await getNovelList()
+    return result.novels
+  }
 
   async function loadHistory() {
     if (loading) {
@@ -45,8 +50,7 @@ function HistoryWorkspacePage({
     setLoading(true)
     setErrorMessage(null)
     try {
-      const result = await getNovelList()
-      setItems(result.novels)
+      setItems(await fetchHistoryItems())
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '历史加载失败')
     } finally {
@@ -55,9 +59,31 @@ function HistoryWorkspacePage({
   }
 
   useEffect(() => {
-    void loadHistory()
-    // 初次进入工作台时加载一次；刷新按钮负责后续重载。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let ignore = false
+
+    async function loadInitialHistory() {
+      try {
+        const novels = await fetchHistoryItems()
+        if (!ignore) {
+          setItems(novels)
+          setErrorMessage(null)
+        }
+      } catch (error) {
+        if (!ignore) {
+          setErrorMessage(error instanceof Error ? error.message : '历史加载失败')
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadInitialHistory()
+
+    return () => {
+      ignore = true
+    }
   }, [])
 
   async function buildBaseContext(item: NovelListItem): Promise<ScreenplayConvertContext> {
