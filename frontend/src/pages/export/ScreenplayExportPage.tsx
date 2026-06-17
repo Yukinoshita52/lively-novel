@@ -79,7 +79,7 @@ function ScreenplayExportPage({
   return (
     <PrototypeFrame
       currentStep="export"
-      maxWidth={1180}
+      maxWidth={1280}
       flowNavigation={flowNavigation}
       onNavigateStep={onNavigateStep}
     >
