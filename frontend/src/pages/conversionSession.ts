@@ -3,8 +3,10 @@ import type {
   ConvertEventItem,
   GeneratedSceneSummary,
   ScreenplayConvertContext,
+  ScreenplayConversionDetail,
 } from '../types/novel'
 import { resolveConvertEventUpdate } from './preview/convertEventUpdate.ts'
+import { mapPersistedScenesToGeneratedScenes } from './preview/screenplayPreview.ts'
 
 export interface ConversionSessionState {
   context: ScreenplayConvertContext
@@ -45,14 +47,25 @@ export function isRestoredCompletedConversionContext(context: ScreenplayConvertC
   return Boolean(context.restoredConversionId) && context.restoredConversionStatus === 'COMPLETED'
 }
 
+export function isRestoredConversionContext(context: ScreenplayConvertContext): boolean {
+  return Boolean(context.restoredConversionId)
+    && Boolean(context.restoredConversionStatus)
+    && context.restoredConversionMode !== 'stream'
+}
+
 export function isStaticRestoredCompletedConversionContext(context: ScreenplayConvertContext): boolean {
   return isRestoredCompletedConversionContext(context) && context.restoredConversionMode !== 'stream'
 }
 
-export function createRestoredCompletedConversionSessionState(
+export function createRestoredConversionSessionState(
   context: ScreenplayConvertContext,
 ): ConversionSessionState {
   const restoredScenes = context.restoredGeneratedScenes ?? []
+  const completed = context.restoredConversionStatus === 'COMPLETED'
+  const failed = context.restoredConversionStatus === 'FAILED'
+  const errorMessage = failed
+    ? context.restoredConversionErrorMessage ?? '转换中断，可继续转换；系统会跳过已完成部分。'
+    : null
 
   return {
     context,
@@ -66,17 +79,35 @@ export function createRestoredCompletedConversionSessionState(
     ],
     generatedScenes: restoredScenes,
     chapterSceneCounts: {},
-    completed: true,
+    completed,
     conversionId: context.restoredConversionId,
-    convertError: null,
+    convertError: errorMessage,
+  }
+}
+
+export const createRestoredCompletedConversionSessionState = createRestoredConversionSessionState
+
+export function createRestoredConversionContextFromDetail(
+  baseContext: ScreenplayConvertContext,
+  detail: ScreenplayConversionDetail,
+): ScreenplayConvertContext {
+  return {
+    ...baseContext,
+    screenplayType: detail.screenplayType,
+    restoredConversionId: detail.conversionId,
+    restoredConversionStatus: detail.status,
+    restoredConversionUpdatedAt: detail.updatedAt ?? undefined,
+    restoredConversionErrorMessage: detail.errorMessage ?? undefined,
+    restoredConversionMode: 'static',
+    restoredGeneratedScenes: mapPersistedScenesToGeneratedScenes(detail.scenes),
   }
 }
 
 export function createConversionSessionStateFromContext(
   context: ScreenplayConvertContext,
 ): ConversionSessionState {
-  if (isStaticRestoredCompletedConversionContext(context)) {
-    return createRestoredCompletedConversionSessionState(context)
+  if (isRestoredConversionContext(context)) {
+    return createRestoredConversionSessionState(context)
   }
 
   return createInitialConversionSessionState(context)
@@ -208,7 +239,7 @@ export function useScreenplayConversionSession(context: ScreenplayConvertContext
       return undefined
     }
 
-    if (isStaticRestoredCompletedConversionContext(context)) {
+    if (isRestoredConversionContext(context)) {
       return undefined
     }
 

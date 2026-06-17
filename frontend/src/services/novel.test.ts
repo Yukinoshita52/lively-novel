@@ -1,4 +1,5 @@
 import {
+  getLatestScreenplayConversion,
   getScreenplayConversionDetail,
   getScreenplayConversionYaml,
   updateNovelTitle,
@@ -23,6 +24,43 @@ function createDeferredJsonResponse() {
       json: () => jsonPromise,
     } as Response,
     resolveJson,
+  }
+}
+
+async function testGetsLatestScreenplayConversionWithEncodedQuery() {
+  const originalFetch = globalThis.fetch
+  let requestedUrl: RequestInfo | URL | undefined
+
+  globalThis.fetch = ((url: RequestInfo | URL) => {
+    requestedUrl = url
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({
+        code: 0,
+        data: {
+          conversionId: 'cv-failed',
+          novelId: 'nv 1234/abcd',
+          screenplayType: 'ANIME',
+          status: 'FAILED',
+          updatedAt: '2026-06-17T09:15:30Z',
+          scenes: [],
+        },
+      }),
+    } as Response)
+  }) as typeof fetch
+
+  try {
+    const result = await getLatestScreenplayConversion('nv 1234/abcd', 'ANIME')
+
+    assert(
+      requestedUrl === '/api/screenplay/conversions/latest?novelId=nv%201234%2Fabcd&screenplayType=ANIME',
+      '最近转换会话请求应编码 novelId 和 screenplayType',
+    )
+    assert(result.conversionId === 'cv-failed', '最近转换会话应返回后端详情')
+    assert(result.status === 'FAILED', '最近转换会话应允许失败状态')
+    assert(result.updatedAt === '2026-06-17T09:15:30Z', '最近转换会话应包含更新时间')
+  } finally {
+    globalThis.fetch = originalFetch
   }
 }
 
@@ -167,6 +205,7 @@ async function testDedupesInFlightConversionDetailRequests() {
   }
 }
 
+await testGetsLatestScreenplayConversionWithEncodedQuery()
 await testUpdatesNovelTitleWithEncodedUrl()
 await testUpdatesScreenplaySceneWithEncodedUrl()
 await testGetsScreenplayYamlWithEncodedUrl()

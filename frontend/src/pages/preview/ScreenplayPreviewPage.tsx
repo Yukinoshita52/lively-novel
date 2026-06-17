@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Spin, Tag, Typography } from 'antd'
+import { useMemo, useState } from 'react'
+import { Button, Card, Tag, Typography } from 'antd'
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
-import type { GeneratedSceneSummary, ScreenplayConversionDetail } from '../../types/novel'
-import { getScreenplayConversionDetail } from '../../services/novel'
+import type { GeneratedSceneSummary } from '../../types/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import type { FlowStepNavigation } from '../appNavigation'
 import type { FlowStepKey } from '../../components/prototype/prototypeFlow'
@@ -14,7 +13,6 @@ import {
   buildSceneOutlineItems,
   buildSceneTableRows,
   getSourceDisplayText,
-  mapPersistedScenesToGeneratedScenes,
   resolveSelectedScene,
   type PreviewTabKey,
 } from './screenplayPreview'
@@ -39,40 +37,8 @@ function ScreenplayPreviewPage({
 }: ScreenplayPreviewPageProps) {
   const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
   const [activePreviewTab, setActivePreviewTab] = useState<PreviewTabKey>('script')
-  const [conversionDetail, setConversionDetail] = useState<ScreenplayConversionDetail | null>(null)
-  const [detailError, setDetailError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!session.conversionId || !session.completed) {
-      return undefined
-    }
-
-    let active = true
-
-    getScreenplayConversionDetail(session.conversionId)
-      .then((detail) => {
-        if (active) {
-          setConversionDetail(detail)
-        }
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setDetailError(error instanceof Error ? error.message : '读取预览详情失败')
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [session.completed, session.conversionId])
-
-  const generatedScenes: GeneratedSceneSummary[] = useMemo(() => {
-    if (conversionDetail?.scenes.length) {
-      return mapPersistedScenesToGeneratedScenes(conversionDetail.scenes)
-    }
-
-    return session.generatedScenes
-  }, [conversionDetail, session.generatedScenes])
+  const generatedScenes: GeneratedSceneSummary[] = session.generatedScenes
   const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(generatedScenes), [generatedScenes])
   const previewTabs = useMemo(() => buildPreviewTabs(activePreviewTab), [activePreviewTab])
   const sceneTableRows = useMemo(() => buildSceneTableRows(generatedScenes), [generatedScenes])
@@ -80,7 +46,6 @@ function ScreenplayPreviewPage({
     () => resolveSelectedScene(generatedScenes, selectedSceneKey),
     [generatedScenes, selectedSceneKey],
   )
-  const loadingDetail = Boolean(session.completed && session.conversionId && !conversionDetail && !detailError)
   const previewActions = buildPreviewActions(Boolean(selectedScene))
 
   return (
@@ -106,16 +71,6 @@ function ScreenplayPreviewPage({
         title={<PrototypePanelTitle code="PREVIEW" title="逐场预览" meta="YAML → 渲染视图" />}
         variant="borderless"
       >
-        {loadingDetail ? (
-          <div className="screenplay-empty">
-            <Spin />
-            <Text>正在读取已落库剧本...</Text>
-          </div>
-        ) : null}
-        {detailError ? (
-          <Alert className="feedback-block" message="预览详情读取失败" description={detailError} type="warning" showIcon />
-        ) : null}
-
         <div className="scene-preview-grid">
           <aside className="scene-outline">
             {sceneOutlineItems.length === 0 ? (

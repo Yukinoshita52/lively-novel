@@ -10,6 +10,7 @@ import {
   UploadOutlined,
 } from '@ant-design/icons'
 import {
+  getLatestScreenplayConversion,
   getNovelChapters,
   getNovelList,
   getScreenplayConversionDetail,
@@ -40,7 +41,7 @@ import type {
   ScreenplayConvertContext,
 } from '../../types/novel'
 import type { HistoryConversionActionKey } from './importPageModel'
-import { mapPersistedScenesToGeneratedScenes } from '../preview/screenplayPreview'
+import { createRestoredConversionContextFromDetail } from '../conversionSession'
 
 const { Text } = Typography
 
@@ -159,20 +160,24 @@ function ImportPage({
 
     try {
       const chaptersResult = await getNovelChapters(item.novelId)
-      const restoredGeneratedScenes = item.latestConversionId && item.latestConversionStatus === 'COMPLETED'
-        ? mapPersistedScenesToGeneratedScenes((await getScreenplayConversionDetail(item.latestConversionId)).scenes)
-        : undefined
-      const context: ScreenplayConvertContext = {
+      const baseContext: ScreenplayConvertContext = {
         novelId: chaptersResult.novelId,
         title: chaptersResult.title,
         totalChapters: chaptersResult.totalChapters,
         chapters: chaptersResult.chapters,
         screenplayType: item.latestConversionType ?? selectedType,
-        restoredConversionId: item.latestConversionId ?? undefined,
-        restoredConversionStatus: item.latestConversionStatus ?? undefined,
-        restoredConversionMode: action === 'resume' ? 'stream' : 'static',
-        restoredGeneratedScenes,
       }
+      const detail = item.latestConversionId
+        ? await getScreenplayConversionDetail(item.latestConversionId)
+        : null
+      const restoredConversionMode: ScreenplayConvertContext['restoredConversionMode'] =
+        action === 'resume' ? 'stream' : 'static'
+      const context = detail
+        ? {
+          ...createRestoredConversionContextFromDetail(baseContext, detail),
+          restoredConversionMode,
+        }
+        : baseContext
 
       if (action === 'resume') {
         onOpenHistoryConversion(context, 'convert')
@@ -260,13 +265,23 @@ function ImportPage({
       return
     }
 
-    onStartConvert({
+    const baseContext: ScreenplayConvertContext = {
       novelId: latestResult.novelId,
       title: latestResult.title,
       totalChapters: latestResult.totalChapters,
       chapters: latestResult.chapters,
       screenplayType: selectedType,
-    })
+    }
+
+    try {
+      const detail = await getLatestScreenplayConversion(latestResult.novelId, selectedType)
+      onStartConvert({
+        ...createRestoredConversionContextFromDetail(baseContext, detail),
+        restoredConversionMode: 'stream',
+      })
+    } catch {
+      onStartConvert(baseContext)
+    }
   }
 
   const canStartConvert = Boolean(

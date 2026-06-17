@@ -591,15 +591,15 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     @Override
-    public ScreenplayConversionDetailDTO getLatestCompletedConversion(String novelId, ScreenplayTypeEnum screenplayType) {
+    public ScreenplayConversionDetailDTO getLatestConversionSession(String novelId, ScreenplayTypeEnum screenplayType) {
         if (novelId == null || novelId.isBlank() || screenplayType == null) {
             return null;
         }
         return conversionRepository
-                .findFirstByNovelIdAndScreenplayTypeAndStatusOrderByUpdatedAtDesc(
+                .findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
                         novelId,
                         screenplayType,
-                        "COMPLETED"
+                        List.of("RUNNING", "FAILED", "COMPLETED")
                 )
                 .map(this::toConversionDetail)
                 .orElse(null);
@@ -720,6 +720,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         detail.setNovelId(conversion.getNovelId());
         detail.setScreenplayType(conversion.getScreenplayType());
         detail.setStatus(conversion.getStatus());
+        detail.setUpdatedAt(conversion.getUpdatedAt() == null ? null : conversion.getUpdatedAt().toString());
         detail.setErrorMessage(conversion.getErrorMessage());
         detail.setAnalysisStateJson(conversion.getAnalysisStateJson());
 

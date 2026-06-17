@@ -19,6 +19,7 @@ public class ScreenplayConversionDetailDTO {
     private String novelId;
     private ScreenplayTypeEnum screenplayType;
     private String status;
+    private String updatedAt;
     private String errorMessage;
     private String analysisStateJson;
     private List<ScreenplayPersistedSceneDTO> scenes = new ArrayList<>();

@@ -1,6 +1,7 @@
 import {
   createConversionSessionStateFromContext,
   createInitialConversionSessionState,
+  createRestoredConversionContextFromDetail,
   isRestoredCompletedConversionContext,
   reduceConversionSessionEvent,
   resolvePreviewEntryState,
@@ -117,3 +118,27 @@ const streamRestoredCompletedState = createConversionSessionStateFromContext({
 assert(streamRestoredCompletedState.running, '已完成历史上下文进入转换页时应启动 SSE 历史重放')
 assert(streamRestoredCompletedState.connecting, '已完成历史上下文进入转换页时应连接 SSE')
 assert(streamRestoredCompletedState.events.length === 0, 'SSE 历史重放应等待后端返回真实事件流')
+
+const restoredFailedContext = createRestoredConversionContextFromDetail(context, {
+  conversionId: 'cv-failed',
+  novelId: 'nv-1234abcd',
+  screenplayType: 'ANIME',
+  status: 'FAILED',
+  updatedAt: '2026-06-17T09:15:30Z',
+  errorMessage: '第 4 章第 11 场生成失败',
+  scenes: [
+    {
+      chapterIndex: 4,
+      sceneIndexInChapter: 10,
+      title: '结业式后的逃生楼梯',
+      scene,
+    },
+  ],
+})
+const restoredFailedState = createConversionSessionStateFromContext(restoredFailedContext)
+assert(restoredFailedState.conversionId === 'cv-failed', '失败历史上下文应恢复 conversionId')
+assert(restoredFailedState.generatedScenes.length === 1, '失败历史上下文应恢复已落库场景供预览和打磨共享')
+assert(!restoredFailedState.running, '失败历史上下文静态恢复不应立即重新启动转换')
+assert(resolvePreviewEntryState(restoredFailedState).enabled, '失败历史上下文有已生成场景时应允许预览')
+assert(resolveResumeEntryState(restoredFailedState).enabled, '失败历史上下文应允许继续转换')
+assert(restoredFailedState.convertError?.includes('第 4 章第 11 场生成失败') === true, '失败历史上下文应恢复错误详情')
