@@ -10,6 +10,11 @@ public class NovelListItemDTO {
     private int totalChapters;
     private int totalWordCount;
     private String createdAt;
+    private String latestConversionId;
+    private String latestConversionType;
+    private String latestConversionStatus;
+    private String latestConversionUpdatedAt;
+    private String latestConversionErrorMessage;
 
     public String getNovelId() {
         return novelId;
@@ -49,5 +54,45 @@ public class NovelListItemDTO {
 
     public void setCreatedAt(String createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getLatestConversionId() {
+        return latestConversionId;
+    }
+
+    public void setLatestConversionId(String latestConversionId) {
+        this.latestConversionId = latestConversionId;
+    }
+
+    public String getLatestConversionType() {
+        return latestConversionType;
+    }
+
+    public void setLatestConversionType(String latestConversionType) {
+        this.latestConversionType = latestConversionType;
+    }
+
+    public String getLatestConversionStatus() {
+        return latestConversionStatus;
+    }
+
+    public void setLatestConversionStatus(String latestConversionStatus) {
+        this.latestConversionStatus = latestConversionStatus;
+    }
+
+    public String getLatestConversionUpdatedAt() {
+        return latestConversionUpdatedAt;
+    }
+
+    public void setLatestConversionUpdatedAt(String latestConversionUpdatedAt) {
+        this.latestConversionUpdatedAt = latestConversionUpdatedAt;
+    }
+
+    public String getLatestConversionErrorMessage() {
+        return latestConversionErrorMessage;
+    }
+
+    public void setLatestConversionErrorMessage(String latestConversionErrorMessage) {
+        this.latestConversionErrorMessage = latestConversionErrorMessage;
     }
 }

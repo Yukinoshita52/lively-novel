@@ -133,6 +133,48 @@
   color: #7a6656;
 }
 
+.history-status-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.history-status.ant-typography {
+  border-radius: 999px;
+  color: #5f4b3d;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 5px 9px;
+}
+
+.history-status.status-NONE {
+  background: rgba(122, 102, 86, 0.12);
+}
+
+.history-status.status-RUNNING {
+  background: rgba(46, 119, 190, 0.14);
+  color: #245e91;
+}
+
+.history-status.status-FAILED {
+  background: rgba(190, 58, 46, 0.14);
+  color: #913127;
+}
+
+.history-status.status-COMPLETED {
+  background: rgba(57, 130, 80, 0.14);
+  color: #2f7045;
+}
+
+.history-status-time.ant-typography {
+  color: #8a7665;
+  font-size: 0.82rem;
+}
+
 .history-empty {
   color: #7a6656;
   display: block;

@@ -1,7 +1,11 @@
 package com.livelynovel.service;
 
 import com.livelynovel.model.dto.NovelChaptersResultDTO;
+import com.livelynovel.model.dto.NovelListItemDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
+import com.livelynovel.model.entity.ScreenplayConversionEntity;
+import com.livelynovel.model.enums.ScreenplayTypeEnum;
+import com.livelynovel.repository.ScreenplayConversionRepository;
 import com.livelynovel.repository.NovelRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +15,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -50,8 +55,12 @@ class NovelServiceIntegrationTest {
     @Autowired
     private NovelRepository novelRepository;
 
+    @Autowired
+    private ScreenplayConversionRepository screenplayConversionRepository;
+
     @BeforeEach
     void clearRepository() {
+        screenplayConversionRepository.deleteAll();
         novelRepository.deleteAll();
     }
 
@@ -97,5 +106,46 @@ class NovelServiceIntegrationTest {
         assertThat(novelRepository.findById(uploadResult.getNovelId()).orElseThrow().getTitle()).isEqualTo("新标题");
         assertThat(novelService.listNovels().getTotal()).isEqualTo(1);
         assertThat(novelRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void listNovelsIncludesLatestConversionSummary() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "转换状态.txt",
+                "text/plain",
+                SAMPLE.getBytes(StandardCharsets.UTF_8)
+        );
+
+        NovelUploadResultDTO uploadResult = novelService.uploadTxt("转换状态小说", file);
+
+        ScreenplayConversionEntity running = new ScreenplayConversionEntity();
+        running.setId("cv-running");
+        running.setNovelId(uploadResult.getNovelId());
+        running.setScreenplayType(ScreenplayTypeEnum.ANIME);
+        running.setStatus("RUNNING");
+        running.setErrorMessage(null);
+        running.setCreatedAt(Instant.parse("2026-06-17T01:00:00Z"));
+        running.setUpdatedAt(Instant.parse("2026-06-17T01:10:00Z"));
+        screenplayConversionRepository.save(running);
+
+        ScreenplayConversionEntity failed = new ScreenplayConversionEntity();
+        failed.setId("cv-failed");
+        failed.setNovelId(uploadResult.getNovelId());
+        failed.setScreenplayType(ScreenplayTypeEnum.ANIME);
+        failed.setStatus("FAILED");
+        failed.setErrorMessage("测试失败");
+        failed.setCreatedAt(Instant.parse("2026-06-17T02:00:00Z"));
+        failed.setUpdatedAt(Instant.parse("2026-06-17T02:10:00Z"));
+        screenplayConversionRepository.save(failed);
+
+        NovelListItemDTO item = novelService.listNovels().getNovels().get(0);
+
+        assertThat(item.getNovelId()).isEqualTo(uploadResult.getNovelId());
+        assertThat(item.getLatestConversionStatus()).isEqualTo("FAILED");
+        assertThat(item.getLatestConversionId()).isEqualTo("cv-failed");
+        assertThat(item.getLatestConversionType()).isEqualTo("ANIME");
+        assertThat(item.getLatestConversionUpdatedAt()).isEqualTo("2026-06-17T02:10:00Z");
+        assertThat(item.getLatestConversionErrorMessage()).isEqualTo("测试失败");
     }
 }

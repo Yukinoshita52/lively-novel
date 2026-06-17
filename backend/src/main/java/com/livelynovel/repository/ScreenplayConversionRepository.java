@@ -23,4 +23,9 @@ public interface ScreenplayConversionRepository extends JpaRepository<Screenplay
             ScreenplayTypeEnum screenplayType,
             List<String> statuses
     );
+
+    List<ScreenplayConversionEntity> findByNovelIdInAndStatusInOrderByUpdatedAtDesc(
+            List<String> novelIds,
+            List<String> statuses
+    );
 }
