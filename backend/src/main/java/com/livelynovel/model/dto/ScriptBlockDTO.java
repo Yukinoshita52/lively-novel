@@ -2,11 +2,16 @@ package com.livelynovel.model.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * 剧本正文块 DTO。
  * 对应 yaml-schema.md §5.3 scenes.scriptBlocks 字段。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Getter
+@Setter
 public class ScriptBlockDTO {
     private String type;
     private String text;
@@ -47,15 +52,4 @@ public class ScriptBlockDTO {
     public static ScriptBlockDTO transition(String text) {
         return textBlock("TRANSITION", text);
     }
-
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
-    public String getText() { return text; }
-    public void setText(String text) { this.text = text; }
-    public String getCharacter() { return character; }
-    public void setCharacter(String character) { this.character = character; }
-    public String getParenthetical() { return parenthetical; }
-    public void setParenthetical(String parenthetical) { this.parenthetical = parenthetical; }
-    public String getLine() { return line; }
-    public void setLine(String line) { this.line = line; }
 }

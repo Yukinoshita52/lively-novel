@@ -12,11 +12,16 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * 整本剧本转换任务。
  */
 @Entity
 @Table(name = "screenplay_conversion")
+@Getter
+@Setter
 public class ScreenplayConversionEntity {
 
     @Id
@@ -59,69 +64,5 @@ public class ScreenplayConversionEntity {
     @PreUpdate
     void preUpdate() {
         updatedAt = Instant.now();
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getNovelId() {
-        return novelId;
-    }
-
-    public void setNovelId(String novelId) {
-        this.novelId = novelId;
-    }
-
-    public ScreenplayTypeEnum getScreenplayType() {
-        return screenplayType;
-    }
-
-    public void setScreenplayType(ScreenplayTypeEnum screenplayType) {
-        this.screenplayType = screenplayType;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
-    public String getAnalysisStateJson() {
-        return analysisStateJson;
-    }
-
-    public void setAnalysisStateJson(String analysisStateJson) {
-        this.analysisStateJson = analysisStateJson;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }
