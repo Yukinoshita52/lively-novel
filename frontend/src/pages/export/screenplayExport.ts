@@ -58,7 +58,9 @@ export function parseIgnoredWarningKeys(rawValue: string | null | undefined): st
       return []
     }
 
-    return Array.from(new Set(parsed.filter((value): value is string => typeof value === 'string' && value.trim())))
+    return Array.from(new Set(parsed.filter((value): value is string => (
+      typeof value === 'string' && value.trim().length > 0
+    ))))
   } catch {
     return []
   }
