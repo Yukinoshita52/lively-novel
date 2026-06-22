@@ -214,7 +214,6 @@ function ScreenplayExportPage({
           <Button disabled={!yamlText} icon={<DownloadOutlined />} onClick={handleDownloadYaml} type="primary">
             下载 screenplay.yaml
           </Button>
-          <Text>YAML 是本项目的结构化交付物，可继续编辑或导入其他工具。</Text>
         </div>
       </Card>
     </PrototypeFrame>
