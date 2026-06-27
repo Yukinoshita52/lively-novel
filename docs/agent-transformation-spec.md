@@ -349,6 +349,8 @@ Phase 1 第一版暂不做：
 - 不替换现有 `/api/screenplay/convert`。
 - 不一次性拆分所有现有业务步骤为细粒度工具。
 
+Phase 1.6 新增 `GET /api/agent/runs/{runId}/trace`，用于回读已落库的 run、step、guardrail 与 tool call trace，供后续前端 trace 面板和受限 planner 诊断复用。
+
 ### Phase 2：受限 Planner
 
 - Planner 生成结构化 plan。
