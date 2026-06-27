@@ -1,9 +1,14 @@
 package com.livelynovel.model.dto;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * 章节 DTO。
  * 用于章节分割结果。
  */
+@Getter
+@Setter
 public class ChapterDTO {
 
     /**
@@ -32,38 +37,6 @@ public class ChapterDTO {
         this.chapterIndex = chapterIndex;
         this.title = title;
         this.content = content;
-        this.wordCount = wordCount;
-    }
-
-    public int getChapterIndex() {
-        return chapterIndex;
-    }
-
-    public void setChapterIndex(int chapterIndex) {
-        this.chapterIndex = chapterIndex;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public int getWordCount() {
-        return wordCount;
-    }
-
-    public void setWordCount(int wordCount) {
         this.wordCount = wordCount;
     }
 }

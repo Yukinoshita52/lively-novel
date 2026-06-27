@@ -56,13 +56,6 @@ export function buildScreenplayTypeCards(selectedType: string): ScreenplayTypeCa
   }))
 }
 
-export function selectHistoryNovel(state: ImportSelectionState, novelId: string): ImportSelectionState {
-  return {
-    ...state,
-    selectedNovelId: novelId,
-  }
-}
-
 export function selectUploadedNovel(state: ImportSelectionState): ImportSelectionState {
   return {
     ...state,

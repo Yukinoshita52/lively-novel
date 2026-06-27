@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import {
   Alert,
-  Button,
   Card,
   Typography,
 } from 'antd'
@@ -10,8 +9,8 @@ import {
   UploadOutlined,
 } from '@ant-design/icons'
 import {
+  getLatestScreenplayConversion,
   getNovelChapters,
-  getNovelList,
   updateNovelTitle,
   uploadNovel,
 } from '../../services/novel'
@@ -21,11 +20,8 @@ import {
   buildImportResultFromConvertContext,
   buildScreenplayTypeCards,
   resolveEditableTitle,
-  selectHistoryNovel,
-  selectUploadedNovel,
 } from './importPageModel'
 import ImportChapterPreview from './ImportChapterPreview'
-import ImportHistoryPanel from './ImportHistoryPanel'
 import ImportTitleEditor from './ImportTitleEditor'
 import ScreenplayTypeSelector from './ScreenplayTypeSelector'
 import { formatWordCount } from './importFormat'
@@ -35,9 +31,9 @@ import type { FlowStepKey } from '../../components/prototype/prototypeFlow'
 import type {
   ChapterPreview,
   NovelChaptersResult,
-  NovelListItem,
   ScreenplayConvertContext,
 } from '../../types/novel'
+import { createRestoredConversionContextFromDetail } from '../conversionSession'
 
 const { Text } = Typography
 
@@ -83,15 +79,9 @@ function ImportPage({
   const [editableTitle, setEditableTitle] = useState(
     () => buildImportResultFromConvertContext(restoreContext ?? null)?.title ?? '',
   )
-  const [historyVisible, setHistoryVisible] = useState(false)
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-  const [historyItems, setHistoryItems] = useState<NovelListItem[]>([])
-  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(restoreContext?.novelId ?? null)
 
   async function handleFileSelected(file: File) {
     setSelectedFile(file)
-    setSelectedNovelId((current) => selectUploadedNovel({ selectedNovelId: current }).selectedNovelId)
     setUploadLoading(true)
     setErrorMessage(null)
 
@@ -106,46 +96,6 @@ function ImportPage({
       setErrorMessage(error instanceof Error ? error.message : '上传失败')
     } finally {
       setUploadLoading(false)
-    }
-  }
-
-  async function loadHistory(force = false) {
-    if (historyLoading) {
-      return
-    }
-    if (historyLoaded && !force) {
-      setHistoryVisible(true)
-      return
-    }
-
-    setHistoryLoading(true)
-    setErrorMessage(null)
-
-    try {
-      const result = await getNovelList()
-      setHistoryItems(result.novels)
-      setHistoryLoaded(true)
-      setHistoryVisible(true)
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '历史加载失败')
-      setHistoryVisible(true)
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
-
-  async function handleUseHistory(novelId: string) {
-    setErrorMessage(null)
-    setSelectedNovelId((current) => selectHistoryNovel({ selectedNovelId: current }, novelId).selectedNovelId)
-
-    try {
-      const chaptersResult = await getNovelChapters(novelId)
-      setSelectedFile(null)
-      setChapterResult(toDisplayResult(chaptersResult))
-      setEditableTitle(chaptersResult.title)
-    } catch (error) {
-      setSelectedNovelId(null)
-      setErrorMessage(error instanceof Error ? error.message : '加载历史小说失败')
     }
   }
 
@@ -176,9 +126,6 @@ function ImportPage({
         chapters: displayResult.chapters,
         screenplayType: selectedType,
       })
-      setHistoryItems((items) => items.map((item) => (
-        item.novelId === displayResult.novelId ? { ...item, title: displayResult.title } : item
-      )))
       return displayResult
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '保存标题失败')
@@ -217,13 +164,23 @@ function ImportPage({
       return
     }
 
-    onStartConvert({
+    const baseContext: ScreenplayConvertContext = {
       novelId: latestResult.novelId,
       title: latestResult.title,
       totalChapters: latestResult.totalChapters,
       chapters: latestResult.chapters,
       screenplayType: selectedType,
-    })
+    }
+
+    try {
+      const detail = await getLatestScreenplayConversion(latestResult.novelId, selectedType)
+      onStartConvert({
+        ...createRestoredConversionContextFromDetail(baseContext, detail),
+        restoredConversionMode: 'stream',
+      })
+    } catch {
+      onStartConvert(baseContext)
+    }
   }
 
   const canStartConvert = Boolean(
@@ -237,13 +194,14 @@ function ImportPage({
   return (
     <PrototypeFrame
       currentStep="import"
-      maxWidth={1400}
+      maxWidth={1280}
       flowNavigation={flowNavigation}
       onNavigateStep={onNavigateStep}
     >
       <PrototypeHero
         eyebrow="01 · 导入"
         title="把小说交给它"
+        meta="上传 TXT · 识别章节 · 生成剧本"
       />
 
       <main className="page-grid">
@@ -252,16 +210,6 @@ function ImportPage({
           title={<PrototypePanelTitle code="TEXT" title="小说正文" meta="需 ≥ 3 章 · ≤ 20 万字" />}
           variant="borderless"
         >
-          <ImportHistoryPanel
-            visible={historyVisible}
-            loading={historyLoading}
-            items={historyItems}
-            selectedNovelId={selectedNovelId}
-            onToggle={() => (historyVisible ? setHistoryVisible(false) : void loadHistory())}
-            onRefresh={() => void loadHistory(true)}
-            onUseHistory={(novelId) => void handleUseHistory(novelId)}
-          />
-
           {chapterResult ? (
             <ImportTitleEditor
               title={editableTitle}
@@ -272,33 +220,31 @@ function ImportPage({
             />
           ) : null}
 
-          <div className="action-row">
-            <div>
+          <input
+            ref={fileInputRef}
+            className="file-input"
+            type="file"
+            accept=".txt,text/plain"
+            onChange={handleFileChange}
+          />
+          <button
+            className={`import-upload-zone${chapterResult ? ' has-result' : ''}`}
+            type="button"
+            onClick={handleUploadClick}
+            disabled={uploadLoading}
+          >
+            <span className="import-upload-icon" aria-hidden="true">
+              {uploadLoading ? <LoadingOutlined spin /> : <UploadOutlined />}
+            </span>
+            <span className="import-upload-copy">
               <Text className="status-copy">
                 {chapterResult
                   ? `已识别 ${chapterResult.totalChapters} 章 · ${formatWordCount(chapterResult.totalWordCount)}`
-                  : '尚未识别章节'}
+                  : '点击上传 TXT 小说'}
               </Text>
               {selectedFile ? <Text className="file-copy">已选择：{selectedFile.name}</Text> : null}
-            </div>
-            <div className="button-group">
-              <input
-                ref={fileInputRef}
-                className="file-input"
-                type="file"
-                accept=".txt,text/plain"
-                onChange={handleFileChange}
-              />
-              <Button
-                size="large"
-                icon={uploadLoading ? <LoadingOutlined spin /> : <UploadOutlined />}
-                onClick={handleUploadClick}
-                loading={uploadLoading}
-              >
-                上传 .txt
-              </Button>
-            </div>
-          </div>
+            </span>
+          </button>
 
           {errorMessage ? (
             <Alert

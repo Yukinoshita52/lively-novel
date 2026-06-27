@@ -8,7 +8,9 @@ import com.livelynovel.model.dto.NovelChaptersResultDTO;
 import com.livelynovel.model.dto.NovelListItemDTO;
 import com.livelynovel.model.dto.NovelListResultDTO;
 import com.livelynovel.model.dto.NovelUploadResultDTO;
+import com.livelynovel.model.entity.ScreenplayConversionEntity;
 import com.livelynovel.repository.NovelRepository;
+import com.livelynovel.repository.ScreenplayConversionRepository;
 import com.livelynovel.service.ChapterSplitter;
 import com.livelynovel.service.NovelService;
 import com.livelynovel.common.exception.NovelValidationException;
@@ -21,7 +23,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 小说持久化服务实现。
@@ -32,12 +37,19 @@ public class NovelServiceImpl implements NovelService {
     private static final int MAX_WORD_COUNT = 200_000;
     private static final int MIN_CHAPTERS = 3;
     private static final int PREVIEW_LIMIT = 24;
+    private static final List<String> CONVERSION_HISTORY_STATUSES = List.of("RUNNING", "FAILED", "COMPLETED");
 
     private final NovelRepository novelRepository;
+    private final ScreenplayConversionRepository conversionRepository;
     private final ChapterSplitter chapterSplitter;
 
-    public NovelServiceImpl(NovelRepository novelRepository, ChapterSplitter chapterSplitter) {
+    public NovelServiceImpl(
+            NovelRepository novelRepository,
+            ScreenplayConversionRepository conversionRepository,
+            ChapterSplitter chapterSplitter
+    ) {
         this.novelRepository = novelRepository;
+        this.conversionRepository = conversionRepository;
         this.chapterSplitter = chapterSplitter;
     }
 
@@ -130,9 +142,12 @@ public class NovelServiceImpl implements NovelService {
 
     @Override
     public NovelListResultDTO listNovels() {
-        List<NovelListItemDTO> novels = novelRepository.findAll().stream()
+        List<NovelEntity> novelEntities = novelRepository.findAll().stream()
                 .sorted(java.util.Comparator.comparing(NovelEntity::getCreatedAt).reversed())
-                .map(this::toListItem)
+                .toList();
+        Map<String, ScreenplayConversionEntity> latestConversions = loadLatestConversions(novelEntities);
+        List<NovelListItemDTO> novels = novelEntities.stream()
+                .map(novel -> toListItem(novel, latestConversions.get(novel.getId())))
                 .toList();
 
         NovelListResultDTO result = new NovelListResultDTO();
@@ -193,13 +208,42 @@ public class NovelServiceImpl implements NovelService {
         return preview;
     }
 
-    private NovelListItemDTO toListItem(NovelEntity novel) {
+    private Map<String, ScreenplayConversionEntity> loadLatestConversions(List<NovelEntity> novels) {
+        List<String> novelIds = novels.stream()
+                .map(NovelEntity::getId)
+                .toList();
+        if (novelIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return conversionRepository
+                .findByNovelIdInAndStatusInOrderByUpdatedAtDesc(novelIds, CONVERSION_HISTORY_STATUSES)
+                .stream()
+                .collect(Collectors.toMap(
+                        ScreenplayConversionEntity::getNovelId,
+                        Function.identity(),
+                        (latest, ignored) -> latest
+                ));
+    }
+
+    private NovelListItemDTO toListItem(NovelEntity novel, ScreenplayConversionEntity latestConversion) {
         NovelListItemDTO item = new NovelListItemDTO();
         item.setNovelId(novel.getId());
         item.setTitle(novel.getTitle());
         item.setTotalChapters(novel.getTotalChapters());
         item.setTotalWordCount(novel.getTotalWordCount());
         item.setCreatedAt(novel.getCreatedAt() == null ? null : novel.getCreatedAt().toString());
+        if (latestConversion != null) {
+            item.setLatestConversionId(latestConversion.getId());
+            item.setLatestConversionType(latestConversion.getScreenplayType() == null
+                    ? null
+                    : latestConversion.getScreenplayType().name());
+            item.setLatestConversionStatus(latestConversion.getStatus());
+            item.setLatestConversionUpdatedAt(latestConversion.getUpdatedAt() == null
+                    ? null
+                    : latestConversion.getUpdatedAt().toString());
+            item.setLatestConversionErrorMessage(latestConversion.getErrorMessage());
+        }
         return item;
     }
 

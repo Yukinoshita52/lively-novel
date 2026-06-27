@@ -1,12 +1,15 @@
 import {
   createInitialAppFlowState,
   enterConvertPage,
+  enterConvertPageForHistoryReplay,
   enterExportPage,
   enterPolishPage,
+  enterPolishPageWithFallback,
   enterPreviewPage,
   returnToPreviewPage,
   returnToConvertPage,
   resolveFlowStepNavigation,
+  retryConvertPage,
   resumeConvertPage,
   selectPolishScene,
 } from './appNavigation.ts'
@@ -27,6 +30,11 @@ const context: ScreenplayConvertContext = {
 }
 
 let state = createInitialAppFlowState()
+assert(state.page === 'workspace', '应用初始页应进入历史作品工作台')
+state = {
+  ...state,
+  page: 'import',
+}
 state = enterConvertPage(state, context)
 const sessionBeforePreview = state.convertContext
 state = enterPreviewPage(state)
@@ -56,15 +64,51 @@ state = enterExportPage(state)
 assert(state.page === 'export', '从打磨页后续流程应能进入导出页')
 assert(state.convertContext === sessionBeforePreview, '进入导出页不应清空转换上下文')
 
+state = {
+  ...state,
+  selectedSceneKey: undefined,
+}
+state = enterPolishPageWithFallback(state, '1-1')
+assert(state.page === 'polish', '从导出页返回打磨时应进入打磨页')
+assert(state.selectedSceneKey === '1-1', '从导出页返回打磨时应默认选择第一场')
+
 state = resumeConvertPage(state)
 assert(state.page === 'convert', '继续转换应回到转换页')
 assert(state.convertContext !== sessionBeforePreview, '继续转换应替换 context 对象以重新发起转换请求')
 assert(state.convertContext?.novelId === sessionBeforePreview?.novelId, '继续转换应保留原 novelId')
 
+state = retryConvertPage({
+  ...state,
+  convertContext: {
+    ...context,
+    restoredConversionId: 'cv-failed',
+    restoredConversionStatus: 'FAILED',
+    restoredConversionMode: 'static',
+  },
+})
+assert(state.page === 'convert', '重新尝试应回到转换页')
+assert(state.convertContext?.restoredConversionId === undefined, '重新尝试应清除历史 conversionId')
+assert(state.convertContext?.restoredConversionStatus === undefined, '重新尝试应清除历史转换状态')
+assert(state.convertContext?.restoredGeneratedScenes === undefined, '重新尝试应清除历史生成场景')
+
+const restoredStaticState = enterConvertPageForHistoryReplay({
+  page: 'preview',
+  convertContext: {
+    ...context,
+    restoredConversionId: 'cv-completed',
+    restoredConversionStatus: 'COMPLETED',
+    restoredConversionMode: 'static',
+  },
+})
+assert(restoredStaticState.page === 'convert', '进入转换页时应切到转换页')
+assert(restoredStaticState.convertContext?.restoredConversionMode === 'stream', '已完成历史转换进入转换页时应切换为 SSE 重放模式')
+assert(restoredStaticState.convertContext !== context, '切换 SSE 重放模式时应替换 context 对象以触发会话重建')
+
 const navigationWithoutContext = resolveFlowStepNavigation(createInitialAppFlowState(), {
   hasGeneratedScenes: false,
   completed: false,
 })
+assert(navigationWithoutContext.workspace.enabled, '历史作品工作台应始终可点击')
 assert(navigationWithoutContext.import.enabled, '导入步骤应始终可点击')
 assert(navigationWithoutContext.convert.clickable, '没有转换上下文时转换步骤仍应可点击以提示用户')
 assert(!navigationWithoutContext.convert.enabled, '没有转换上下文时不应跳转转换页')

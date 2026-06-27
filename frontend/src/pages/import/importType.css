@@ -121,6 +121,9 @@
 }
 
 .convert-button.ant-btn:disabled {
+  background: rgba(28, 24, 19, 0.12);
+  border-color: transparent;
+  color: rgba(28, 24, 19, 0.38);
   box-shadow: none;
   transform: none;
 }
@@ -130,8 +133,18 @@
   height: 52px;
 }
 
-.prototype-inner-panel.ant-card,
-.history-card.ant-card {
+.import-config-panel .ant-card-body {
+  display: grid;
+  gap: 18px;
+}
+
+.convert-action-panel {
+  border-top: 1px solid rgba(28, 24, 19, 0.12);
+  display: grid;
+  padding-top: 14px;
+}
+
+.prototype-inner-panel.ant-card {
   background: #e7ddc8;
   border: 1px solid rgba(28, 24, 19, 0.1);
   border-radius: 4px;
@@ -148,7 +161,6 @@
   background-image: linear-gradient(rgba(28, 24, 19, 0.08) 1px, transparent 1px);
 }
 
-.history-row,
 .chapter-row,
 .event-row,
 .scene-summary-row,

@@ -8,11 +8,16 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * 小说持久化实体。
  */
 @Entity
 @Table(name = "novel")
+@Getter
+@Setter
 public class NovelEntity {
 
     @Id
@@ -42,61 +47,5 @@ public class NovelEntity {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getContentHash() {
-        return contentHash;
-    }
-
-    public void setContentHash(String contentHash) {
-        this.contentHash = contentHash;
-    }
-
-    public int getTotalChapters() {
-        return totalChapters;
-    }
-
-    public void setTotalChapters(int totalChapters) {
-        this.totalChapters = totalChapters;
-    }
-
-    public int getTotalWordCount() {
-        return totalWordCount;
-    }
-
-    public void setTotalWordCount(int totalWordCount) {
-        this.totalWordCount = totalWordCount;
-    }
-
-    public String getRawContent() {
-        return rawContent;
-    }
-
-    public void setRawContent(String rawContent) {
-        this.rawContent = rawContent;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
     }
 }

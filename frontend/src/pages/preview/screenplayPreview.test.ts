@@ -7,6 +7,9 @@ import {
   buildSceneOutlineItems,
   buildSceneTableRows,
   buildPreviewActions,
+  buildGenerationQualityWarnings,
+  buildPreviewScrollKey,
+  buildSceneQualityWarnings,
   resolveAdjacentSceneKeys,
   mapPersistedScenesToGeneratedScenes,
   getSourceDisplayText,
@@ -110,6 +113,7 @@ assert(
 )
 assert(buildPreviewTabs('source')[1].active, '预览页应支持独立原文 tab')
 assert(buildPreviewTabs('scene-table')[2].label === '场景表', '预览页应提供场景表 tab')
+assert(buildPreviewScrollKey('1-2', 'source') === '1-2:source', '预览滚动位置应按场景和 tab 独立缓存')
 const previewActions = buildPreviewActions(true)
 assert(previewActions.primary.label === '打磨本场', '预览页主动作应进入单场打磨')
 assert(!previewActions.secondary.some((action) => action.label.includes('导出')), '预览页不应提供导出 YAML 动作')
@@ -117,6 +121,40 @@ assert(buildSceneTableRows(scenes)[0].sceneNumber === 'S1', '场景表应沿用�
 assert(buildSceneTableRows(scenes)[0].interiorText === '内景', '场景表应展示内景/外景')
 assert(buildSceneTableRows(scenes)[0].location === '教室', '场景表应展示地点')
 assert(buildSceneTableRows(scenes)[0].sourceChapterText === 'CH1', '场景表应展示源章节')
+const sceneWithGenerationWarning: GeneratedSceneSummary = {
+  ...scenes[1],
+  scene: {
+    ...scenes[1].scene,
+    warnings: ['该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。'],
+  },
+}
+const generationWarnings = buildSceneQualityWarnings(sceneWithGenerationWarning, '1-1', 'S1')
+assert(generationWarnings[0].sceneKey === '1-1', '生成 warning 应绑定可定位场景 key')
+assert(generationWarnings[0].sceneNumber === 'S1', '生成 warning 应保留场景展示编号')
+assert(generationWarnings[0].severity === 'check', '语言漂移 warning 应表达为建议检查而不是失败')
+assert(generationWarnings[0].message.includes('非中文表达'), '生成 warning 应保留后端面向用户提示')
+const emptySceneWarnings = buildSceneQualityWarnings({
+  ...scenes[0],
+  scene: {
+    ...scenes[0].scene,
+    heading: { interior: true, location: '', timeOfDay: '未知时间' },
+    scriptBlocks: [],
+    actionLines: [],
+    dialogueBlocks: [],
+    transitions: [],
+  },
+}, '1-2', 'S2')
+assert(
+  emptySceneWarnings.some((warning) => warning.severity === 'blocking' && warning.title === '剧本正文为空'),
+  '空剧本正文应被标记为阻断性检查项',
+)
+assert(
+  emptySceneWarnings.some((warning) => warning.title === '地点待确认') &&
+    emptySceneWarnings.some((warning) => warning.title === '时间待确认'),
+  '未知地点和时间应生成轻量结构检查提示',
+)
+const aggregatedWarnings = buildGenerationQualityWarnings([sceneWithGenerationWarning])
+assert(aggregatedWarnings.length === 1 && aggregatedWarnings[0].sceneKey === '1-1', '预览页 warning 汇总应可定位到场景')
 const scriptRows = buildScriptBlockRows(scenes[1])
 assert(scriptRows[0].type === 'SHOT', '剧本预览应保留镜头块')
 assert(scriptRows[1].type === 'ACTION', '剧本预览应按 scriptBlocks 渲染动作块')
@@ -168,6 +206,7 @@ const warningSceneUpdate = resolveConvertEventUpdate(
     sceneIndexInChapter: 11,
     title: '后记',
     message: '该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。',
+    warning: true,
     scene: scenes[0].scene,
   },
   { totalChapters: 3 },
@@ -177,6 +216,10 @@ assert(
   warningSceneUpdate?.event?.message ===
     '已生成第 4 章第 11 场：后记\n该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。',
   '带提示的 scene_completed 应展示生成场次并追加后端提示',
+)
+assert(
+  warningSceneUpdate?.generatedScene?.scene.warnings?.[0] === '该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。',
+  '带 warning 标记的 scene_completed 应把提示绑定到生成场景',
 )
 
 const analysisUpdatedUpdate = resolveConvertEventUpdate(
@@ -263,7 +306,10 @@ const failedUpdate = resolveConvertEventUpdate(
 
 assert(failedUpdate?.event !== undefined, 'failed 事件应生成事件流记录')
 assert(failedUpdate.event.type === 'failed', 'failed 事件应进入事件流')
-assert(failedUpdate?.event.message === '转换中断，可继续转换；系统会跳过已完成部分。', 'failed 事件应使用后端用户提示')
+assert(
+  failedUpdate?.event.message === '转换中断，可继续转换；系统会跳过已完成部分。\n失败原因：章节切场退化为整章单场',
+  'failed 事件日志应直接包含后端失败原因',
+)
 assert(failedUpdate?.convertError?.includes('转换中断，可继续转换；系统会跳过已完成部分。') === true, 'failed 事件应设置转换错误')
 assert(failedUpdate?.convertError?.includes('章节切场退化为整章单场') === true, 'failed 事件应展示后端失败原因')
 

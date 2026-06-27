@@ -4,6 +4,8 @@ import {
   buildPolishYamlLineNumberTransform,
   buildYamlLineNumbers,
   buildPolishWorkspaceLayout,
+  buildPolishSceneStatus,
+  buildPolishSceneStatusByKey,
   createPolishDraft,
   buildPolishSceneYaml,
   resetPolishDraft,
@@ -33,12 +35,15 @@ const scene: SceneResult = {
     { type: 'DIALOGUE', character: '林秋', parenthetical: '低声', line: '今天先到这里。' },
     { type: 'TRANSITION', text: '切至：' },
   ],
+  warnings: ['该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。'],
   sourceChapter: 1,
   sourceText: '第一场原文。',
 }
 
 const draft = createPolishDraft(scene)
 assert(draft.scene !== scene, '本地打磨草稿不应直接复用原始 SceneResult 引用')
+assert(draft.scene.warnings?.[0]?.includes('非中文表达') === true, '本地打磨草稿应保留生成质量提示')
+assert(draft.savedScene.warnings?.[0]?.includes('非中文表达') === true, '本地打磨保存基线应保留生成质量提示')
 assert(
   draft.sceneYamlText.includes('scriptBlocks:'),
   '本地打磨草稿应直接暴露可编辑 YAML',
@@ -87,6 +92,7 @@ const scriptDraft = updatePolishSceneYaml(
 )
 const editedBlocks = scriptDraft.scene.scriptBlocks ?? []
 const savedBlocks = scriptDraft.savedScene.scriptBlocks ?? []
+const editedStatus = buildPolishSceneStatus(scriptDraft)
 assert(scriptDraft.scene.heading.location === '走廊', 'YAML heading 修改应同步到草稿场景')
 assert(scriptDraft.scene.sourceChapter === 2, 'YAML sourceChapter 修改应同步到草稿场景')
 assert(editedBlocks.length === 7, 'YAML 剧本块应同步到草稿场景')
@@ -103,6 +109,11 @@ assert(editedBlocks[5].parenthetical === undefined, 'YAML 未填写 parenthetica
 assert(editedBlocks[5].line === '午后的风穿过走廊。', 'YAML 对白台词应同步到草稿场景')
 assert(editedBlocks[6].type === 'TRANSITION', 'YAML 转场文本应同步为转场块')
 assert(savedBlocks[1].text === '林秋把书包放在桌上。', '编辑草稿不应改写最近保存的场景基线')
+assert(editedStatus.changed, '已改动草稿应标记为已修改')
+assert(editedStatus.unsaved, 'YAML 改动尚未保存时应标记为未保存')
+assert(!buildPolishSceneStatus(draft).changed, '初始打磨草稿不应标记为已修改')
+assert(!buildPolishSceneStatus(draft).unsaved, '初始打磨草稿不应标记为未保存')
+assert(buildPolishSceneStatusByKey({ '1-1': scriptDraft })['1-1'].unsaved, '场景状态映射应保留未保存标记')
 
 const savedScene: SceneResult = {
   ...scene,

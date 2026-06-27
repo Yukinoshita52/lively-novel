@@ -1,13 +1,21 @@
-import { useEffect, useState } from 'react'
-import { Alert, Button, Card, Typography } from 'antd'
-import { ArrowLeftOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useState } from 'react'
+import { Alert, Button, Card, Tag, Typography } from 'antd'
+import { ArrowLeftOutlined, DownloadOutlined, EyeInvisibleOutlined, EyeOutlined, UndoOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
 import { getScreenplayConversionYaml } from '../../services/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import type { FlowStepNavigation } from '../appNavigation'
 import type { FlowStepKey } from '../../components/prototype/prototypeFlow'
 import { buildYamlDownloadFileName } from '../preview/screenplayPreview'
-import { buildExportYamlRows, resolveExportYamlDisplayText } from './screenplayExport'
+import {
+  buildExportReadinessSummary,
+  buildExportWarningStorageKey,
+  buildExportYamlRows,
+  parseIgnoredWarningKeys,
+  resolveExportYamlDisplayText,
+  stringifyIgnoredWarningKeys,
+  toggleIgnoredWarningKey,
+} from './screenplayExport'
 import { downloadBlob } from '../../utils/download'
 
 const { Text } = Typography
@@ -15,6 +23,7 @@ const { Text } = Typography
 type ScreenplayExportPageProps = {
   session: ConversionSessionState
   onBackToPolish: () => void
+  onPolishScene: (sceneKey: string) => void
   flowNavigation?: FlowStepNavigation
   onNavigateStep?: (step: FlowStepKey) => void
 }
@@ -22,12 +31,26 @@ type ScreenplayExportPageProps = {
 function ScreenplayExportPage({
   session,
   onBackToPolish,
+  onPolishScene,
   flowNavigation,
   onNavigateStep,
 }: ScreenplayExportPageProps) {
   const [persistedYamlText, setPersistedYamlText] = useState('')
   const [exportError, setExportError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [ignoredWarningKeys, setIgnoredWarningKeys] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!session.conversionId) {
+      setIgnoredWarningKeys([])
+      return undefined
+    }
+
+    setIgnoredWarningKeys(
+      parseIgnoredWarningKeys(window.localStorage.getItem(buildExportWarningStorageKey(session.conversionId))),
+    )
+
+    return undefined
+  }, [session.conversionId])
 
   useEffect(() => {
     if (!session.conversionId || !session.completed) {
@@ -53,10 +76,15 @@ function ScreenplayExportPage({
       active = false
     }
   }, [session.completed, session.conversionId])
+
   const yamlText = persistedYamlText
   const loadingYaml = Boolean(session.completed && session.conversionId && !yamlText && !exportError)
   const yamlDisplayText = resolveExportYamlDisplayText({ loading: loadingYaml, yamlText })
   const yamlRows = buildExportYamlRows(yamlDisplayText)
+  const readinessSummary = useMemo(
+    () => buildExportReadinessSummary(session.generatedScenes, ignoredWarningKeys),
+    [ignoredWarningKeys, session.generatedScenes],
+  )
 
   function handleDownloadYaml() {
     if (!yamlText) {
@@ -67,19 +95,23 @@ function ScreenplayExportPage({
     downloadBlob(yamlBlob, buildYamlDownloadFileName(session.context.title))
   }
 
-  async function handleCopyYaml() {
-    if (!yamlText) {
+  function persistIgnoredWarningKeys(nextKeys: string[]) {
+    setIgnoredWarningKeys(nextKeys)
+    if (!session.conversionId) {
       return
     }
 
-    await navigator.clipboard.writeText(yamlText)
-    setCopied(true)
+    window.localStorage.setItem(buildExportWarningStorageKey(session.conversionId), stringifyIgnoredWarningKeys(nextKeys))
+  }
+
+  function handleToggleIgnoredWarning(warningKey: string) {
+    persistIgnoredWarningKeys(toggleIgnoredWarningKey(ignoredWarningKeys, warningKey))
   }
 
   return (
     <PrototypeFrame
       currentStep="export"
-      maxWidth={1180}
+      maxWidth={1280}
       flowNavigation={flowNavigation}
       onNavigateStep={onNavigateStep}
     >
@@ -93,6 +125,64 @@ function ScreenplayExportPage({
           </Button>
         }
       />
+
+      <Card
+        className="prototype-panel export-check-panel"
+        title={<PrototypePanelTitle code="CHECK" title="导出前检查" meta={readinessSummary.statusLabel} />}
+        variant="borderless"
+      >
+        <div className={`export-readiness-banner status-${readinessSummary.status}`}>
+          <div className="export-readiness-head">
+            <div className="export-readiness-copy">
+              <Text className="export-readiness-title">轻量质量摘要</Text>
+              <Text className="export-readiness-description">{readinessSummary.statusDescription}</Text>
+            </div>
+            <div className="export-readiness-metrics" aria-label="导出前检查统计">
+              <Tag>{`场景 ${readinessSummary.sceneCount}`}</Tag>
+              <Tag color={readinessSummary.activeCheckCount > 0 ? 'gold' : 'green'}>
+                {`需检查 ${readinessSummary.activeCheckCount}`}
+              </Tag>
+              <Tag color={readinessSummary.activeBlockingCount > 0 ? 'red' : 'default'}>
+                {`阻断 ${readinessSummary.activeBlockingCount}`}
+              </Tag>
+              <Tag>{`已忽略 ${readinessSummary.ignoredCount}`}</Tag>
+            </div>
+          </div>
+
+          {readinessSummary.issueCount > 0 ? (
+            <div className="export-readiness-list">
+              {readinessSummary.issues.map((warning) => (
+                <div
+                  className={`export-readiness-row severity-${warning.severity}${warning.ignored ? ' ignored' : ''}`}
+                  key={warning.key}
+                >
+                  <div className="export-readiness-row-main">
+                    <Text className="export-readiness-scene">{warning.sceneNumber}</Text>
+                    <div className="export-readiness-row-copy">
+                      <Text className="export-readiness-title-text">{warning.title}</Text>
+                      <Text className="export-readiness-message">
+                        {warning.ignored ? '已忽略' : warning.message}
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="export-readiness-row-actions">
+                    <Button icon={<EyeOutlined />} onClick={() => onPolishScene(warning.sceneKey)} size="small">
+                      查看场景
+                    </Button>
+                    <Button
+                      icon={warning.ignored ? <UndoOutlined /> : <EyeInvisibleOutlined />}
+                      onClick={() => handleToggleIgnoredWarning(warning.key)}
+                      size="small"
+                    >
+                      {warning.ignored ? '取消忽略' : '忽略'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       <Card
         className="prototype-panel scene-preview-panel"
@@ -124,10 +214,6 @@ function ScreenplayExportPage({
           <Button disabled={!yamlText} icon={<DownloadOutlined />} onClick={handleDownloadYaml} type="primary">
             下载 screenplay.yaml
           </Button>
-          <Button disabled={!yamlText} icon={<CopyOutlined />} onClick={handleCopyYaml}>
-            {copied ? '已复制' : '复制 YAML'}
-          </Button>
-          <Text>YAML 是本项目的结构化交付物，可继续编辑或导入其他工具。</Text>
         </div>
       </Card>
     </PrototypeFrame>

@@ -2,12 +2,14 @@ import { Button, Card, Typography } from 'antd'
 import { DownOutlined, LeftOutlined, RightOutlined, UpOutlined } from '@ant-design/icons'
 import { PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import type { SceneOutlineItem } from '../preview/screenplayPreview'
+import type { PolishSceneStatus } from './screenplayPolish'
 
 const { Text } = Typography
 
 type PolishScenePickerProps = {
   scenes: SceneOutlineItem[]
   selectedScene: SceneOutlineItem
+  sceneStatusByKey?: Record<string, PolishSceneStatus>
   expanded: boolean
   previousKey?: string
   nextKey?: string
@@ -18,6 +20,7 @@ type PolishScenePickerProps = {
 function PolishScenePicker({
   scenes,
   selectedScene,
+  sceneStatusByKey = {},
   expanded,
   previousKey,
   nextKey,
@@ -77,6 +80,17 @@ function PolishScenePicker({
               <span className="scene-outline-copy">
                 <span className="scene-outline-title">{outlineScene.title}</span>
                 <span className="scene-outline-heading">{outlineScene.headingText}</span>
+              </span>
+              <span className="scene-outline-status">
+                {sceneStatusByKey[outlineScene.key]?.changed ? (
+                  <span className="scene-outline-state">已改</span>
+                ) : null}
+                {sceneStatusByKey[outlineScene.key]?.unsaved ? (
+                  <span className="scene-outline-state unsaved">未存</span>
+                ) : null}
+                {outlineScene.warnings.length > 0 ? (
+                  <span className="scene-outline-warning">{outlineScene.warnings.length} 项检查</span>
+                ) : null}
               </span>
             </button>
           ))}

@@ -11,6 +11,7 @@
 > **v1.5 变更（§4 重写）**：结合原型逐屏，为全部 16 个接口补全请求/响应详细设计；接口列表增加「原型来源」列；新增 §4.2 通用约定（鉴权/JSON 包装/SSE 约定）；注册改为返回 token 自动登录；响应字段与 `yaml-schema.md` 全面对齐（ANIME 默认、schemaVersion、scriptBlocks 正文块）；补 ⑥⑨⑩⑪⑫⑬⑮⑯ 等此前缺失的接口示例。
 > **v1.6 变更（当前实现同步）**：补充 §4.0 当前实现基线，明确比赛 MVP 当前使用 `/api/screenplay/conversions/...` 转换详情、单场保存与 YAML 导出接口；标注 JWT、AI 单场重生、可读文本导出、完整人物/线索视图仍为后续扩展；同步失败后继续转换、语言漂移降级提示、`sourceText`/`visualizedInnerThoughts` 不进入导出 YAML 等已实现约束。
 > **v1.7 变更（滚动全局状态）**：当前实现放弃额外前置通读全文的阶段 A，改为在逐场生成后更新 conversion 级 `analysisStateJson`。最终 YAML 顶层 `plotSummary / characters / storylines` 从该滚动状态导出；内部 `contextSummary / activeCharacters / activeThreads / motifs / timeline / foreshadows` 只用于后续上下文，不进入导出 YAML。
+> **v1.8 变更（Agent 化演进）**：`dev` 分支作为伪 master 承接后续改造；当前实现仍定义为 LLM workflow，后续按 `docs/agent-transformation-spec.md` 分阶段引入 Agent 编排、Tool Registry、Trace、Guardrail、受限 Planner、MCP 与 Skill。
 
 ---
 
@@ -193,18 +194,15 @@ Screenplay (持久化)
 | 方法 | 路径 | 当前用途 | 状态 |
 |---|---|---|---|
 | GET | `/api/health` | 健康检查 | 已实现 |
-| POST | `/api/novel/parse` | 粘贴正文解析章节 | 已实现 |
 | POST | `/api/novel/upload` | 上传 `.txt`、解析并持久化小说 | 已实现 |
 | GET | `/api/novel` | 历史小说列表 | 已实现 |
 | GET | `/api/novel/{id}/chapters` | 回读小说章节摘要 | 已实现 |
-| GET | `/api/novel/{id}/chapters/{chapterIndex}` | 回读单章详情 | 已实现 |
 | PUT | `/api/novel/{id}/title` | 修改并持久化作品标题 | 已实现 |
 | POST | `/api/screenplay/convert` | 提交整本转换任务，SSE 返回进度与场景 | 已实现 |
 | GET | `/api/screenplay/conversions/{conversionId}` | 回读转换详情与已持久化场景 | 已实现 |
 | GET | `/api/screenplay/conversions/latest?novelId=...&screenplayType=...` | 回读某小说最近完成的转换 | 已实现 |
 | PUT | `/api/screenplay/conversions/{conversionId}/chapters/{chapterIndex}/scenes/{sceneIndexInChapter}` | 保存单场打磨后的场景 JSON | 已实现 |
 | GET | `/api/screenplay/conversions/{conversionId}/yaml` | 导出最终 YAML 剧本 | 已实现 |
-| POST | `/api/screenplay/convert-single` | 单场转换实验入口 | 已实现，非主演示链路 |
 
 当前实现的关键约束：
 
@@ -229,19 +227,18 @@ Screenplay (持久化)
 | 1 | POST | `/api/auth/register` | 注册并自动登录 | 否 | JSON | `login.html` |
 | 2 | POST | `/api/auth/login` | 登录，返回 JWT | 否 | JSON | `login.html` |
 | 3 | GET | `/api/auth/me` | 当前用户信息/配额 | 是 | JSON | 所有页顶栏配额条 |
-| 4 | POST | `/api/novel/parse` | 粘贴文本并解析章节（当前无状态，不落库） | 否 | JSON | `import.html` |
-| 5 | POST | `/api/novel/upload` | 上传 txt 文件并解析（当前无鉴权） | 否 | JSON | `import.html` |
-| 6 | GET | `/api/novel/{id}/chapters` | 获取章节列表（当前无鉴权） | 否 | JSON | `import.html`（复用回显） |
-| 7 | GET | `/api/novel` | 我的小说列表（复用历史） | 是 | JSON | `import.html` |
-| 8 | POST | `/api/screenplay/convert` | 提交转换任务 | 是 | SSE | `converting.html` |
-| 9 | GET | `/api/screenplay` | 我的剧本列表 | 是 | JSON | `preview.html`（切换剧本） |
-| 10 | GET | `/api/screenplay/{id}` | 获取完整剧本 | 是(本人) | JSON | `preview.html` |
-| 11 | GET | `/api/screenplay/{id}/scenes` | 场景表/大纲（轻量投影） | 是(本人) | JSON | `preview.html` |
-| 12 | GET | `/api/screenplay/{id}/characters` | 获取人物表 | 是(本人) | JSON | `preview.html` |
-| 13 | PUT | `/api/screenplay/{id}/scenes/{sceneId}` | 手动编辑单场 | 是(本人) | JSON | `scene-edit.html` |
-| 14 | POST | `/api/screenplay/{id}/scenes/{sceneId}/regenerate` | AI 重生单场 | 是(本人) | SSE | `scene-edit.html` |
-| 15 | GET | `/api/screenplay/{id}/export/yaml` | 导出 YAML（核心交付） | 是(本人) | YAML 文件 | `export.html` |
-| 16 | GET | `/api/screenplay/{id}/export/text` | 导出可读剧本 | 是(本人) | Text 文件 | `export.html` |
+| 4 | POST | `/api/novel/upload` | 上传 txt 文件并解析（当前无鉴权） | 否 | JSON | `import.html` |
+| 5 | GET | `/api/novel/{id}/chapters` | 获取章节列表（当前无鉴权） | 否 | JSON | `import.html`（复用回显） |
+| 6 | GET | `/api/novel` | 我的小说列表（复用历史） | 是 | JSON | `import.html` |
+| 7 | POST | `/api/screenplay/convert` | 提交转换任务 | 是 | SSE | `converting.html` |
+| 8 | GET | `/api/screenplay` | 我的剧本列表 | 是 | JSON | `preview.html`（切换剧本） |
+| 9 | GET | `/api/screenplay/{id}` | 获取完整剧本 | 是(本人) | JSON | `preview.html` |
+| 10 | GET | `/api/screenplay/{id}/scenes` | 场景表/大纲（轻量投影） | 是(本人) | JSON | `preview.html` |
+| 11 | GET | `/api/screenplay/{id}/characters` | 获取人物表 | 是(本人) | JSON | `preview.html` |
+| 12 | PUT | `/api/screenplay/{id}/scenes/{sceneId}` | 手动编辑单场 | 是(本人) | JSON | `scene-edit.html` |
+| 13 | POST | `/api/screenplay/{id}/scenes/{sceneId}/regenerate` | AI 重生单场 | 是(本人) | SSE | `scene-edit.html` |
+| 14 | GET | `/api/screenplay/{id}/export/yaml` | 导出 YAML（核心交付） | 是(本人) | YAML 文件 | `export.html` |
+| 15 | GET | `/api/screenplay/{id}/export/text` | 导出可读剧本 | 是(本人) | Text 文件 | `export.html` |
 
 ---
 
@@ -251,7 +248,7 @@ Screenplay (持久化)
 
 除 `register`/`login` 外，所有接口须在请求头携带 `Authorization: Bearer <JWT>`。带 `(本人)` 的接口在鉴权之外，还校验**资源归属**（`资源.userId == 当前用户`），不符返回 `40301`。
 
-> 当前代码基线中的 `POST /api/novel/parse`、`POST /api/novel/upload`、`GET /api/novel/{id}/chapters` 尚未接入 JWT；其中 `parse` 为无状态章节识别，`upload` 与 `/{id}/chapters` 已接入 SQLite 持久化。待认证切片完成后，再按本节统一鉴权。
+> 当前代码基线中的 `POST /api/novel/upload`、`GET /api/novel/{id}/chapters` 尚未接入 JWT；二者已接入 SQLite 持久化。待认证切片完成后，再按本节统一鉴权。
 
 #### 4.2.2 JSON 响应包装
 
@@ -334,22 +331,22 @@ Screenplay (持久化)
 
 ### 4.4 小说接口
 
-#### ④ POST `/api/novel/parse` — 粘贴文本解析
+#### ④ POST `/api/novel/upload` — 上传 .txt 解析
 
-> 原型：`import.html` 左侧粘贴正文，触发"自动识别章节"——返回 `已识别 3 章 · 约 1.2 万字`。
+> 原型：`import.html` 上传 `.txt` 文件，系统解析章节并持久化小说。
 
-**请求：**
-```json
-{
-  "title": "她比烟花寂寞",
-  "text": "第一章 出租屋的夜\n...\n第二章 天台\n...\n第三章 转机\n..."
-}
-```
+**请求：** `multipart/form-data`
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `file` | file(.txt) | 是 | UTF-8 文本，≤ 5MB（§6 multipart 上限） |
+| `title` | text | 否 | 缺省时取文件名（去扩展名） |
 
 **响应 `data`：**
 ```json
 {
+  "novelId": "nv-7f3a",
   "title": "她比烟花寂寞",
+  "contentHash": "sha256:...",
   "totalChapters": 3,
   "totalWordCount": 12000,
   "chapters": [
@@ -360,25 +357,9 @@ Screenplay (持久化)
 }
 ```
 
-**说明：** 当前实现为**无状态解析**：仅返回章节元信息，**不落库、不返回 `novelId/contentHash`**。章节标题/字数由后端确定性切分得出（§5.2 步骤①）；`novelId/contentHash` 待持久层切片补入。
-
-**可能错误码：** `40001`（文本为空）、`40002`（超 20 万字）、`40003`（不足 3 章）。
-
-#### ⑤ POST `/api/novel/upload` — 上传 .txt 解析
-
-> 原型：`import.html`「或 上传 .txt 文件」。与 ④ 等价，仅入参形式不同。
-
-**请求：** `multipart/form-data`
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `file` | file(.txt) | 是 | UTF-8 文本，≤ 5MB（§6 multipart 上限） |
-| `title` | text | 否 | 缺省时取文件名（去扩展名） |
-
-**响应 `data`：** 同 ④（`novelId / title / contentHash / totalChapters / totalWordCount / chapters[]`）。
-
 **可能错误码：** `40001`（空文件/非文本）、`40002`（超 20 万字或超 5MB）、`40003`（不足 3 章）。
 
-#### ⑥ GET `/api/novel/{id}/chapters` — 获取章节列表
+#### ⑤ GET `/api/novel/{id}/chapters` — 获取章节列表
 
 > 原型：`import.html` 复用历史小说时回显章节；亦供转换前确认。
 
@@ -401,9 +382,9 @@ Screenplay (持久化)
 
 **可能错误码：** `40401`（小说不存在）、`40301`（非本人）。
 
-#### ⑦ GET `/api/novel` — 我的小说列表
+#### ⑥ GET `/api/novel` — 我的小说列表
 
-> 原型：`import.html` 复用历史小说，避免重复粘贴。
+> 原型：`import.html` 复用历史小说，避免重复上传。
 
 **请求：** 可选 query `?page=1&size=20`。
 
@@ -421,7 +402,7 @@ Screenplay (持久化)
 
 ### 4.5 剧本转换与读取接口
 
-#### ⑧ POST `/api/screenplay/convert` — 提交转换（SSE 流式）
+#### ⑦ POST `/api/screenplay/convert` — 提交转换（SSE 流式）
 
 > 原型：`import.html`「开始转换」跳转 `converting.html`，左侧两阶段进度条 + 右侧实时事件流。
 
@@ -496,7 +477,7 @@ data: {"code": 50001, "message": "LLM 调用失败，请重试"}
 
 **流中错误码：** `50001`（LLM 调用失败）、`50002`（输出格式异常）、`50004`（LLM 超时）。
 
-#### ⑨ GET `/api/screenplay` — 我的剧本列表
+#### ⑧ GET `/api/screenplay` — 我的剧本列表
 
 > 原型：`preview.html` 顶部"切换我的其它剧本"。
 
@@ -1176,3 +1157,82 @@ server: {
   }
 }
 ```
+
+---
+
+## 10. Agent 化演进设计
+
+本节只描述演进方向，详细规格以 `docs/agent-transformation-spec.md` 为准。后续所有 Agent 相关 PR 必须引用该 spec 的具体章节。
+
+### 10.1 当前定位
+
+当前主链路是 LLM workflow：后端代码固定编排“导入 → 章节识别 → 章节切场 → 逐场生成 → 滚动状态更新 → 预览/打磨/导出”，模型只在局部节点完成生成、切分或状态更新。
+
+因此当前项目不直接宣称为完整 Agent 项目。Agent 化后至少需要具备：
+
+- 目标驱动的 Agent run。
+- 服务端白名单 Tool Registry。
+- 可持久化的 step/tool call/guardrail trace。
+- 受限 planner 或固定 plan 编排器。
+- 输入、输出、工具调用和副作用 guardrail。
+- 可恢复、可观察的 SSE 事件流。
+
+### 10.2 目标架构增量
+
+```text
+React Frontend
+  |
+  | REST / SSE
+  v
+AgentController
+  |
+  v
+AgentOrchestrator
+  |-- PlannerService
+  |-- ToolRegistry
+  |-- GuardrailService
+  |-- AgentTraceRepository
+  |
+  v
+Existing Services
+  |-- NovelService
+  |-- ChapterSplitter
+  |-- ChapterSegmentationService
+  |-- LlmService
+  |-- ScreenplayService
+```
+
+设计原则：
+
+- 现有 service 仍是业务能力来源，Agent 层不直接绕过 service 操作 repository。
+- 第一阶段只用固定 plan 复刻现有转换流程，先建立 trace 和工具边界。
+- planner 只能选择白名单工具，且必须通过参数 schema、最大步数和副作用校验。
+- MCP 和 Skill 作为后续扩展，不能阻塞 Tool Registry 与 Orchestrator 的第一阶段落地。
+
+### 10.3 迁移阶段
+
+| 阶段 | 目标 | 主要产物 |
+|---|---|---|
+| Phase 0 | 文档与规范 | `AGENT.md`、Agent 化 spec、本节设计入口 |
+| Phase 1 | 固定计划 Agent | `AgentOrchestrator`、Tool Registry、Agent trace、Agent SSE |
+| Phase 2 | 受限 Planner | 结构化 PlanDTO、工具白名单校验、失败回退固定 plan |
+| Phase 3 | Critic 与自修复 | YAML/JSON/语言/连续性检查，失败可修复或进入人工打磨 |
+| Phase 4 | 多 Agent | Director + Segment/Screenwriter/Continuity/Critic/Polish agents-as-tools |
+| Phase 5 | MCP | resources/prompts/tools 暴露给外部 Agent 客户端 |
+| Phase 6 | Skill | 动画剧本、连续性编辑、YAML 打磨领域 Skill |
+
+### 10.4 与现有模块的关系
+
+- `ScreenplayServiceImpl`：短期继续承担现有转换主链路；Agent 固定 plan 可以先调用它或拆分调用其内部能力。
+- `LlmServiceImpl`：短期继续封装 DeepSeek 调用；后续按工具边界拆出 planner、critic、screenwriter 等专用调用。
+- `ChapterSplitter` 与 `ChapterSegmentationService`：保持纯代码能力，包装为只读工具。
+- `analysisStateJson`：作为 Agent memory 的初始基础，后续可演进为更清晰的 memory snapshot。
+- SSE：现有转换事件保留，新增 Agent 事件使用 `agent_started`、`tool_call_started`、`guardrail_checked`、`agent_completed` 等命名。
+
+### 10.5 安全与质量边界
+
+- 小说正文永远作为数据输入，不允许提升为系统指令。
+- 模型不能直接调用文件系统、命令行、任意网络请求或数据库。
+- 有副作用或产生成本的工具必须记录 trace。
+- 覆盖、批量重生、导出等用户可感知副作用需要服务端校验，必要时要求用户确认。
+- Agent 相关测试默认使用 fake LLM 或 mock service，不依赖真实 DeepSeek API。

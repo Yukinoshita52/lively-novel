@@ -26,12 +26,16 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -51,13 +55,15 @@ class ScreenplayServiceImplTest {
     private final ScreenplaySceneUnitRepository sceneUnitRepository = mock(ScreenplaySceneUnitRepository.class);
     private final ScreenplaySceneRepository sceneRepository = mock(ScreenplaySceneRepository.class);
     private final ChapterSegmentationService chapterSegmentationService = new ChapterSegmentationServiceImpl();
+    private final DeferredExecutor conversionExecutor = new DeferredExecutor();
     private final ScreenplayServiceImpl screenplayService = new ScreenplayServiceImpl(
             novelService,
             llmService,
             chapterSegmentationService,
             conversionRepository,
             sceneUnitRepository,
-            sceneRepository
+            sceneRepository,
+            conversionExecutor
     );
 
     @BeforeEach
@@ -350,6 +356,34 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
+    void returnsLatestConversionSessionForRecoverableStatusesWithUpdatedAt() {
+        String novelId = "nv-1234abcd";
+        ScreenplayConversionEntity conversion = conversion("cv-failed", novelId, "FAILED");
+        conversion.setUpdatedAt(Instant.parse("2026-06-17T09:15:30Z"));
+        ScreenplaySceneUnitEntity sceneUnit = sceneUnitEntity("cv-failed", 1, 1, "第一场", "第一段原文。");
+        ScreenplaySceneEntity sceneEntity = sceneEntity("cv-failed", 1, 1, "scene-1");
+
+        when(conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
+                novelId,
+                ScreenplayTypeEnum.ANIME,
+                List.of("RUNNING", "FAILED", "COMPLETED")
+        )).thenReturn(Optional.of(conversion));
+        when(sceneUnitRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-failed"))
+                .thenReturn(List.of(sceneUnit));
+        when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-failed"))
+                .thenReturn(List.of(sceneEntity));
+
+        ScreenplayConversionDetailDTO detail =
+                screenplayService.getLatestConversionSession(novelId, ScreenplayTypeEnum.ANIME);
+
+        assertThat(detail).isNotNull();
+        assertThat(detail.getConversionId()).isEqualTo("cv-failed");
+        assertThat(detail.getStatus()).isEqualTo("FAILED");
+        assertThat(detail.getUpdatedAt()).isEqualTo("2026-06-17T09:15:30Z");
+        assertThat(detail.getScenes()).hasSize(1);
+    }
+
+    @Test
     void resumesFromPersistedSceneUnitsAndConvertsOnlyMissingScenes() throws Exception {
         String novelId = "nv-1234abcd";
         ScreenplayConversionEntity conversion = conversion("cv-partial", novelId, "FAILED");
@@ -492,7 +526,7 @@ class ScreenplayServiceImplTest {
     }
 
     @Test
-    void returnsLatestCompletedConversionByNovelAndType() {
+    void returnsLatestConversionSessionByNovelAndType() {
         ScreenplayConversionEntity conversion = new ScreenplayConversionEntity();
         conversion.setId("cv-completed");
         conversion.setNovelId("nv-1234abcd");
@@ -552,16 +586,16 @@ class ScreenplayServiceImplTest {
                 }
                 """);
 
-        when(conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusOrderByUpdatedAtDesc(
+        when(conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
                 "nv-1234abcd",
                 ScreenplayTypeEnum.ANIME,
-                "COMPLETED"
+                List.of("RUNNING", "FAILED", "COMPLETED")
         )).thenReturn(Optional.of(conversion));
         when(sceneRepository.findByConversionIdOrderByChapterIndexAscSceneIndexInChapterAsc("cv-completed"))
                 .thenReturn(List.of(sceneEntity));
 
         ScreenplayConversionDetailDTO detail =
-                screenplayService.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME);
+                screenplayService.getLatestConversionSession("nv-1234abcd", ScreenplayTypeEnum.ANIME);
 
         assertThat(detail).isNotNull();
         assertThat(detail.getConversionId()).isEqualTo("cv-completed");
@@ -831,6 +865,7 @@ class ScreenplayServiceImplTest {
         assertThat(containsEvent(sentPayloads, "failed")).isFalse();
         assertThat(containsEvent(sentPayloads, "completed")).isTrue();
         assertThat(containsMessage(sentPayloads, "该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。")).isTrue();
+        assertThat(containsSceneWarning(sentPayloads, "该场生成结果可能含有非中文表达，请在预览或打磨时重点检查。")).isTrue();
     }
 
     @Test
@@ -960,6 +995,23 @@ class ScreenplayServiceImplTest {
         Method initializeMethod = ResponseBodyEmitter.class.getDeclaredMethod("initialize", handlerType);
         initializeMethod.setAccessible(true);
         initializeMethod.invoke(emitter, handler);
+        conversionExecutor.runPending();
+    }
+
+    private static class DeferredExecutor implements Executor {
+        private final Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
+
+        void runPending() {
+            Runnable task;
+            while ((task = tasks.poll()) != null) {
+                task.run();
+            }
+        }
     }
 
     private boolean containsChapterSplitEvent(List<Object> sentPayloads) {
@@ -996,6 +1048,16 @@ class ScreenplayServiceImplTest {
             .filter(Map.class::isInstance)
             .map(Map.class::cast)
             .anyMatch(data -> expectedMessage.equals(data.get("message")));
+    }
+
+    private boolean containsSceneWarning(List<Object> sentPayloads, String expectedWarning) {
+        return flattenPayloadData(sentPayloads).stream()
+            .filter(Map.class::isInstance)
+            .map(Map.class::cast)
+            .map(data -> data.get("scene"))
+            .filter(SceneDTO.class::isInstance)
+            .map(SceneDTO.class::cast)
+            .anyMatch(scene -> scene.getWarnings() != null && scene.getWarnings().contains(expectedWarning));
     }
 
     private boolean containsAnalysisRestoredEvent(

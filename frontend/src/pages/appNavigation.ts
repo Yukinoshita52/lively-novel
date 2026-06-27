@@ -1,6 +1,6 @@
-import type { ImportFlowContext, ScreenplayConvertContext } from '../types/novel'
+import type { ScreenplayConvertContext } from '../types/novel'
 
-export type AppPageKey = 'import' | 'single-scene' | 'convert' | 'preview' | 'polish' | 'export'
+export type AppPageKey = 'workspace' | 'import' | 'convert' | 'preview' | 'polish' | 'export'
 
 export interface FlowStepNavigationState {
   hasGeneratedScenes: boolean
@@ -16,15 +16,13 @@ export type FlowStepNavigation = Record<AppPageKey, {
 
 export interface AppFlowState {
   page: AppPageKey
-  singleSceneContext: ImportFlowContext | null
   convertContext: ScreenplayConvertContext | null
   selectedSceneKey?: string
 }
 
 export function createInitialAppFlowState(): AppFlowState {
   return {
-    page: 'import',
-    singleSceneContext: null,
+    page: 'workspace',
     convertContext: null,
   }
 }
@@ -34,6 +32,19 @@ export function enterConvertPage(state: AppFlowState, context: ScreenplayConvert
     ...state,
     page: 'convert',
     convertContext: context,
+  }
+}
+
+export function enterConvertPageForHistoryReplay(state: AppFlowState): AppFlowState {
+  return {
+    ...state,
+    page: 'convert',
+    convertContext: state.convertContext
+      ? {
+        ...state.convertContext,
+        restoredConversionMode: 'stream',
+      }
+      : state.convertContext,
   }
 }
 
@@ -59,11 +70,55 @@ export function resumeConvertPage(state: AppFlowState): AppFlowState {
   }
 }
 
+export function retryConvertPage(state: AppFlowState): AppFlowState {
+  if (!state.convertContext) {
+    return {
+      ...state,
+      page: 'convert',
+    }
+  }
+
+  const {
+    restoredConversionId,
+    restoredConversionStatus,
+    restoredConversionUpdatedAt,
+    restoredConversionErrorMessage,
+    restoredConversionMode,
+    restoredGeneratedScenes,
+    ...freshContext
+  } = state.convertContext
+
+  void restoredConversionId
+  void restoredConversionStatus
+  void restoredConversionUpdatedAt
+  void restoredConversionErrorMessage
+  void restoredConversionMode
+  void restoredGeneratedScenes
+
+  return {
+    ...state,
+    page: 'convert',
+    convertContext: freshContext,
+    selectedSceneKey: undefined,
+  }
+}
+
 export function enterPolishPage(state: AppFlowState, selectedSceneKey: string): AppFlowState {
   return {
     ...state,
     page: 'polish',
     selectedSceneKey,
+  }
+}
+
+export function enterPolishPageWithFallback(
+  state: AppFlowState,
+  fallbackSceneKey?: string,
+): AppFlowState {
+  return {
+    ...state,
+    page: 'polish',
+    selectedSceneKey: state.selectedSceneKey ?? fallbackSceneKey,
   }
 }
 
@@ -98,8 +153,8 @@ export function resolveFlowStepNavigation(
   const canExport = hasGeneratedScenes && navigationState.completed
 
   return {
+    workspace: { clickable: true, enabled: true, target: 'workspace' },
     import: { clickable: true, enabled: true, target: 'import' },
-    'single-scene': { clickable: false, enabled: false, target: 'single-scene' },
     convert: {
       clickable: true,
       enabled: hasConvertContext,

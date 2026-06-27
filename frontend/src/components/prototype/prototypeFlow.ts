@@ -1,6 +1,6 @@
 import type { ConvertEventItem } from '../../types/novel'
 
-export type FlowStepKey = 'import' | 'convert' | 'preview' | 'polish' | 'export'
+export type FlowStepKey = 'workspace' | 'import' | 'convert' | 'preview' | 'polish' | 'export'
 export type PipelinePhaseStatus = 'idle' | 'active' | 'done' | 'failed'
 
 export interface FlowStep {
@@ -12,7 +12,7 @@ export interface FlowStep {
 }
 
 export interface PipelinePhase {
-  key: 'analysis' | 'generation' | 'persist'
+  key: 'analysis' | 'generation'
   mark: string
   title: string
   description: string
@@ -39,6 +39,7 @@ export interface StreamEventPart {
 }
 
 const FLOW_STEPS: Array<Omit<FlowStep, 'active' | 'done'>> = [
+  { key: 'workspace', number: '', label: '作品' },
   { key: 'import', number: '', label: '导入' },
   { key: 'convert', number: '', label: '转换' },
   { key: 'preview', number: '', label: '预览' },
@@ -78,7 +79,6 @@ export function buildPipelinePhases(context: {
     return [
       createPhase('analysis', 'A', '章节切场', '读取章节 · 拆分场景单元', 100, 'done'),
       createPhase('generation', 'B', '剧本生成', '逐场生成 YAML · 更新全局状态', 100, 'done'),
-      createPhase('persist', '✓', '结果整理', '持久化场景 · 准备预览导出', 100, 'done'),
     ]
   }
 
@@ -92,7 +92,6 @@ export function buildPipelinePhases(context: {
       generationProgress,
       context.convertError ? 'failed' : hasScenePlan ? 'active' : 'idle',
     ),
-    createPhase('persist', '✓', '结果整理', '持久化场景 · 准备预览导出', 0, 'idle'),
   ]
 }
 

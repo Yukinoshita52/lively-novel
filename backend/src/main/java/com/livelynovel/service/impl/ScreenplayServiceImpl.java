@@ -27,6 +27,7 @@ import com.livelynovel.repository.ScreenplaySceneUnitRepository;
 import com.livelynovel.service.LlmService;
 import com.livelynovel.service.NovelService;
 import com.livelynovel.service.ScreenplayService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,11 +35,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.yaml.snakeyaml.DumperOptions;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.UUID;
 
 /**
@@ -67,6 +71,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     private final ScreenplayConversionRepository conversionRepository;
     private final ScreenplaySceneUnitRepository sceneUnitRepository;
     private final ScreenplaySceneRepository sceneRepository;
+    private final Executor conversionExecutor;
 
     private static DumperOptions createYamlDumperOptions() {
         DumperOptions options = new DumperOptions();
@@ -74,6 +79,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         return options;
     }
 
+    @Autowired
     public ScreenplayServiceImpl(
             NovelService novelService,
             LlmService llmService,
@@ -82,19 +88,40 @@ public class ScreenplayServiceImpl implements ScreenplayService {
             ScreenplaySceneUnitRepository sceneUnitRepository,
             ScreenplaySceneRepository sceneRepository
     ) {
+        this(
+                novelService,
+                llmService,
+                chapterSegmentationService,
+                conversionRepository,
+                sceneUnitRepository,
+                sceneRepository,
+                ForkJoinPool.commonPool()
+        );
+    }
+
+    public ScreenplayServiceImpl(
+            NovelService novelService,
+            LlmService llmService,
+            ChapterSegmentationService chapterSegmentationService,
+            ScreenplayConversionRepository conversionRepository,
+            ScreenplaySceneUnitRepository sceneUnitRepository,
+            ScreenplaySceneRepository sceneRepository,
+            Executor conversionExecutor
+    ) {
         this.novelService = novelService;
         this.llmService = llmService;
         this.chapterSegmentationService = chapterSegmentationService;
         this.conversionRepository = conversionRepository;
         this.sceneUnitRepository = sceneUnitRepository;
         this.sceneRepository = sceneRepository;
+        this.conversionExecutor = conversionExecutor;
     }
 
     @Override
     public SseEmitter convertNovel(String novelId, ScreenplayTypeEnum screenplayType) {
         SseEmitter emitter = new SseEmitter(0L);
 
-        CompletableFuture.runAsync(() -> convertNovel(novelId, screenplayType, emitter));
+        CompletableFuture.runAsync(() -> convertNovel(novelId, screenplayType, emitter), conversionExecutor);
 
         return emitter;
     }
@@ -253,6 +280,13 @@ public class ScreenplayServiceImpl implements ScreenplayService {
                     SceneDTO scene = sceneResult.scene();
                     scene.setSourceChapter(chapterIndex);
                     scene.setSourceText(sceneText);
+                    if (sceneResult.warningMessage() != null && !sceneResult.warningMessage().isBlank()) {
+                        List<String> sceneWarnings = new ArrayList<>(scene.getWarnings() == null
+                                ? Collections.emptyList()
+                                : scene.getWarnings());
+                        sceneWarnings.add(sceneResult.warningMessage());
+                        scene.setWarnings(sceneWarnings);
+                    }
                     persistGeneratedScene(conversion.getId(), chapterIndex, sceneUnit, scene);
                     rollingAnalysisState = updateRollingAnalysisState(
                             emitter,
@@ -565,15 +599,15 @@ public class ScreenplayServiceImpl implements ScreenplayService {
     }
 
     @Override
-    public ScreenplayConversionDetailDTO getLatestCompletedConversion(String novelId, ScreenplayTypeEnum screenplayType) {
+    public ScreenplayConversionDetailDTO getLatestConversionSession(String novelId, ScreenplayTypeEnum screenplayType) {
         if (novelId == null || novelId.isBlank() || screenplayType == null) {
             return null;
         }
         return conversionRepository
-                .findFirstByNovelIdAndScreenplayTypeAndStatusOrderByUpdatedAtDesc(
+                .findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
                         novelId,
                         screenplayType,
-                        "COMPLETED"
+                        List.of("RUNNING", "FAILED", "COMPLETED")
                 )
                 .map(this::toConversionDetail)
                 .orElse(null);
@@ -694,6 +728,7 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         detail.setNovelId(conversion.getNovelId());
         detail.setScreenplayType(conversion.getScreenplayType());
         detail.setStatus(conversion.getStatus());
+        detail.setUpdatedAt(conversion.getUpdatedAt() == null ? null : conversion.getUpdatedAt().toString());
         detail.setErrorMessage(conversion.getErrorMessage());
         detail.setAnalysisStateJson(conversion.getAnalysisStateJson());
 
@@ -724,6 +759,9 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         persistedScene.setChapterIndex(entity.getChapterIndex());
         persistedScene.setSceneIndexInChapter(entity.getSceneIndexInChapter());
         persistedScene.setTitle(defaultIfBlank(title, buildSceneHeadingText(scene)));
+        if (scene != null && scene.getWarnings() == null) {
+            scene.setWarnings(Collections.emptyList());
+        }
         persistedScene.setScene(scene);
         return persistedScene;
     }

@@ -6,7 +6,6 @@ import com.livelynovel.model.dto.SceneDTO;
 import com.livelynovel.model.dto.ScreenplayConversionDetailDTO;
 import com.livelynovel.model.dto.ScreenplayConvertRequestDTO;
 import com.livelynovel.model.enums.ScreenplayTypeEnum;
-import com.livelynovel.service.LlmService;
 import com.livelynovel.service.ScreenplayService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +17,8 @@ import static org.mockito.Mockito.when;
 
 class ScreenplayControllerTest {
 
-    private final LlmService llmService = mock(LlmService.class);
     private final ScreenplayService screenplayService = mock(ScreenplayService.class);
-    private final ScreenplayController controller = new ScreenplayController(llmService, screenplayService);
+    private final ScreenplayController controller = new ScreenplayController(screenplayService);
 
     @Test
     void rejectsEmptyNovelIdBeforeStartingConvertStream() {
@@ -72,27 +70,27 @@ class ScreenplayControllerTest {
     }
 
     @Test
-    void returnsLatestCompletedConversionForNovelAndType() {
+    void returnsLatestConversionSessionForNovelAndType() {
         ScreenplayConversionDetailDTO detail = new ScreenplayConversionDetailDTO();
-        detail.setConversionId("cv-completed");
-        detail.setStatus("COMPLETED");
-        when(screenplayService.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME))
+        detail.setConversionId("cv-failed");
+        detail.setStatus("FAILED");
+        when(screenplayService.getLatestConversionSession("nv-1234abcd", ScreenplayTypeEnum.ANIME))
                 .thenReturn(detail);
 
         Result<ScreenplayConversionDetailDTO> response =
-                controller.getLatestCompletedConversion("nv-1234abcd", ScreenplayTypeEnum.ANIME);
+                controller.getLatestConversionSession("nv-1234abcd", ScreenplayTypeEnum.ANIME);
 
         assertThat(response.getCode()).isEqualTo(0);
-        assertThat(response.getData().getConversionId()).isEqualTo("cv-completed");
+        assertThat(response.getData().getConversionId()).isEqualTo("cv-failed");
     }
 
     @Test
-    void returnsNotFoundWhenLatestCompletedConversionMissing() {
-        when(screenplayService.getLatestCompletedConversion("nv-missing", ScreenplayTypeEnum.ANIME))
+    void returnsNotFoundWhenLatestConversionSessionMissing() {
+        when(screenplayService.getLatestConversionSession("nv-missing", ScreenplayTypeEnum.ANIME))
                 .thenReturn(null);
 
         Result<ScreenplayConversionDetailDTO> response =
-                controller.getLatestCompletedConversion("nv-missing", ScreenplayTypeEnum.ANIME);
+                controller.getLatestConversionSession("nv-missing", ScreenplayTypeEnum.ANIME);
 
         assertThat(response.getCode()).isEqualTo(40401);
         assertThat(response.getData()).isNull();

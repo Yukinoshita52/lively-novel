@@ -23,24 +23,17 @@
   <h1 class="h-title reveal d1" style="font-size:clamp(26px,4vw,40px)">把小说交给它</h1>
 
   <div class="grid-2 mt-24" style="grid-template-columns:1.6fr 1fr">
-    <!-- 左：文本输入 -->
+    <!-- 左：文件导入 -->
     <div class="panel reveal d2">
-      <div class="panel-h"><span class="ix">TEXT</span> 小说正文 <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">需 ≥ 3 章 · ≤ 10 万字</span></div>
+      <div class="panel-h"><span class="ix">TXT</span> 小说文件 <span class="muted" style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:400">需 ≥ 3 章 · ≤ 20 万字</span></div>
       <div class="panel-b">
         <label class="fld"><span class="lbl">作品标题</span><input class="input" value="她比烟花寂寞"></label>
-        <label class="fld" style="margin-bottom:8px"><span class="lbl">粘贴正文（自动识别章节）</span>
-          <textarea class="textarea manuscript" rows="11">第一章 出租屋的夜
-　　雨敲在铁皮屋檐上。林晚把简历又看了一遍，心里像压了块石头——她知道这次又没戏了……
-
-第二章 天台
-　　黄昏，城市在脚下铺开。她想，如果就这样跳下去，会不会比活着轻松。
-
-第三章 转机
-　　手机响了。是那家公司。"林晚小姐，恭喜你通过了。"</textarea>
+        <label class="fld" style="margin-bottom:8px"><span class="lbl">上传 .txt 文件（自动识别章节）</span>
+          <div class="upload-drop">将小说 .txt 拖入此处，或点击选择文件</div>
         </label>
         <div class="row" style="justify-content:space-between">
           <span class="hint">已识别 <b style="color:var(--seal)">3</b> 章 · 约 <b style="color:var(--seal)">1.2</b> 万字</span>
-          <button class="btn sm ghost">或 上传 .txt 文件</button>
+          <button class="btn sm ghost">重新上传</button>
         </div>
       </div>
     </div>
@@ -67,10 +60,9 @@
 </div>
 
 <div class="api-dock" id="dock">
-  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 导入</span><span class="cnt">4</span></div>
+  <div class="slate" onclick="toggleDock(this)"><span class="clap">🎬</span><span class="ttl">接口标注 · 导入</span><span class="cnt">3</span></div>
   <div class="api-list">
-    <div class="api-item"><span class="m POST">POST</span><span class="path">/api/novel/parse</span><span class="when">粘贴正文 → 解析章节、返回 novelId</span></div>
-    <div class="api-item"><span class="m POST">POST</span><span class="path">/api/novel/upload</span><span class="when">上传 .txt 文件（multipart ≤ 5MB）</span></div>
+    <div class="api-item"><span class="m POST">POST</span><span class="path">/api/novel/upload</span><span class="when">上传 .txt 文件并持久化小说</span></div>
     <div class="api-item"><span class="m GET">GET</span><span class="path">/api/novel</span><span class="when">（可选）我的历史小说列表，便于复用</span></div>
     <div class="api-item"><span class="m GET">GET</span><span class="path">/api/auth/me</span><span class="when">顶栏每日配额显示</span></div>
   </div>

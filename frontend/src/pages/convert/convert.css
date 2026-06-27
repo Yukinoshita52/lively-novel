@@ -81,11 +81,6 @@
   line-height: 1.7;
 }
 
-.event-panel .event-list {
-  max-height: 260px;
-  overflow: auto;
-}
-
 .convert-grid.convert-progress-grid {
   grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.25fr);
   max-width: none;
@@ -175,12 +170,71 @@
   margin-top: 8px;
 }
 
+.conversion-progress-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.conversion-progress-row {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.conversion-progress-label {
+  color: #8a7e6a;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.8rem;
+}
+
+.conversion-progress-value {
+  color: #2f2418;
+  font-weight: 700;
+}
+
 .prototype-export-row {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
   margin-top: 14px;
+}
+
+.conversion-summary {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(120, 82, 49, 0.12);
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.conversion-summary-status {
+  font-weight: 800;
+}
+
+.conversion-summary-status.status-COMPLETED {
+  color: #2f6a3a;
+}
+
+.conversion-summary-status.status-FAILED {
+  color: #8c2820;
+}
+
+.conversion-summary-status.status-RUNNING {
+  color: #8c3f21;
+}
+
+.conversion-summary-id {
+  color: #8a7e6a;
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
 }
 
 .prototype-stream {

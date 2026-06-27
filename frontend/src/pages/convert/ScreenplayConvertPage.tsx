@@ -1,8 +1,12 @@
 import { useMemo } from 'react'
-import { Alert, Button, Card, Progress } from 'antd'
+import { Button, Card, Progress, Typography } from 'antd'
 import { ArrowLeftOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
-import { resolvePreviewEntryState, resolveResumeEntryState } from '../conversionSession'
+import {
+  resolvePreviewEntryState,
+  resolveRestoredConversionSummary,
+  resolveResumeEntryState,
+} from '../conversionSession'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import {
   buildConvertProgressNote,
@@ -12,12 +16,17 @@ import {
   resolveCurrentConvertChapterIndex,
 } from '../../components/prototype/prototypeFlow'
 import type { FlowStepNavigation } from '../appNavigation'
+import { formatHistoryTime } from '../import/importFormat'
+
+const { Text } = Typography
 
 type ScreenplayConvertPageProps = {
   session: ConversionSessionState
   onBack: () => void
   onPreview: () => void
   onResume: () => void
+  onRetry: () => void
+  backLabel?: string
   flowNavigation?: FlowStepNavigation
   onNavigateStep?: (step: FlowStepKey) => void
 }
@@ -27,6 +36,8 @@ function ScreenplayConvertPage({
   onBack,
   onPreview,
   onResume,
+  onRetry,
+  backLabel = '返回导入',
   flowNavigation,
   onNavigateStep,
 }: ScreenplayConvertPageProps) {
@@ -61,6 +72,12 @@ function ScreenplayConvertPage({
   )
   const previewEntry = resolvePreviewEntryState(session)
   const resumeEntry = resolveResumeEntryState(session)
+  const restoredSummary = resolveRestoredConversionSummary(session.context)
+  const recentScene = session.generatedScenes.at(-1)
+  const chapterProgressText = currentChapterIndex > 0 ? `第 ${currentChapterIndex} 章` : '章节待定'
+  const sceneProgressText = totalSceneCount > 0
+    ? `${finishedSceneCount} / ${totalSceneCount} 场`
+    : `${finishedSceneCount} 场`
 
   return (
     <PrototypeFrame
@@ -75,7 +92,7 @@ function ScreenplayConvertPage({
         meta="→ 动画剧本"
         action={
           <Button className="prototype-ghost-button" icon={<ArrowLeftOutlined />} onClick={onBack}>
-            返回导入
+            {backLabel}
           </Button>
         }
       />
@@ -103,16 +120,35 @@ function ScreenplayConvertPage({
             ))}
           </div>
 
+          <div className="conversion-progress-summary">
+            <div className="conversion-progress-row">
+              <span className="conversion-progress-label">章节进度</span>
+              <span className="conversion-progress-value">{chapterProgressText}</span>
+            </div>
+            <div className="conversion-progress-row">
+              <span className="conversion-progress-label">场景进度</span>
+              <span className="conversion-progress-value">{sceneProgressText}</span>
+            </div>
+            <div className="conversion-progress-row">
+              <span className="conversion-progress-label">最近完成</span>
+              <span className="conversion-progress-value">
+                {recentScene ? `第 ${recentScene.chapterIndex} 章 · ${recentScene.title}` : '等待第一场生成'}
+              </span>
+            </div>
+          </div>
           <div className="prototype-progress-note">
-            <span>
-              {buildConvertProgressNote({
-                currentChapterIndex,
-                finishedSceneCount,
-                totalSceneCount,
-              })}
-            </span>
+            <span>{buildConvertProgressNote({ currentChapterIndex, finishedSceneCount, totalSceneCount })}</span>
           </div>
           <Progress className="prototype-progress" percent={progressPercent} strokeColor="#be3a2e" showInfo={false} />
+          {restoredSummary ? (
+            <div className="conversion-summary">
+              <Text className={`conversion-summary-status status-${restoredSummary.status}`}>
+                {restoredSummary.statusLabel}
+              </Text>
+              <Text>最近更新时间：{formatHistoryTime(restoredSummary.updatedAt ?? null)}</Text>
+              <Text className="conversion-summary-id">转换 ID：{restoredSummary.conversionId}</Text>
+            </div>
+          ) : null}
           <div className="prototype-export-row">
             <Button disabled={!previewEntry.enabled} icon={<EyeOutlined />} onClick={onPreview} type="primary">
               {previewEntry.label}
@@ -122,17 +158,17 @@ function ScreenplayConvertPage({
                 {resumeEntry.label}
               </Button>
             ) : null}
+            {session.convertError ? (
+              <Button onClick={onRetry}>
+                重新尝试
+              </Button>
+            ) : null}
+            {session.convertError ? (
+              <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
+                返回历史作品
+              </Button>
+            ) : null}
           </div>
-
-          {session.convertError ? (
-            <Alert
-              className="feedback-block"
-              message="转换失败"
-              description={<span style={{ whiteSpace: 'pre-line' }}>{session.convertError}</span>}
-              type="error"
-              showIcon
-            />
-          ) : null}
         </Card>
 
         <Card

@@ -1,6 +1,9 @@
 package com.livelynovel.model.entity;
 
 import jakarta.persistence.Column;
+
+import lombok.Getter;
+import lombok.Setter;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -16,6 +19,8 @@ import jakarta.persistence.UniqueConstraint;
         name = "screenplay_scene",
         uniqueConstraints = @UniqueConstraint(columnNames = {"conversionId", "chapterIndex", "sceneIndexInChapter"})
 )
+@Getter
+@Setter
 public class ScreenplaySceneEntity {
 
     @Id
@@ -33,44 +38,4 @@ public class ScreenplaySceneEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String sceneJson;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getConversionId() {
-        return conversionId;
-    }
-
-    public void setConversionId(String conversionId) {
-        this.conversionId = conversionId;
-    }
-
-    public int getChapterIndex() {
-        return chapterIndex;
-    }
-
-    public void setChapterIndex(int chapterIndex) {
-        this.chapterIndex = chapterIndex;
-    }
-
-    public int getSceneIndexInChapter() {
-        return sceneIndexInChapter;
-    }
-
-    public void setSceneIndexInChapter(int sceneIndexInChapter) {
-        this.sceneIndexInChapter = sceneIndexInChapter;
-    }
-
-    public String getSceneJson() {
-        return sceneJson;
-    }
-
-    public void setSceneJson(String sceneJson) {
-        this.sceneJson = sceneJson;
-    }
 }

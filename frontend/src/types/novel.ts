@@ -40,18 +40,16 @@ export interface NovelListItem {
   totalChapters: number
   totalWordCount: number
   createdAt: string | null
+  latestConversionId?: string | null
+  latestConversionType?: string | null
+  latestConversionStatus?: 'RUNNING' | 'FAILED' | 'COMPLETED' | string | null
+  latestConversionUpdatedAt?: string | null
+  latestConversionErrorMessage?: string | null
 }
 
 export interface NovelListResult {
   novels: NovelListItem[]
   total: number
-}
-
-export interface ImportFlowContext {
-  novelId: string
-  title: string
-  chapters: ChapterPreview[]
-  selectedChapterIndex: number
 }
 
 export interface ScreenplayConvertContext {
@@ -60,6 +58,12 @@ export interface ScreenplayConvertContext {
   totalChapters: number
   chapters: ChapterPreview[]
   screenplayType: string
+  restoredConversionId?: string
+  restoredConversionStatus?: 'RUNNING' | 'FAILED' | 'COMPLETED' | string
+  restoredConversionUpdatedAt?: string
+  restoredConversionErrorMessage?: string
+  restoredConversionMode?: 'static' | 'stream'
+  restoredGeneratedScenes?: GeneratedSceneSummary[]
 }
 
 export interface ConvertEventItem {
@@ -86,6 +90,7 @@ export interface ScreenplayConversionDetail {
   novelId: string
   screenplayType: string
   status: 'RUNNING' | 'COMPLETED' | 'FAILED' | string
+  updatedAt?: string | null
   errorMessage?: string | null
   scenes: ScreenplayPersistedScene[]
 }
@@ -126,6 +131,7 @@ export interface SceneResult {
   dialogueBlocks?: DialogueBlock[]
   visualizedInnerThoughts?: VisualizedInnerThought[]
   transitions?: string[]
+  warnings?: string[]
   sourceChapter: number
   sourceText: string
 }

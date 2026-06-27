@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Spin, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useRef } from 'react'
+import { Button, Card, Tag, Typography } from 'antd'
+import { ArrowLeftOutlined, EditOutlined, WarningOutlined } from '@ant-design/icons'
 import type { ConversionSessionState } from '../conversionSession'
-import type { GeneratedSceneSummary, ScreenplayConversionDetail } from '../../types/novel'
-import { getScreenplayConversionDetail } from '../../services/novel'
+import type { GeneratedSceneSummary } from '../../types/novel'
 import { PrototypeFrame, PrototypeHero, PrototypePanelTitle } from '../../components/prototype/PrototypeFrame'
 import type { FlowStepNavigation } from '../appNavigation'
 import type { FlowStepKey } from '../../components/prototype/prototypeFlow'
+import type { PolishSceneStatus } from '../polish/screenplayPolish'
 import {
   buildPreviewActions,
+  buildPreviewScrollKey,
   buildPreviewTabs,
+  buildGenerationQualityWarnings,
   buildScriptBlockRows,
   buildSceneOutlineItems,
   buildSceneTableRows,
   getSourceDisplayText,
-  mapPersistedScenesToGeneratedScenes,
   resolveSelectedScene,
   type PreviewTabKey,
 } from './screenplayPreview'
@@ -24,6 +25,13 @@ const { Text, Title } = Typography
 
 type ScreenplayPreviewPageProps = {
   session: ConversionSessionState
+  selectedSceneKey?: string
+  activePreviewTab: PreviewTabKey
+  polishSceneStatusByKey?: Record<string, PolishSceneStatus>
+  onSelectScene: (sceneKey: string) => void
+  onChangePreviewTab: (tab: PreviewTabKey) => void
+  readingScrollByKey?: Record<string, number>
+  onRecordReadingScroll?: (key: string, scrollTop: number) => void
   onBackToConvert: () => void
   onPolishScene: (sceneKey: string) => void
   flowNavigation?: FlowStepNavigation
@@ -32,56 +40,65 @@ type ScreenplayPreviewPageProps = {
 
 function ScreenplayPreviewPage({
   session,
+  selectedSceneKey,
+  activePreviewTab,
+  polishSceneStatusByKey = {},
+  onSelectScene,
+  onChangePreviewTab,
+  readingScrollByKey = {},
+  onRecordReadingScroll,
   onBackToConvert,
   onPolishScene,
   flowNavigation,
   onNavigateStep,
 }: ScreenplayPreviewPageProps) {
-  const [selectedSceneKey, setSelectedSceneKey] = useState<string>()
-  const [activePreviewTab, setActivePreviewTab] = useState<PreviewTabKey>('script')
-  const [conversionDetail, setConversionDetail] = useState<ScreenplayConversionDetail | null>(null)
-  const [detailError, setDetailError] = useState<string | null>(null)
+  const selectedOutlineRowRef = useRef<HTMLButtonElement | null>(null)
+  const readingScrollRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    if (!session.conversionId || !session.completed) {
-      return undefined
-    }
-
-    let active = true
-
-    getScreenplayConversionDetail(session.conversionId)
-      .then((detail) => {
-        if (active) {
-          setConversionDetail(detail)
-        }
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setDetailError(error instanceof Error ? error.message : '读取预览详情失败')
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [session.completed, session.conversionId])
-
-  const generatedScenes: GeneratedSceneSummary[] = useMemo(() => {
-    if (conversionDetail?.scenes.length) {
-      return mapPersistedScenesToGeneratedScenes(conversionDetail.scenes)
-    }
-
-    return session.generatedScenes
-  }, [conversionDetail, session.generatedScenes])
+  const generatedScenes: GeneratedSceneSummary[] = session.generatedScenes
   const sceneOutlineItems = useMemo(() => buildSceneOutlineItems(generatedScenes), [generatedScenes])
+  const qualityWarnings = useMemo(() => buildGenerationQualityWarnings(generatedScenes), [generatedScenes])
   const previewTabs = useMemo(() => buildPreviewTabs(activePreviewTab), [activePreviewTab])
   const sceneTableRows = useMemo(() => buildSceneTableRows(generatedScenes), [generatedScenes])
   const selectedScene = useMemo(
     () => resolveSelectedScene(generatedScenes, selectedSceneKey),
     [generatedScenes, selectedSceneKey],
   )
-  const loadingDetail = Boolean(session.completed && session.conversionId && !conversionDetail && !detailError)
   const previewActions = buildPreviewActions(Boolean(selectedScene))
+  const selectedSceneWarnings = selectedScene?.warnings ?? []
+  const selectedSceneKeyForScroll = selectedScene?.key
+  const readingScrollKey = selectedSceneKeyForScroll ? buildPreviewScrollKey(selectedSceneKeyForScroll, activePreviewTab) : undefined
+
+  useEffect(() => {
+    const row = selectedOutlineRowRef.current
+    if (!row) {
+      return
+    }
+
+    row.scrollIntoView({ block: 'nearest' })
+  }, [selectedScene?.key])
+
+  useEffect(() => {
+    const previewElement = readingScrollRef.current
+    if (!previewElement || !readingScrollKey) {
+      return
+    }
+
+    previewElement.scrollTop = readingScrollByKey[readingScrollKey] ?? 0
+  }, [readingScrollByKey, readingScrollKey])
+
+  function handleReadingScroll() {
+    if (!readingScrollKey || !onRecordReadingScroll || !readingScrollRef.current) {
+      return
+    }
+
+    onRecordReadingScroll(readingScrollKey, readingScrollRef.current.scrollTop)
+  }
+
+  function selectWarningScene(sceneKey: string) {
+    onSelectScene(sceneKey)
+    onChangePreviewTab('script')
+  }
 
   return (
     <PrototypeFrame
@@ -106,14 +123,26 @@ function ScreenplayPreviewPage({
         title={<PrototypePanelTitle code="PREVIEW" title="逐场预览" meta="YAML → 渲染视图" />}
         variant="borderless"
       >
-        {loadingDetail ? (
-          <div className="screenplay-empty">
-            <Spin />
-            <Text>正在读取已落库剧本...</Text>
+        {qualityWarnings.length > 0 ? (
+          <div className="quality-warning-summary">
+            <div className="quality-warning-summary-head">
+              <WarningOutlined />
+              <Text>建议重点检查 {qualityWarnings.length} 项</Text>
+            </div>
+            <div className="quality-warning-list">
+              {qualityWarnings.map((warning) => (
+                <button
+                  className={`quality-warning-chip severity-${warning.severity}`}
+                  key={warning.key}
+                  onClick={() => selectWarningScene(warning.sceneKey)}
+                  type="button"
+                >
+                  <span>{warning.sceneNumber}</span>
+                  {warning.title}
+                </button>
+              ))}
+            </div>
           </div>
-        ) : null}
-        {detailError ? (
-          <Alert className="feedback-block" message="预览详情读取失败" description={detailError} type="warning" showIcon />
         ) : null}
 
         <div className="scene-preview-grid">
@@ -127,8 +156,9 @@ function ScreenplayPreviewPage({
                 <button
                   className={`scene-outline-row ${scene.key === selectedScene?.key ? 'active' : ''}`}
                   key={scene.key}
+                  ref={scene.key === selectedScene?.key ? selectedOutlineRowRef : undefined}
                   onClick={() => {
-                    setSelectedSceneKey(scene.key)
+                    onSelectScene(scene.key)
                   }}
                   type="button"
                 >
@@ -137,7 +167,21 @@ function ScreenplayPreviewPage({
                     <span className="scene-outline-title">{scene.title}</span>
                     <span className="scene-outline-heading">{scene.headingText}</span>
                   </span>
-                  <span className="scene-outline-ch">CH{scene.chapterIndex}</span>
+                  <span className="scene-outline-status">
+                    {polishSceneStatusByKey[scene.key]?.changed ? (
+                      <span className="scene-outline-state">已改</span>
+                    ) : null}
+                    {polishSceneStatusByKey[scene.key]?.unsaved ? (
+                      <span className="scene-outline-state unsaved">未存</span>
+                    ) : null}
+                    {scene.warnings.length > 0 ? (
+                      <span className="scene-outline-warning">
+                        <WarningOutlined />
+                        {scene.warnings.length}
+                      </span>
+                    ) : null}
+                    <span className="scene-outline-ch">CH{scene.chapterIndex}</span>
+                  </span>
                 </button>
               ))
             )}
@@ -154,7 +198,7 @@ function ScreenplayPreviewPage({
                   <button
                     className={`preview-tab${tab.active ? ' active' : ''}`}
                     key={tab.key}
-                    onClick={() => setActivePreviewTab(tab.key)}
+                    onClick={() => onChangePreviewTab(tab.key)}
                     type="button"
                   >
                     {tab.label}
@@ -175,12 +219,22 @@ function ScreenplayPreviewPage({
               </div>
 
               {activePreviewTab === 'script' ? (
-                <div className="screenplay-preview preview-reading-scroll">
+                <div className="screenplay-preview preview-reading-scroll" onScroll={handleReadingScroll} ref={readingScrollRef}>
                   <div className="screenplay-scene-meta">
                     <Tag variant="filled">{selectedScene.sceneNumber}</Tag>
                     <Text>第 {selectedScene.chapterIndex} 章</Text>
                     {selectedScene.sceneIndexInChapter ? <Text>第 {selectedScene.sceneIndexInChapter} 场</Text> : null}
                   </div>
+                  {selectedSceneWarnings.length > 0 ? (
+                    <div className="scene-warning-panel">
+                      {selectedSceneWarnings.map((warning) => (
+                        <div className={`scene-warning-row severity-${warning.severity}`} key={warning.key}>
+                          <Text className="scene-warning-title">{warning.title}</Text>
+                          <Text>{warning.message}</Text>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <Title level={4}>{selectedScene.title}</Title>
 
                   <div className="screenplay-paper">
@@ -198,7 +252,7 @@ function ScreenplayPreviewPage({
               ) : null}
 
               {activePreviewTab === 'source' ? (
-                <div className="screenplay-preview preview-reading-scroll">
+                <div className="screenplay-preview preview-reading-scroll" onScroll={handleReadingScroll} ref={readingScrollRef}>
                   <div className="screenplay-scene-meta">
                     <Tag variant="filled">{selectedScene.sceneNumber}</Tag>
                     <Text>第 {selectedScene.chapterIndex} 章</Text>
