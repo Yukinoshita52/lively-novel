@@ -54,6 +54,8 @@ class AgentControllerWebMvcTest {
         assertThat(streamResult.getResponse().getContentType()).startsWith(MediaType.TEXT_EVENT_STREAM_VALUE);
         assertThat(streamResult.getResponse().getContentAsString()).contains("event:agent_started");
         assertThat(streamResult.getResponse().getContentAsString()).contains("event:plan_created");
+        assertThat(streamResult.getResponse().getContentAsString()).contains("event:step_started");
+        assertThat(streamResult.getResponse().getContentAsString()).contains("event:guardrail_checked");
     }
 
     private SseEmitter startedEmitter() {
@@ -62,6 +64,16 @@ class AgentControllerWebMvcTest {
             try {
                 emitter.send(SseEmitter.event().name("agent_started").data(Map.of("runId", "ar-1234abcd")));
                 emitter.send(SseEmitter.event().name("plan_created").data(Map.of("runId", "ar-1234abcd")));
+                emitter.send(SseEmitter.event().name("step_started").data(Map.of(
+                        "runId", "ar-1234abcd",
+                        "stepId", "step-1234abcd"
+                )));
+                emitter.send(SseEmitter.event().name("guardrail_checked").data(Map.of(
+                        "runId", "ar-1234abcd",
+                        "stepId", "step-1234abcd",
+                        "guardrailName", "tool_side_effect_allowed",
+                        "guardrailStatus", "PASS"
+                )));
                 emitter.complete();
             } catch (IOException e) {
                 emitter.completeWithError(e);
