@@ -3,7 +3,7 @@
 > 日期：2026-06-14
 > 版本：v0.1
 > 状态：开发前规格
-> 适用分支：`dev` 及基于 `dev` 创建的 feature 分支
+> 适用分支：`master` 及基于 `master` 创建的 feature 分支
 
 ---
 
@@ -237,7 +237,7 @@ AgentToolCall
  ├── runId
  ├── stepId
  ├── toolName
- ├── sideEffectLevel: NONE|WRITE|COST|USER_CONFIRM
+ ├── sideEffectLevel: NONE|WRITE|COST|WRITE_COST|USER_CONFIRM
  ├── inputJson
  ├── outputJson
  ├── status
@@ -309,7 +309,7 @@ Agent 事件与现有转换事件并存，新增事件建议如下：
 
 ### Phase 0：文档与规范
 
-- 更新 `AGENT.md`，确立 `dev` 为伪 master。
+- 更新 `AGENT.md`，确立 `master` 为后续开发集成基线。
 - 新增本 spec。
 - 更新 `docs/technical-design.md`，记录 Agent 化演进方向。
 
@@ -321,7 +321,8 @@ Agent 事件与现有转换事件并存，新增事件建议如下：
 ### Phase 1：Tool Registry 与固定计划 Orchestrator
 
 - 新增 Tool Registry。
-- 把现有 service 能力包装为工具。
+- 采用双轨过渡：保留现有 `/api/screenplay/convert`，新增 Agent 转换入口验证固定计划 Agent。
+- 第一版使用薄 Agent 外壳，固定计划先通过粗粒度工具复用现有 `ScreenplayService` 能力。
 - 新增 Agent run 与 tool call trace。
 - 新增 Agent SSE 事件。
 - `ScreenplayConversionAgent` 用固定计划跑通现有主链路。
@@ -331,6 +332,15 @@ Agent 事件与现有转换事件并存，新增事件建议如下：
 - 原有 `/api/screenplay/convert` 行为不退化。
 - 新增 Agent 接口可完成同等转换。
 - trace 能看到工具调用顺序和失败点。
+
+Phase 1 第一版暂不做：
+
+- 不引入受限 planner。
+- 不做多 Agent 或 agents-as-tools。
+- 不引入 MCP server/client。
+- 不做前端 trace 面板。
+- 不替换现有 `/api/screenplay/convert`。
+- 不一次性拆分所有现有业务步骤为细粒度工具。
 
 ### Phase 2：受限 Planner
 

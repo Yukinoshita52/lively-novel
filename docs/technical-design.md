@@ -11,7 +11,7 @@
 > **v1.5 变更（§4 重写）**：结合原型逐屏，为全部 16 个接口补全请求/响应详细设计；接口列表增加「原型来源」列；新增 §4.2 通用约定（鉴权/JSON 包装/SSE 约定）；注册改为返回 token 自动登录；响应字段与 `yaml-schema.md` 全面对齐（ANIME 默认、schemaVersion、scriptBlocks 正文块）；补 ⑥⑨⑩⑪⑫⑬⑮⑯ 等此前缺失的接口示例。
 > **v1.6 变更（当前实现同步）**：补充 §4.0 当前实现基线，明确比赛 MVP 当前使用 `/api/screenplay/conversions/...` 转换详情、单场保存与 YAML 导出接口；标注 JWT、AI 单场重生、可读文本导出、完整人物/线索视图仍为后续扩展；同步失败后继续转换、语言漂移降级提示、`sourceText`/`visualizedInnerThoughts` 不进入导出 YAML 等已实现约束。
 > **v1.7 变更（滚动全局状态）**：当前实现放弃额外前置通读全文的阶段 A，改为在逐场生成后更新 conversion 级 `analysisStateJson`。最终 YAML 顶层 `plotSummary / characters / storylines` 从该滚动状态导出；内部 `contextSummary / activeCharacters / activeThreads / motifs / timeline / foreshadows` 只用于后续上下文，不进入导出 YAML。
-> **v1.8 变更（Agent 化演进）**：`dev` 分支作为伪 master 承接后续改造；当前实现仍定义为 LLM workflow，后续按 `docs/agent-transformation-spec.md` 分阶段引入 Agent 编排、Tool Registry、Trace、Guardrail、受限 Planner、MCP 与 Skill。
+> **v1.8 变更（Agent 化演进）**：`master` 分支承接后续改造；当前实现仍定义为 LLM workflow，`v1.0.0-ai-workflow` tag / Release 记录 Agent 化前的版本快照，后续按 `docs/agent-transformation-spec.md` 分阶段引入 Agent 编排、Tool Registry、Trace、Guardrail、受限 Planner、MCP 与 Skill。
 
 ---
 
@@ -1205,7 +1205,7 @@ Existing Services
 设计原则：
 
 - 现有 service 仍是业务能力来源，Agent 层不直接绕过 service 操作 repository。
-- 第一阶段只用固定 plan 复刻现有转换流程，先建立 trace 和工具边界。
+- 第一阶段采用双轨过渡：保留现有 `/api/screenplay/convert`，新增 Agent 入口用固定 plan 复刻现有转换流程，先建立 trace 和工具边界。
 - planner 只能选择白名单工具，且必须通过参数 schema、最大步数和副作用校验。
 - MCP 和 Skill 作为后续扩展，不能阻塞 Tool Registry 与 Orchestrator 的第一阶段落地。
 

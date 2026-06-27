@@ -41,8 +41,8 @@
 
 ### 3.1 基本原则
 
-- `dev` 是后续开发的伪 master / 集成基线，必须始终可运行。
-- `master` 视为冻结的稳定历史分支；除非用户明确要求发布或同步，否则不从 feature 直接向 `master` 合并。
+- `master` 是后续开发的集成基线，必须始终可运行。
+- `v1.0.0-ai-workflow` tag / Release 用于记录 Agent 化改造前的 AI Workflow 版本快照。
 - 以纵向切片推进，每个切片合入后都应端到端可演示。
 - 先从用户问题与演示价值推导方案，不直接堆功能。
 - 改字段前先对齐三处：`docs/yaml-schema.md`、`docs/technical-design.md`、代码 DTO/Model。
@@ -51,13 +51,13 @@
 
 ### 3.2 分支与提交节奏
 
-- 不直接在 `master` 或 `dev` 上开发功能。
-- 新 feature 分支必须基于最新 `dev` 创建，开发完成后提交 PR 合并回 `dev`。
-- 开始新分支前，先执行 `git fetch origin`，再确认本地 `dev` 与远端 `dev` 对齐。
+- 不直接在 `master` 上开发功能。
+- 新 feature 分支必须基于最新 `master` 创建，开发完成后提交 PR 合并回 `master`。
+- 开始新分支前，先执行 `git fetch origin`，再确认本地 `master` 与远端 `master` 对齐。
 - 分支命名：`feature-MuXue-xxx-yyy`
 - `xxx` 使用驼峰英文功能名，`yyy` 使用秒级时间戳，例如 `20260606T160500`
 - 每完成一个可验证小切片就提交，不能攒到最后一天统一导入。
-- PR 默认目标分支是 `dev`。只有明确发布或回灌稳定版时，才讨论 `dev -> master`。
+- PR 默认目标分支是 `master`。
 
 ### 3.3 本地运行与敏感信息
 
@@ -131,7 +131,7 @@
 ## 7. PR 规范
 
 - 执行 `git push` 和 `gh pr create` 前，先给出 PR 标题与正文草稿，等确认后再执行
-- PR 默认合并目标为 `dev`。
+- PR 默认合并目标为 `master`。
 - PR 正文从 `## 功能描述` 开始，不写 `## 标题`
 - 固定结构：
 
@@ -157,4 +157,4 @@
 - 真实前端页面在 `frontend/`，`docs/prototype/` 只是静态原型。
 - 章节分割属于纯代码逻辑，不放进 `LlmService`。
 - 版权测试材料只允许放在被忽略的本地目录，不进仓库。
-- `dev` 分支的目的不是重写项目，而是在稳定主链路上逐步引入 Agent 能力。
+- 后续 Agent 化改造基于 `master` 分支推进；每个切片都应保持稳定主链路可运行。
