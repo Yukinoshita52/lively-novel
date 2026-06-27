@@ -88,7 +88,7 @@ Lively Novel 是**七牛云 72h 项目开发**比赛的参赛作品，选题为*
 
 ### 5.3 Agent 化演进需求
 
-Agent 化是比赛 MVP 之后在 `dev` 分支上的长期演进目标，不改变题目要求的核心交付：结构化 YAML 剧本与 YAML Schema 文档。
+Agent 化是比赛 MVP 之后在 `master` 分支上的长期演进目标，不改变题目要求的核心交付：结构化 YAML 剧本与 YAML Schema 文档。
 
 | 需求 | 描述 | 价值 |
 |---|---|---|

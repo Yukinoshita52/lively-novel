@@ -126,6 +126,12 @@ public class ScreenplayServiceImpl implements ScreenplayService {
         return emitter;
     }
 
+    @Override
+    public String getLatestConversionId(String novelId, ScreenplayTypeEnum screenplayType) {
+        ScreenplayConversionDetailDTO detail = getLatestConversionSession(novelId, screenplayType);
+        return detail == null ? null : detail.getConversionId();
+    }
+
     void convertNovel(String novelId, ScreenplayTypeEnum screenplayType, SseEmitter emitter) {
         java.util.Optional<ScreenplayConversionEntity> reusableConversion = java.util.Optional.ofNullable(
                 conversionRepository.findFirstByNovelIdAndScreenplayTypeAndStatusInOrderByUpdatedAtDesc(
