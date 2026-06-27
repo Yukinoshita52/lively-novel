@@ -12,6 +12,8 @@ public interface ScreenplayService {
 
     SseEmitter convertNovel(String novelId, ScreenplayTypeEnum screenplayType);
 
+    String getLatestConversionId(String novelId, ScreenplayTypeEnum screenplayType);
+
     ScreenplayConversionDetailDTO getLatestConversionSession(String novelId, ScreenplayTypeEnum screenplayType);
 
     ScreenplayConversionDetailDTO getConversionDetail(String conversionId);
